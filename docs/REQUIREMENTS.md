@@ -138,7 +138,7 @@ Các nền tảng thương mại điện tử truyền thống đang thất bạ
 > **Priority:** `Must` = bắt buộc trước demo | `Should` = quan trọng, làm nếu kịp | `Could` = nice-to-have
 > Mỗi FR đủ rõ để developer implement mà không cần hỏi thêm.
 > Không đề cập công nghệ cụ thể (xem `TECH_STACK.md`).
-> **Tổng Must: 22 | Should: 29 | Could: 11**
+> **Tổng Must: 21 | Should: 27 | Could: 10**
 
 ---
 
@@ -213,17 +213,13 @@ Các nền tảng thương mại điện tử truyền thống đang thất bạ
 
 ---
 
-### 2.6 FR-MKTG — Module AI Marketing Automation
+### 2.6 FR-MKTG — Module Marketing
 
-- [ ] **FR-MKTG-01** `Must` [RFM Segmentation]: Phân đoạn khách hàng tự động theo RFM — hệ thống batch job (mặc định chạy hàng ngày) phân tích toàn bộ customer base theo 3 chiều: Recency (ngày kể từ lần mua cuối), Frequency (số lần mua trong 12 tháng), Monetary (tổng chi tiêu trong 12 tháng); tự động gán mỗi user vào segment: Champions / Loyal Customers / Potential Loyalists / At Risk / Cant Lose Them / Hibernating / Lost; admin xem phân phối user theo segment dưới dạng chart và bảng; click vào segment để xem danh sách user với thông tin: email, ngày mua cuối, tổng chi tiêu, segment hiện tại.
+- [ ] **FR-MKTG-01** `Should` [RFM Segmentation]: Phân đoạn khách hàng theo RFM — Marketing Manager bấm nút "Tính toán lại RFM" để trigger tính toán theo yêu cầu (không tự động theo lịch); hệ thống phân tích customer base theo Recency (ngày kể từ lần mua cuối), Frequency (số lần mua trong 12 tháng), Monetary (tổng chi tiêu trong 12 tháng) và gán mỗi user vào 1 trong 7 segment chuẩn (Champions / Loyal Customers / Potential Loyalists / At Risk / Cant Lose Them / Hibernating / Lost); admin xem phân phối user theo segment dưới dạng chart và bảng; click vào segment để xem danh sách user.
 - [ ] **FR-MKTG-02** `Should` [Custom Segmentation]: Tạo segment tùy chỉnh bằng Rule Builder — giao diện drag-and-drop cho phép Marketing Manager tạo custom segment bằng cách kết hợp các conditions: hành vi (xem sản phẩm trong category X trong N ngày gần nhất, đã mua / chưa mua sản phẩm trong category Y, có items trong wishlist, có đơn hàng đang xử lý), thuộc tính (tổng chi tiêu >= X, số lần mua >= Y, đăng ký trong Z ngày gần nhất, địa chỉ thuộc tỉnh/thành); kết hợp conditions bằng AND/OR; preview số lượng user khớp realtime trước khi lưu; segment được tính toán lại theo lịch hoặc on-demand.
-- [ ] **FR-MKTG-03** `Must` [Campaign Builder]: Tạo và quản lý chiến dịch — campaign gồm: tên, mô tả, target segment (chọn từ RFM hoặc custom segment), channel (email / push notification / SMS, có thể chọn nhiều), ngân sách tùy chọn, thời gian chạy (start date / end date); trạng thái campaign: Draft → Scheduled → Running → Paused → Completed; admin có thể pause/resume campaign đang chạy; duplicate campaign để tái sử dụng cấu hình; lịch sử tất cả campaigns với metrics tóm tắt.
-- [ ] **FR-MKTG-04** `Should` [Automation Triggers]: Trigger tự động theo hành vi — 6 loại trigger hệ thống: (1) `abandoned_cart`: user thêm vào giỏ nhưng không bắt đầu checkout sau thời gian cấu hình (mặc định 1 giờ); (2) `re_engagement`: user không có activity nào trong N ngày (mặc định 30 ngày); (3) `post_purchase`: N ngày sau đơn hàng đạt trạng thái DELIVERED (mặc định 3 ngày), dùng để upsell hoặc yêu cầu review; (4) `birthday`: ngày sinh nhật của user (nếu cung cấp trong profile); (5) `price_drop`: sản phẩm có trong wishlist của user giảm giá ít nhất X% (configurable); (6) `back_in_stock`: sản phẩm mà user đã xem khi hết hàng nay có hàng trở lại; mỗi trigger bật/tắt độc lập; mỗi user chỉ nhận trigger tối đa 1 lần trong N ngày (cooldown configurable) để tránh spam.
-- [ ] **FR-MKTG-05** `Could` [LLM Content Generation]: Sinh nội dung marketing bằng LLM — Marketing Manager cung cấp brief qua form: sản phẩm/promotion muốn quảng bá, target segment, tone of voice (professional / friendly / urgent / playful); LLM tạo ra: 3 gợi ý email subject line, 1 email body HTML template (với placeholder cho dynamic content), 1 push notification text (tối đa 100 ký tự); nội dung có thể chỉnh sửa trong rich text editor trước khi dùng; hệ thống lưu lịch sử generate theo campaign để tránh gửi nội dung trùng lặp; nếu LLM API không khả dụng, hiển thị thông báo lỗi và cho phép tạo nội dung thủ công.
-- [ ] **FR-MKTG-06** `Should` [Dynamic Personalization]: Cá nhân hóa nội dung theo người nhận — email/notification hỗ trợ dynamic content blocks: tên người nhận (từ profile), danh sách sản phẩm gợi ý từ AI Recommendation Engine (gọi FR-REC-05 theo batch trước khi gửi), ưu đãi phù hợp với loyalty tier của user, nội dung conditional theo segment (ví dụ: block A hiển thị cho Champions, block B cho At Risk); template engine hỗ trợ if/else conditions và loop qua danh sách sản phẩm; preview email render với dữ liệu của user cụ thể trước khi gửi.
-- [ ] **FR-MKTG-07** `Could` [Send-Time Optimization]: Tối ưu thời điểm gửi — model học từ lịch sử tương tác email/notification của user (giờ nào trong ngày, ngày nào trong tuần thường open/click); với mỗi campaign, Marketing Manager chọn 1 trong 3 mode: (a) Send Now, (b) Scheduled (chọn thời gian cố định cho tất cả), (c) AI Optimized (hệ thống gửi cho từng user vào thời điểm tốt nhất dự đoán trong vòng 24 giờ tới); mode AI Optimized yêu cầu user có ít nhất 5 lần tương tác email trước đó; user không đủ data sẽ nhận email theo giờ mặc định cấu hình được.
-- [ ] **FR-MKTG-08** `Could` [A/B Testing Campaigns]: A/B test tự động cho chiến dịch — Marketing Manager tạo test với tối đa 4 variants (A/B/C/D), mỗi variant có thể khác: subject line, email body, thời gian gửi, nội dung push notification; phân bổ traffic ngẫu nhiên và đồng đều (hoặc tùy chỉnh % per variant); tracking per-variant: delivery rate, open rate, CTR, conversion rate, revenue; hệ thống tính statistical significance tự động (p-value) và highlight winner khi đạt ngưỡng; Marketing Manager có thể set auto-promote: tự động gửi variant thắng cho phần audience chưa nhận khi đạt p-value < 0.05 và minimum sample size.
-- [ ] **FR-MKTG-09** `Should` [Multi-Channel Delivery]: Gửi đa kênh — (a) Email: gửi HTML email với plain-text fallback, tracking pixel cho open rate, UTM parameters cho click tracking; (b) Web Push Notification: gửi qua browser push API, user phải opt-in; hiển thị icon, title, body, action button; (c) SMS: chỉ gửi cho user đã verify số điện thoại và đã opt-in SMS marketing; SMS dùng cho trigger quan trọng như abandoned cart, giới hạn 1 SMS/user/ngày; unsubscribe 1-click theo chuẩn CAN-SPAM (email footer) và GDPR (manage preferences page); bounce và complaint tự động đưa email vào suppression list, không gửi lại.
+- [ ] **FR-MKTG-03** `Must` [Campaign Builder]: Tạo và quản lý chiến dịch — campaign gồm: tên, mô tả, target segment (chọn từ RFM hoặc custom segment), channel (email), thời gian chạy (start date / end date); trạng thái campaign: Draft → Scheduled → Running → Paused → Completed; admin có thể pause/resume campaign đang chạy; duplicate campaign để tái sử dụng cấu hình; lịch sử tất cả campaigns với metrics tóm tắt.
+- [ ] **FR-MKTG-06** `Could` [Basic Personalization]: Template email hỗ trợ dynamic variables cơ bản: `{{name}}`, `{{email}}`, `{{segment}}`; Marketing Manager preview email render với dữ liệu của 1 user cụ thể trước khi gửi.
+- [ ] **FR-MKTG-09** `Should` [Email Delivery]: Gửi email HTML campaign — gửi HTML email với plain-text fallback, tracking pixel cho open rate, UTM parameters cho click tracking; unsubscribe 1-click trong email footer theo chuẩn CAN-SPAM; bounce và complaint tự động đưa địa chỉ vào suppression list, không gửi lại. (Push notification và SMS không nằm trong scope Phase 1)
 - [ ] **FR-MKTG-10** `Should` [Campaign Analytics]: Báo cáo hiệu quả chiến dịch — dashboard per campaign: sent count, delivery rate (%), open rate (%), CTR (%), conversion rate (%), revenue attributed (last-click model), unsubscribe rate (%); chart timeline: metrics theo ngày trong suốt thời gian campaign chạy; so sánh metrics giữa các campaigns trong cùng khoảng thời gian; so sánh metrics giữa các segments nhận campaign; export báo cáo định dạng CSV; retention tracking: user nhận campaign có quay lại mua hàng trong 30 ngày hay không.
 
 ---
@@ -387,19 +383,17 @@ Các nền tảng thương mại điện tử truyền thống đang thất bạ
 |---|---|---|
 | Sprint 1 | 1–4 | FR-AUTH, FR-CATALOG, FR-CART |
 | Sprint 2 | 5–8 | FR-ORDER, FR-ANALYTICS (MVP), Admin Dashboard cơ bản |
-| Sprint 3 | 9–12 | FR-REC (full AI pipeline), FR-MKTG (segmentation + campaign builder + basic triggers) |
-| Sprint 4 | 13–16 | FR-MKTG (LLM content + A/B test + send-time opt), NFR testing, polish, demo prep |
+| Sprint 3 | 9–12 | FR-REC (full AI pipeline), FR-MKTG (segmentation + campaign builder) |
+| Sprint 4 | 13–16 | FR-MKTG (email delivery + basic analytics), NFR testing, polish, demo prep |
 
 ### 5.3 Third-Party Dependencies
 
 | Dependency | Mục Đích | Ràng Buộc |
 |---|---|---|
-| LLM API Provider | Sinh nội dung marketing (FR-MKTG-05) | Cần API key; sử dụng free tier hoặc low-cost quota; có fallback manual |
 | Payment Gateway (sandbox) | Xử lý thanh toán test (FR-CART-05) | Chỉ sandbox credentials, không live |
-| Transactional Email Service | Gửi email xác nhận, notification (FR-CART-06, FR-ORDER-03) | Free tier đủ cho môi trường demo |
+| Transactional Email Service | Gửi email xác nhận, notification (FR-CART-06, FR-ORDER-03, FR-MKTG-09) | Free tier đủ cho môi trường demo |
 | SMS Provider | OTP 2FA + order notification SMS (FR-AUTH-03, FR-ORDER-03) | Optional — có thể mock trong Phase 1 |
 | Object Storage | Lưu ảnh sản phẩm, ảnh review, packing slips | Free tier storage hoặc self-hosted |
-| Web Push Service | Browser push notification (FR-MKTG-09) | Có thể tự host (VAPID key-based), không cần third-party |
 
 ---
 
@@ -435,9 +429,9 @@ Các tính năng sau đây **KHÔNG** được triển khai trong Phase 1:
 | | FR-CART | 8 |
 | | FR-ORDER | 8 |
 | | FR-REC | 10 |
-| | FR-MKTG | 10 |
+| | FR-MKTG | 6 |
 | | FR-ANALYTICS | 8 |
-| **Tổng Functional Requirements** | | **62** (Must: 22 / Should: 29 / Could: 11) |
+| **Tổng Functional Requirements** | | **58** (Must: 21 / Should: 27 / Could: 10) |
 | **Non-Functional Requirements** | Performance | 9 |
 | | Scalability | 8 |
 | | Security | 10 |

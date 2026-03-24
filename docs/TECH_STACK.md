@@ -52,25 +52,22 @@
 | AI Service Language | Python | 3.11 | ML training + inference | — |
 | AI Inference Framework | FastAPI | 0.111.x | REST inference + model hot-reload | Render.com (free) |
 | Recommendation (CF) | LightFM | 1.17 | Collaborative filtering, hybrid mode | — |
-| Recommendation (CBF) | scikit-learn + sentence-transformers | sklearn 1.4 | Content-based filtering, Vietnamese text | — |
-| ML Job Scheduler | Celery | 5.x | Daily training pipeline, batch jobs | — |
-| LLM Content Gen | Google Gemini 1.5 Flash | latest | Marketing content generation (FR-MKTG-05) | API (free 1M tok/day) |
+| Recommendation (CBF) | scikit-learn (TF-IDF + cosine sim) | sklearn 1.4 | Content-based filtering, Vietnamese text | — |
+| ML Job Scheduler | GitHub Actions cron | — | Daily training pipeline (02:00 ICT) | GitHub (free) |
 | Primary Database | MongoDB Atlas | 7.x (M0 free) | Document store, flexible schema | MongoDB Atlas M0 |
 | ODM | Mongoose | 8.x | Schema validation + queries trong NestJS | — |
-| Cache + Queue broker | Redis | 7.x | Sessions, rec cache, rate-limit, BullMQ | Upstash (free) |
-| Background Jobs (Node) | BullMQ | 5.x | Email jobs, inventory alerts, search sync | — |
-| Event Pipeline | Redis Streams | Redis 7 | Behavioral event ingestion (167 ev/sec) | — |
-| Search Engine | Meilisearch | 1.8.x | Full-text search, Vietnamese support | Meilisearch Cloud (free) |
+| Cache + Queue broker | Redis | 7.x | AI rec cache, feature store, BullMQ (email) | Upstash (free) |
+| Background Jobs (Node) | BullMQ | 5.x | Email queue only | — |
+| Search Engine | MongoDB Atlas Search | 7.x | Full-text search, Vietnamese collation | MongoDB Atlas M0 (included) |
 | Object Storage | Cloudflare R2 | — | Product images + ML model artifacts | Cloudflare (free 10GB) |
 | CDN | Cloudflare | — | Static assets, DDoS, SSL termination | Cloudflare (free) |
 | Containerization | Docker + Docker Compose | 26.x | Local dev environment | Self-hosted |
 | CI/CD | GitHub Actions | — | Lint, test, deploy pipeline | GitHub (free) |
 | Error Tracking | Sentry | — | Exception monitoring FE + BE | Sentry (free 5k/mo) |
-| Metrics | Grafana Cloud | — | Infra metrics + AI CTR dashboard | Grafana (free) |
+| Metrics | Admin Dashboard (in-app) | — | AI CTR + revenue metrics | Self-hosted ($0) |
 | Email | Resend | — | Transactional + marketing email | Resend (free 3k/mo) |
 | Push Notifications | Web Push VAPID | — | Browser push, order status (FR-NOTIF-03) | Self-hosted ($0) |
-| Payment (VN) | VNPay + Momo | — | VN market payment (FR-CART-05) | Sandbox (free) |
-| Address/Geo | Goong.io | — | Address autocomplete + geocoding | Free 200k/mo |
+| Payment (VN) | VNPay | — | VN market payment (FR-CART-05) | Sandbox (free) |
 
 ---
 
@@ -97,32 +94,26 @@
 │   CSR cart/account  │       └───────────────┬──────────────┘
 └─────────────────────┘                       │
                                               │
-              ┌───────────────────────────────┼──────────────────┐
-              ▼                               ▼                  ▼
-┌─────────────────────┐       ┌───────────────────────┐  ┌────────────────┐
-│  MongoDB Atlas M0   │       │  Redis 7 (Upstash)    │  │  Meilisearch   │
-│  (free — 512MB)     │       │  (free — 10k cmd/day) │  │  Cloud (free)  │
-│  Primary DB         │       │  ┌─────────────────┐  │  │  100k docs     │
-│  Mongoose ODM       │       │  │ Cache: sessions │  │  │  Vietnamese    │
-│  Atlas Search incl. │       │  │ Cache: rec/prod │  │  │  tokenizer     │
-│  Aggregation pipe.  │       │  │ BullMQ jobs     │  │  └────────────────┘
-└─────────────────────┘       │  │ Rate limiting   │  │
-                              │  │ Redis Streams   │  │
-                              │  │ Feature store   │  │
-                              │  └────────┬────────┘  │
-                              └───────────┼───────────┘
-                                          │ Redis Streams
-                                          │ behavioral:events
-                                          ▼
+              ┌───────────────────────────────┼──────────────┐
+              ▼                               ▼              │
+┌─────────────────────┐       ┌───────────────────────┐      │
+│  MongoDB Atlas M0   │       │  Redis 7 (Upstash)    │      │
+│  (free — 512MB)     │       │  (free — 10k cmd/day) │      │
+│  Primary DB         │       │  ┌─────────────────┐  │      │
+│  Mongoose ODM       │       │  │ Cache: AI rec   │  │      │
+│  Atlas Search incl. │       │  │ Feature store   │  │      │
+│  Aggregation pipe.  │       │  │ BullMQ (email)  │  │      │
+└─────────────────────┘       │  └─────────────────┘  │      │
+                              └───────────────────────┘      │
+                                                             │ internal HTTP
+                                                             ▼
                           ┌─────────────────────────────────┐
                           │   FastAPI AI Service             │
                           │   Python 3.11 — Render.com      │
                           │   ┌──────────────────────────┐  │
                           │   │  LightFM (CF — WARP/BPR) │  │
-                          │   │  scikit-learn (CBF)      │  │
-                          │   │  sentence-transformers   │  │
-                          │   │  Celery workers          │  │
-                          │   │  Celery beat (cron)      │  │
+                          │   │  scikit-learn TF-IDF+CBF  │  │
+                          │   │  ~270MB total memory      │  │
                           │   └──────────────────────────┘  │
                           └─────────────────┬───────────────┘
                                             │ model artifacts (.pkl/.npz)
@@ -135,16 +126,21 @@
                                └──────────────────────┘
 
 EXTERNAL SERVICES:
-  VNPay · Momo (sandbox) · Resend (email) · Gemini 1.5 Flash · Goong.io
+  VNPay (sandbox) · Resend (email)
+
+TRAINING PIPELINE (offline):
+  GitHub Actions cron (daily 02:00 ICT)
+    → Python script: fetch MongoDB → train LightFM + rebuild TF-IDF
+    → upload .pkl to R2 → POST /internal/reload-model → FastAPI
 ```
 
 **Luồng request chính:**
 1. Browser → Cloudflare → Next.js (SSR/SSG page)
 2. Client JS → Cloudflare → NestJS REST `/api/v1/*`
-3. NestJS → MongoDB (read/write) + Redis (cache hit) + Meilisearch (search)
-4. NestJS → BullMQ → background jobs (email, inventory alert, search index sync)
-5. NestJS publish behavioral event → Redis Streams → FastAPI Celery consumer
-6. FastAPI `/recommend` → Redis feature store (< 5ms) → LightFM + CBF → cache in Redis → return
+3. NestJS → MongoDB (read/write + Atlas Search) + Redis (AI cache hit)
+4. NestJS → BullMQ → email-queue → Resend
+5. NestJS → POST /api/v1/events → MongoDB async write (behavioral events)
+6. FastAPI `/recommend` → Redis feature store (< 5ms) → LightFM + TF-IDF CBF → cache in Redis → return
 
 ---
 
@@ -265,10 +261,15 @@ EXTERNAL SERVICES:
 
 | Queue | Trigger | Job |
 |---|---|---|
-| `email-queue` | Order placed, campaign | Resend email via React Email template |
-| `inventory-queue` | Stock < threshold | Alert notification to admin |
-| `search-sync-queue` | Product create/update | Sync document to Meilisearch |
-| `analytics-queue` | End of day | Aggregate metrics into MongoDB |
+| `email-queue` | Order placed, campaign, abandoned cart | Resend email via React Email template |
+
+> **Giảm từ 4 queues xuống 1 để tiết kiệm Upstash Redis commands (10k/day limit).**
+> Mỗi BullMQ job lifecycle = ~15 Redis commands (ADD + STATUS + COMPLETE + CLEANUP).
+>
+> Các job cũ chuyển sang cơ chế nhẹ hơn:
+> - `inventory-queue` → `EventEmitter2` + in-process handler (không cần queue persistence)
+> - `search-sync-queue` → Bỏ (dùng MongoDB Atlas Search — data đã trong MongoDB, không cần sync)
+> - `analytics-queue` → `@nestjs/schedule` cron job (EOD aggregation chạy trực tiếp, không cần queue)
 
 **Tại sao KHÔNG chọn:**
 - **Express:** Không có DI, không có structure → mỗi developer tổ chức code khác nhau → khó maintain
@@ -337,29 +338,54 @@ User request → FastAPI /recommend?user_id=X&placement=homepage
 
 ---
 
-### 5.3 Content-Based Filtering — scikit-learn + sentence-transformers
+### 5.3 Content-Based Filtering — scikit-learn TF-IDF
 
 | Component | Chi Tiết |
 |---|---|
-| **Text model** | `paraphrase-multilingual-MiniLM-L12-v2` — hỗ trợ tiếng Việt (FR-CATALOG-04) |
-| **Feature vector** | `[category_onehot] + [text_embedding(256d)] + [tag_overlap] + [price_tier_onehot]` |
-| **Similarity** | Cosine similarity matrix — rebuilt nightly |
-| **Storage** | Similarity matrix → Redis (top-50 similar per item), full matrix → Cloudflare R2 |
+| **Text model** | `TfidfVectorizer` (scikit-learn) — tokenize tiếng Việt bằng `underthesea` hoặc whitespace split |
+| **Feature vector** | `[category_onehot] + [tfidf_text(name+description)] + [tag_overlap] + [price_tier_onehot]` |
+| **Similarity** | Cosine similarity matrix (`sklearn.metrics.pairwise.cosine_similarity`) — rebuilt nightly |
+| **Storage** | Similarity matrix `.npz` → Cloudflare R2, top-50 similar per item precomputed |
+
+**Tại sao TF-IDF thay vì sentence-transformers:**
+- `paraphrase-multilingual-MiniLM-L12-v2` cần ~470-500MB RAM chỉ cho model weights → **vượt Render.com 512MB free tier**
+- TF-IDF + cosine similarity chỉ cần ~5-10MB memory — fit thoải mái trong 512MB
+- Với scale demo (< 500 products), chất lượng TF-IDF đủ tốt cho similar items
+- LightFM (CF) vẫn là model chính (α=0.7 cho homepage) → CBF chỉ bổ trợ
+
+**Tại sao KHÔNG chọn sentence-transformers:**
+- **Memory:** Model weights ~470MB + tokenizer + runtime > 512MB Render free tier
+- **Cold start:** Load model mất 10-15s → ảnh hưởng Render spin-up time
+- Overkill cho catalog < 10,000 items ở scale demo
 
 ---
 
-### 5.4 ML Training Pipeline — Celery 5.x
+### 5.4 ML Training Pipeline — GitHub Actions Cron
 
-**Task chain (daily 02:00 ICT):**
-```
-fetch_features_from_mongo
-    → train_CF_model (LightFM, ~10 min)
-    → evaluate_CF (precision@10, recall@10)
-    → promote_if_better (compare với model hiện tại)
-    → rebuild_CBF_similarity_matrix (~5 min)
-    → upload_artifacts_to_r2 (model .pkl files)
-    → update_model_version_in_mongo
-    → notify_health_endpoint
+**Tại sao KHÔNG dùng Celery:**
+- Celery Worker + Celery Beat = 2 process riêng biệt, mỗi process chiếm ~100-200MB RAM
+- Cộng thêm FastAPI uvicorn → 3 processes trên 512MB Render → **OOM-kill**
+- Celery cần Redis broker → thêm Redis commands vào quota 10k/day
+- GitHub Actions free: 2,000 min/month, training ~15min/day = 450min/month — dư thừa
+
+**Task chain (GitHub Actions cron — daily 02:00 ICT):**
+```yaml
+# .github/workflows/ml-training.yml
+schedule:
+  - cron: '0 19 * * *'  # 19:00 UTC = 02:00 ICT (UTC+7)
+
+steps:
+  - checkout repo
+  - pip install -r apps/ai-service/requirements.txt
+  - python scripts/train_pipeline.py
+    # 1. fetch_features_from_mongo (behavioral_events last 90 days)
+    # 2. train_CF_model (LightFM WARP, ~10 min)
+    # 3. evaluate_CF (precision@10, recall@10)
+    # 4. promote_if_better (compare với model hiện tại)
+    # 5. rebuild_CBF_similarity_matrix (TF-IDF, ~2 min)
+    # 6. upload_artifacts_to_r2 (.pkl + .npz files)
+    # 7. update_model_version_in_mongo
+    # 8. POST /internal/reload-model → FastAPI hot-reload
 ```
 
 **Model Registry — đơn giản, không cần MLflow:**
@@ -376,7 +402,7 @@ fetch_features_from_mongo
 | **Online** (inference) | Redis Hash `features:user:{id}` | 2h | recent_views[], purchase_categories[], price_range, segment_id |
 | **Offline** (training) | MongoDB collection `feature_snapshots` | Append-only | Daily snapshot cho training dataset |
 
-Freshness SLA: Celery hourly job cập nhật online features. Alert nếu lag > 3h (FR-REC-10).
+Freshness SLA: `@nestjs/schedule` cron job mỗi giờ cập nhật online features từ MongoDB → Redis. Alert nếu lag > 3h (FR-REC-10).
 
 ---
 
@@ -385,34 +411,22 @@ Freshness SLA: Celery hourly job cập nhật online features. Alert nếu lag >
 ```
 Browser click/view/purchase
     → POST /api/v1/events (NestJS)
-    → Redis XADD behavioral:events (MAXLEN 50,000)
-    → Celery consumer (batch read every 5s OR 500 events)
-    → MongoDB bulk insert behavioral_events collection
+    → async MongoDB insertOne (fire-and-forget, không block response)
+    → behavioral_events collection (TTL 90 days)
 ```
 
-**Tại sao KHÔNG dùng Kafka:**
-- Peak load: 5,000 users × ~2 events/min = ~167 events/sec
-- Redis Streams XADD throughput: >100,000 events/sec
-- Kafka minimum viable deployment: 3 broker nodes, ZooKeeper — zero free hosting option
-- Redis Streams đủ cho load này, đã có sẵn trong Redis instance
+**Tại sao ghi trực tiếp MongoDB thay vì Redis Streams:**
+- Scale demo: ~10-50 users → ~20-100 events/phút — MongoDB insertOne dư sức xử lý
+- Bỏ Redis Streams = tiết kiệm ~500+ Redis commands/day (quan trọng với Upstash 10k limit)
+- Bỏ Celery consumer = giảm 1 process, giảm complexity
+- MongoDB `insertOne` async: ~2-5ms, không block web response
+- Nếu cần batch insert sau này: dùng NestJS `@nestjs/schedule` cron job buffer
+
+**Tại sao KHÔNG dùng Kafka:** (giữ nguyên lý do)
+- Kafka minimum viable deployment: 3 broker nodes, ZooKeeper — zero free hosting
+- Overkill cho scale demo
 
 ---
-
-### 5.7 LLM — Google Gemini 1.5 Flash API
-
-| Thuộc Tính | Giá Trị |
-|---|---|
-| **Model** | `gemini-1.5-flash` |
-| **Free tier** | 1,000,000 tokens/day, 15 req/min — đủ cho demo |
-| **Use case** | Marketing email subject + body generation (FR-MKTG-05) |
-| **Interface** | `ILLMProvider` trong NestJS → swap sang Claude/OpenAI bằng 1 dòng config |
-| **Fallback** | 503 + message "Please create content manually" nếu API unavailable |
-
-**Tại sao KHÔNG chọn OpenAI:**
-- Yêu cầu thẻ tín dụng + billing setup từ token đầu tiên
-- Không phù hợp cho sinh viên không có thẻ Visa quốc tế
-- Gemini 1.5 Flash: comparable quality với GPT-4o-mini cho marketing copywriting
-- Google AI Studio cấp API key miễn phí hoàn toàn, không cần billing
 
 ---
 
@@ -475,64 +489,78 @@ Browser click/view/purchase
 | **Free tier** | 10,000 commands/day, 256MB |
 | **Access** | HTTP REST API + Redis protocol |
 
-**7 use cases, phân tách bằng key prefix:**
+**3 use cases duy nhất (tối ưu cho Upstash 10k commands/day):**
 
-| Use Case | Key Pattern | TTL | Target |
+| Use Case | Key Pattern | TTL | Ước tính cmds/day |
 |---|---|---|---|
-| Sessions | `sess:{sessionId}` | 24h | — |
-| AI Rec cache | `rec:{userId}:{placement}` | 10 min | 80% cache hit |
-| Product cache | `product:{productId}` | 1h | 90% cache hit |
-| Category cache | `cat:{slug}` | 3600s | — |
-| Rate limiting | `rl:{ip}:{endpoint}` | Sliding 1 min | — |
-| BullMQ jobs | `bull:{queueName}:*` | Managed by BullMQ | — |
-| Redis Streams | `behavioral:events` | MAXLEN 50,000 | Event buffer |
-| Feature store | `features:user:{id}` | 2h | < 5ms read |
+| AI Rec cache | `rec:{userId}:{placement}` | 10 min | ~500-1,000 |
+| Feature store | `features:user:{id}` | 2h | ~200-500 |
+| BullMQ (email) | `bull:email-queue:*` | Managed | ~200-500 |
+| Fallback popular | `fallback:popular:{placement}` | 1h | ~50-100 |
+| **Tổng ước tính** | | | **~1,000-2,100** |
+
+> **Giải thích tại sao giảm từ 7 xuống 3 use cases chính:**
+>
+> | Use case cũ | Chuyển sang | Lý do |
+> |---|---|---|
+> | Sessions (`sess:*`) | MongoDB collection `sessions` + JWT-only | Tiết kiệm ~300+ cmds/day; MongoDB TTL index tự cleanup |
+> | Product cache (`product:*`) | `node-cache` (in-memory NestJS) | Tiết kiệm ~500+ cmds/day; TTL 5min; đủ cho single instance |
+> | Category cache (`cat:*`) | `node-cache` (in-memory NestJS) | Ít categories, ít thay đổi → in-memory cache đủ |
+> | Rate limiting (`rl:*`) | `@nestjs/throttler` memory store | Default behavior, không cần Redis; đủ cho single instance |
+> | Redis Streams | Direct MongoDB async write | Tiết kiệm ~500+ cmds/day; scale demo không cần buffering |
 
 **Upstash vs self-hosted Redis:**
 - Upstash: serverless, free 10k cmd/day, không cần manage Redis server, HTTP REST API (phù hợp Render.com)
 - Self-hosted: free nhưng cần 1 server slot trên Render (đã dùng cho NestJS và FastAPI)
+- Với chiến lược tối ưu trên, **~2,000 cmds/day << 10,000 limit** — an toàn ngay cả khi demo đông người
 
 ---
 
-### 6.3 Search Engine — Meilisearch 1.8
+### 6.3 Search Engine — MongoDB Atlas Search (thay Meilisearch)
 
 | Thuộc Tính | Giá Trị |
 |---|---|
-| **Version** | 1.8.x |
-| **Hosting** | Meilisearch Cloud (free — 100k documents) |
-| **Latency** | < 50ms (FR-CATALOG-04) |
+| **Version** | MongoDB 7.x Atlas Search |
+| **Hosting** | Included free trong MongoDB Atlas M0 |
+| **Latency** | ~100-150ms (trong NFR target p95 < 300ms) |
 
-**Index config:**
+**Tại sao chuyển từ Meilisearch sang Atlas Search:**
+- **Giảm 1 external service** → giảm complexity, giảm số API keys cần quản lý
+- Atlas Search **included free** trong M0 — không cần thêm account hay cấu hình riêng
+- Data đã ở MongoDB → **không cần sync pipeline** (bỏ `search-sync-queue` khỏi BullMQ)
+- Latency ~100-150ms vẫn tốt cho NFR target (p95 < 300ms)
+- Vietnamese Unicode collation support
+
+**Atlas Search Index config:**
 
 ```json
 {
-  "index": "products",
-  "searchableAttributes": ["name", "description", "tags", "categoryPath"],
-  "filterableAttributes": ["categoryId", "price", "brand", "inStock", "attributes.*"],
-  "sortableAttributes": ["price", "createdAt", "soldCount", "rating"],
-  "rankingRules": ["words", "typo", "proximity", "attribute", "sort", "exactness"],
-  "typoTolerance": { "enabled": true, "minWordSizeForTypos": { "oneTypo": 4, "twoTypos": 8 } }
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "name": { "type": "string", "analyzer": "lucene.standard" },
+      "description": { "type": "string", "analyzer": "lucene.standard" },
+      "tags": { "type": "string", "analyzer": "lucene.keyword" },
+      "categoryId": { "type": "objectId" },
+      "status": { "type": "string" },
+      "variants.price": { "type": "number" }
+    }
+  }
 }
 ```
 
-**Vietnamese support:** Meilisearch 1.8 dùng Unicode word segmentation — không cần custom tokenizer cho tiếng Việt không dấu. Typo tolerance xử lý `"ao" → "áo"` qua phonetic similarity rules.
-
-**Fallback:** Nếu Meilisearch Cloud down → MongoDB `$text` search với Vietnamese collation (chậm hơn ~200ms nhưng available).
-
 **Tại sao KHÔNG chọn:**
-- **Elasticsearch:** Free tier không tồn tại (Elastic Cloud 14-day trial); self-host cần 2GB RAM minimum — không phù hợp free tier
-- **Typesense Cloud:** Free tier chỉ 10k documents — không đủ cho catalog demo
-- **MongoDB Atlas Search:** Included free, nhưng latency cao hơn Meilisearch (~150ms vs ~30ms) và không có native Vietnamese tokenizer
+- **Meilisearch Cloud:** Latency tốt hơn (~30ms) nhưng thêm 1 service + cần sync pipeline (BullMQ queue) → tốn thêm Redis commands trên Upstash 10k/day limit
+- **Elasticsearch:** Free tier không tồn tại; self-host cần 2GB RAM minimum
+- **Typesense Cloud:** Free tier chỉ 10k documents
 
----
+### 6.4 Behavioral Event Ingestion — Direct MongoDB (thay Redis Streams)
 
-### 6.4 Message Broker — Redis Streams (thay Kafka)
-
-Không cần Kafka riêng. Redis Streams đủ cho:
-- **Throughput:** 167 events/sec vs Redis Streams capacity > 100k/sec
-- **Consumer groups:** Celery workers consume từ `behavioral:events` stream
-- **Retention:** MAXLEN 50,000 messages (~5 phút buffer)
-- **Zero additional service:** Đã có Redis từ cache/BullMQ
+Không cần message broker riêng cho behavioral events:
+- **Scale demo:** ~20-100 events/phút — MongoDB `insertOne` async dư sức
+- **Tiết kiệm Redis commands:** XADD + XREADGROUP + XACK = ~3 cmds/batch → tiết kiệm ~500+ cmds/day
+- **Giảm complexity:** Bỏ Celery consumer, bỏ Redis Streams config
+- **Đủ cho ML training:** GitHub Actions cron query trực tiếp MongoDB `behavioral_events` collection
 
 ---
 
@@ -544,20 +572,17 @@ Không cần Kafka riêng. Redis Streams đủ cho:
 |---|---|---|---|
 | Frontend (Next.js) | **Vercel** | 100GB bandwidth, unlimited SSR | — |
 | API Server (NestJS) | **Render.com** | 750 hrs/month, 512MB RAM | Spin-down 15 min idle |
-| AI Service (FastAPI+Celery) | **Render.com** | 750 hrs/month, 512MB RAM | Spin-down 15 min idle |
-| Primary DB | **MongoDB Atlas M0** | 512MB, no expiry | Shared cluster, không replica set |
-| Cache + Queue | **Upstash Redis** | 10k commands/day, 256MB | Serverless, cold start ~20ms |
-| Search | **Meilisearch Cloud** | 100k documents | — |
+| AI Service (FastAPI) | **Render.com** | 750 hrs/month, 512MB RAM | Spin-down 15 min idle; ~270MB used |
+| Primary DB + Search | **MongoDB Atlas M0** | 512MB, no expiry, Atlas Search included | Shared cluster, không replica set |
+| Cache + Queue | **Upstash Redis** | 10k commands/day, 256MB | Chỉ dùng ~2k cmds/day (đã tối ưu) |
 | Object Storage | **Cloudflare R2** | 10GB, 10M reads/month | — |
 | CDN + SSL + DDoS | **Cloudflare** | Always free | — |
 | CI/CD | **GitHub Actions** | 2,000 min/month | — |
 | Error Tracking | **Sentry** | 5k events/month | — |
-| Metrics + Dashboards | **Grafana Cloud** | 10k series, 14-day retention | — |
 | Email | **Resend** | 3,000 emails/month | — |
-| LLM | **Google Gemini 1.5 Flash** | 1M tokens/day, 15 req/min | — |
-| Payment | **VNPay + Momo sandbox** | Free (sandbox mode) | Không real money |
+| Payment | **VNPay sandbox** | Free (sandbox mode) | Không real money |
 | Push Notification | **Web Push VAPID** | Self-hosted | $0 |
-| Address/Geo | **Goong.io** | 200k calls/month | — |
+| ML Training | **GitHub Actions** | (shared with CI/CD) ~450 min/month | Daily 02:00 ICT |
 | Uptime monitoring | **UptimeRobot** | 50 monitors, 5-min interval | Workaround Render spin-down |
 | **TOTAL** | | | **$0/month** |
 
@@ -582,12 +607,12 @@ UptimeRobot (free) ping `GET /health` mỗi 5 phút → service không bao giờ
 services:
   mongodb:       # mongo:7 — port 27017
   redis:         # redis:7-alpine — port 6379
-  meilisearch:   # getmeili/meilisearch:v1.8 — port 7700
   nestjs:        # custom Dockerfile, hot-reload với ts-node-dev
   nextjs:        # custom Dockerfile, next dev
   fastapi:       # custom Dockerfile, uvicorn --reload
-  celery:        # same image as fastapi, celery worker + beat
 ```
+
+> **Đã bỏ:** `meilisearch` (dùng MongoDB Atlas Search), `celery` (dùng GitHub Actions cron)
 
 **Multi-stage Dockerfiles:**
 - `nestjs/Dockerfile`: `node:20-alpine` base → `npm ci` → `tsc build` → copy `dist/` → production image
@@ -611,6 +636,13 @@ cd-staging.yml      (trigger: push → develop)
 cd-production.yml   (trigger: push → main)
   ├── Build + push images
   └── Deploy to Render.com production + Vercel production
+
+ml-training.yml     (trigger: cron 0 19 * * * = 02:00 ICT daily)
+  ├── Fetch behavioral_events from MongoDB
+  ├── Train LightFM CF model + rebuild TF-IDF CBF matrix
+  ├── Evaluate + promote if better
+  ├── Upload artifacts to Cloudflare R2
+  └── POST /internal/reload-model → FastAPI hot-reload
 ```
 
 ---
@@ -620,27 +652,32 @@ cd-production.yml   (trigger: push → main)
 | Tool | Mục Đích | Metrics Quan Trọng |
 |---|---|---|
 | **Sentry** (free) | Exception tracking FE + BE | Error rate, source maps, stack traces |
-| **Grafana Cloud** (free) | Infra metrics + AI performance | AI CTR (FR-REC-02), p95 latency, cache hit rate |
+| **Admin Dashboard** (in-app) | AI performance + business metrics | AI CTR (FR-REC-02), revenue, orders, cache hit rate |
 | **Render.com dashboard** | Container health, deploy logs | CPU, memory, request count |
 | **UptimeRobot** (free) | Availability monitoring | Uptime %, response time |
 
-**Custom Grafana dashboard — AI CTR (BG-02):**
-- Data source: MongoDB Atlas metrics + custom `/metrics` endpoint NestJS
-- Panels: Recommendation CTR by placement, cache hit rate, model version active
+**In-app Admin Dashboard (thay Grafana Cloud):**
+- Tích hợp trực tiếp trong AnalyticsModule → admin UI
+- Data source: MongoDB aggregation pipeline trực tiếp
+- Giảm 1 external service, dữ liệu realtime hơn
 
 ---
 
 ## 8. Third-Party Services
 
-### 8.1 Payment — VNPay + Momo
+### 8.1 Payment — VNPay (sandbox only)
 
 | Thuộc Tính | Chi Tiết |
 |---|---|
 | **Primary** | VNPay QR + ATM card (FR-CART-05) |
-| **Secondary** | Momo e-wallet |
-| **Architecture** | `IPaymentGateway` interface → `VNPayAdapter`, `MomoAdapter` |
+| **Architecture** | `IPaymentGateway` interface → `VNPayAdapter` (extensible cho Momo sau nếu cần) |
 | **Phase 1** | Sandbox mode — không real money |
 | **Webhook** | Signed HMAC-SHA512 callback → verify + update order status |
+
+**Tại sao chỉ VNPay (bỏ Momo Phase 1):**
+- VNPay đã cover QR + ATM + Internet Banking → đủ cho demo
+- Thêm Momo = thêm 1 adapter + 1 sandbox account + webhook config → phức tạp không cần thiết
+- `IPaymentGateway` interface cho phép thêm `MomoAdapter` sau mà không cần refactor
 
 **Tại sao KHÔNG Stripe:** Không support VN cards; thẻ Visa quốc tế không phổ biến với target users VN.
 
@@ -671,11 +708,12 @@ SMS (ESMS.vn) bị loại hoàn toàn khỏi Phase 1. Lý do: tính phí per-SMS
 
 ---
 
-### 8.5 Address / Geo — Goong.io
+### 8.5 Address — Static JSON (Bỏ Goong.io)
 
-- 200,000 free calls/month — đủ cho demo (< 10,000 users)
-- Address autocomplete: VN-specific (thôn/xã/huyện/tỉnh hierarchy)
-- `provinces-api` (static JSON) cho province/district dropdowns — không cần API call
+- Dùng `provinces-api` static JSON cho province/district/ward dropdowns — **không cần API call, $0**
+- Giảm 1 external service dependency
+- User nhập địa chỉ chi tiết (đường/số nhà) thủ công — đủ cho e-commerce demo
+- Nếu cần autocomplete sau: thêm Goong.io adapter (200k calls/month free)
 
 ---
 
@@ -683,7 +721,7 @@ SMS (ESMS.vn) bị loại hoàn toàn khỏi Phase 1. Lý do: tính phí per-SMS
 
 ### Decision 1 — Backend Framework
 
-**Bối cảnh:** Team TypeScript/Node.js. Cần structure cho 62 FRs. 16 tuần. Solo developer.
+**Bối cảnh:** Team TypeScript/Node.js. Cần structure cho ~40 FRs. 16 tuần. Solo developer.
 
 | Framework | Team Fit (30%) | Code Structure (30%) | Ecosystem (20%) | Performance (10%) | Learning Curve (10%) | **Tổng** |
 |---|---|---|---|---|---|---|
@@ -692,7 +730,7 @@ SMS (ESMS.vn) bị loại hoàn toàn khỏi Phase 1. Lý do: tính phí per-SMS
 | Fastify 4 | 7 | 5 | 7 | 10 | 7 | 6.5 |
 | Hono 4 | 5 | 4 | 5 | 10 | 6 | 5.2 |
 
-**Verdict:** NestJS — DI + Module system = cấu trúc rõ ràng cho 62 FRs, team không cần thoả thuận về architecture conventions.
+**Verdict:** NestJS — DI + Module system = cấu trúc rõ ràng cho ~40 FRs, team không cần thoả thuận về architecture conventions.
 
 ---
 
@@ -737,21 +775,17 @@ SMS (ESMS.vn) bị loại hoàn toàn khỏi Phase 1. Lý do: tính phí per-SMS
 |---|---|---|---|
 | Frontend (Next.js SSR/SSG/ISR) | Vercel | Free | $0 |
 | API Server (NestJS REST) | Render.com | Free (750 hrs) | $0 |
-| AI Service (FastAPI + Celery) | Render.com | Free (750 hrs) | $0 |
-| Primary Database (MongoDB) | MongoDB Atlas M0 | Free (512MB, no expiry) | $0 |
-| Cache + Queue (Redis) | Upstash | Free (10k cmd/day) | $0 |
-| Search Engine | Meilisearch Cloud | Free (100k docs) | $0 |
+| AI Service (FastAPI — no Celery) | Render.com | Free (750 hrs) | $0 |
+| Primary Database + Search | MongoDB Atlas M0 | Free (512MB, Atlas Search included) | $0 |
+| Cache + Queue (Redis) | Upstash | Free (10k cmd/day, ~2k used) | $0 |
 | Object Storage (images + models) | Cloudflare R2 | Free (10GB, 10M reads) | $0 |
 | CDN + DDoS + SSL | Cloudflare | Free | $0 |
 | CI/CD | GitHub Actions | Free (2k min/month) | $0 |
 | Error Tracking | Sentry | Free (5k events/month) | $0 |
-| Metrics + Dashboards | Grafana Cloud | Free (10k series) | $0 |
 | Email (transactional + marketing) | Resend | Free (3k/month) | $0 |
-| LLM Content Generation | Google Gemini 1.5 Flash | Free (1M tok/day) | $0 |
-| Payment Gateway | VNPay + Momo | Free (sandbox) | $0 |
-| SMS | — | REMOVED | $0 |
+| Payment Gateway | VNPay | Free (sandbox) | $0 |
 | Push Notification | Web Push VAPID | Self-hosted | $0 |
-| Address/Geocoding | Goong.io | Free (200k/month) | $0 |
+| ML Training | GitHub Actions cron | Free (shared w/ CI, ~450 min/month) | $0 |
 | Uptime Monitor | UptimeRobot | Free | $0 |
 | **TOTAL** | | | **$0/month** |
 
@@ -761,9 +795,7 @@ SMS (ESMS.vn) bị loại hoàn toàn khỏi Phase 1. Lý do: tính phí per-SMS
 |---|---|---|---|
 | Render.com | Spin-down 15 min idle | Demo bị cold start | UptimeRobot ping mỗi 5 min |
 | MongoDB Atlas M0 | 512MB storage | Overflow nếu > 50k orders + full behavioral events | Purge behavioral_events > 90 days cũ |
-| Upstash Redis | 10k cmd/day | Hết quota nếu cache miss nhiều | Tăng TTL, giảm invalidation |
-| Gemini 1.5 Flash | 15 req/min | Rate limit nếu burst | Queue marketing gen requests |
-| Meilisearch Cloud | 100k documents | Catalog > 100k SKU | Sufficient cho demo |
+| Upstash Redis | 10k cmd/day | Chỉ dùng ~2k/day (đã tối ưu: chỉ AI cache + feature store + email queue) | Monitor via Upstash dashboard |
 
 ### Nếu Cần Scale Sau Graduation
 
@@ -784,7 +816,7 @@ SMS (ESMS.vn) bị loại hoàn toàn khỏi Phase 1. Lý do: tính phí per-SMS
 | NoSQL injection | Mongoose schema validation; whitelist `$` operators; no raw `$where` | Mongoose 8.x |
 | XSS | React automatic HTML escaping; CSP headers via Next.js `headers()` config | Next.js 15 |
 | CSRF | SameSite=Strict cookie; CSRF token cho state-changing mutations | Custom NestJS Guard |
-| Rate limiting | `@nestjs/throttler` + Redis sliding window store | `@nestjs/throttler` |
+| Rate limiting | `@nestjs/throttler` memory store (default, single instance đủ dùng) | `@nestjs/throttler` |
 | RBAC | `@Roles()` decorator + `RolesGuard` in NestJS; roles: `buyer`, `staff`, `admin` | NestJS Guards |
 | HTTPS / TLS | Cloudflare TLS termination (TLS 1.2+, HSTS) | Cloudflare |
 | Audit log immutability | MongoDB `audit_logs` collection — app service account chỉ có insert permission | MongoDB Atlas role |
@@ -797,10 +829,10 @@ SMS (ESMS.vn) bị loại hoàn toàn khỏi Phase 1. Lý do: tính phí per-SMS
 
 | Sprint | Tuần | Tech Được Giới Thiệu |
 |---|---|---|
-| **Sprint 1** | 1–4 | Docker Compose full-stack setup; MongoDB Atlas M0 + Mongoose schemas; Upstash Redis config; NestJS modules scaffold (Auth, Catalog, Cart, Order); Next.js App Router setup; Cloudflare R2 + CDN; GitHub Actions CI |
-| **Sprint 2** | 5–8 | VNPay + Momo sandbox integration; BullMQ email queue + Resend; Meilisearch Cloud indexing + sync; Web Push VAPID; Analytics aggregation pipeline trong MongoDB; CD pipeline (Render + Vercel staging) |
-| **Sprint 3** | 9–12 | FastAPI AI service bootstrap; LightFM training pipeline; Celery beat scheduler; Redis Streams behavioral event pipeline; Feature store 2-tier (Redis + MongoDB); CBF similarity matrix; RFM segmentation job; Gemini 1.5 Flash integration |
-| **Sprint 4** | 13–16 | Hybrid recommendation scoring (α tuning); Load testing với k6 (target 500 req/s); Grafana Cloud dashboards (AI CTR, p95 latency); Sentry error tracking setup; Performance tuning; Demo environment prep; Documentation final |
+| **Sprint 1** | 1–4 | Docker Compose setup (MongoDB + Redis + NestJS + Next.js + FastAPI); MongoDB Atlas M0 + Mongoose schemas; NestJS modules scaffold (Auth, Catalog, Cart); Next.js App Router setup; Cloudflare R2 + CDN; GitHub Actions CI |
+| **Sprint 2** | 5–8 | Order module + VNPay sandbox; BullMQ email queue + Resend; Atlas Search setup; Web Push VAPID; Admin Dashboard cơ bản; CD pipeline (Render + Vercel staging) |
+| **Sprint 3** | 9–12 | FastAPI AI service bootstrap; LightFM training pipeline (GitHub Actions cron); Feature store 2-tier (Redis + MongoDB); TF-IDF CBF similarity matrix; Behavioral event ingestion (direct MongoDB); RFM segmentation (MongoDB aggregation) |
+| **Sprint 4** | 13–16 | Hybrid recommendation scoring (α tuning); Marketing campaign MVP; Sentry error tracking; Performance tuning; Demo environment prep; Documentation final |
 
 ---
 

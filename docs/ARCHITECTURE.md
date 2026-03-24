@@ -40,8 +40,8 @@ Kết nối giữa hai units: **internal REST call** (NestJS → FastAPI) + **Re
 
 | Lý Do | Giải Thích |
 |---|---|
-| Team size 1 | Distributed system overhead (service discovery, inter-service auth, distributed tracing, saga pattern) = unmanageable cho solo developer |
-| Timeline 16 tuần / 62 FRs | Development velocity > architectural isolation. Monolith = no network latency giữa modules |
+| 1 developer + AI tools | Distributed system overhead (service discovery, inter-service auth, distributed tracing, saga pattern) = unmanageable cho solo developer |
+| Timeline 16 tuần / ~40 FRs | Development velocity > architectural isolation. Monolith = no network latency giữa modules |
 | Scale hiện tại | 100k user/month, 5k concurrent peak không cần horizontal split per domain |
 | Budget $0 | Mỗi microservice = 1 Render slot; free tier chỉ có 2 slots (đủ cho NestJS + FastAPI) |
 | "Make it work first" | Monolith với clear boundaries → refactor sang microservices khi thực sự cần |
@@ -74,25 +74,21 @@ graph TD
 
     subgraph Render["Render.com — Free Tier"]
         NestJS["NestJS 10\nModular Monolith\nNode.js 20 LTS\n:3000"]
-        FastAPI["FastAPI 0.111\nPython 3.11\nAI Sidecar\n:8000"]
-        CeleryW["Celery Workers\nML Training Tasks"]
-        CeleryB["Celery Beat\nCron 02:00 ICT"]
-        FastAPI --- CeleryW
-        FastAPI --- CeleryB
+        FastAPI["FastAPI 0.111\nPython 3.11\nLightFM + TF-IDF CBF\n:8000"]
     end
+
+    GHA["GitHub Actions\nML Training Cron\n02:00 ICT daily"] -->|"POST /internal/reload-model"| FastAPI
 
     NestJS -->|"POST /recommend\ncircuit breaker\n500ms timeout"| FastAPI
 
     subgraph DataLayer["Data Layer"]
         MongoDB["MongoDB Atlas M0\nfree 512MB · no expiry\nMongoose ODM"]
-        Redis["Redis 7 — Upstash\nfree 10k cmd/day\nCache · BullMQ\nStreams · Feature Store"]
-        Meili["Meilisearch Cloud\nfree 100k docs\nVietnamese search\n<50ms latency"]
+        Redis["Redis 7 — Upstash\nfree 10k cmd/day\nAI Rec Cache · BullMQ(email)\nFeature Store"]
     end
 
     NestJS -->|"Mongoose queries"| MongoDB
-    NestJS -->|"cache · sessions\nrate-limit · BullMQ"| Redis
-    NestJS -->|"product search"| Meili
-    FastAPI -->|"feature store\nRec cache write\nStreams consume"| Redis
+    NestJS -->|"cache · BullMQ"| Redis
+    FastAPI -->|"feature store\nRec cache write"| Redis
 
     subgraph Storage["Object Storage"]
         R2["Cloudflare R2\nfree 10GB · 10M reads\nProduct Images\nML Artifacts .pkl"]
@@ -101,38 +97,26 @@ graph TD
     FastAPI -->|"upload model .pkl\nafter training"| R2
     NestJS -->|"upload product images\nvia presigned URL"| R2
 
-    subgraph BullMQ["BullMQ Workers — inside NestJS process"]
-        EmailQ["email-queue\nOrder confirm · Marketing"]
-        SearchQ["search-sync-queue\nProduct index sync"]
-        InvQ["inventory-queue\nLow stock alerts"]
-        AnalQ["analytics-queue\nEOD aggregation"]
+    subgraph BullMQ["BullMQ — inside NestJS process"]
+        EmailQ["email-queue\nOrder confirm · Marketing\nAbandoned cart"]
     end
 
     NestJS --- EmailQ
-    NestJS --- SearchQ
-    NestJS --- InvQ
-    NestJS --- AnalQ
 
     subgraph External["External Services"]
         VNPay["VNPay\nsandbox"]
-        Momo["Momo\nsandbox"]
         Resend["Resend\n3k email/month"]
-        Gemini["Gemini 1.5 Flash\n1M tokens/day free\nMarketing content gen"]
-        Goong["Goong.io\nAddress autocomplete\n200k calls/month"]
         WebPush["Web Push VAPID\nBrowser native\nself-hosted"]
     end
 
     NestJS --> VNPay
-    NestJS --> Momo
     EmailQ --> Resend
-    NestJS --> Gemini
-    NestJS --> Goong
     NestJS --> WebPush
 
     subgraph DevOps["DevOps"]
         GH["GitHub Actions\nCI/CD Pipelines"]
         Sentry["Sentry Free\nException Tracking"]
-        Grafana["Grafana Cloud Free\nMetrics · AI CTR Dashboard"]
+        AdminDash["Admin Dashboard\nIn-app · AI CTR Metrics"]
         Uptime["UptimeRobot Free\nPing /health every 5min"]
     end
 ```
@@ -143,11 +127,11 @@ graph TD
 |---|---|
 | **Page load (SSR)** | Browser → CF → Vercel → Next.js RSC → NestJS API (nếu cần server data) |
 | **API call** | Browser → CF → NestJS `/api/v1/*` → MongoDB / Redis |
-| **Search** | Browser → NestJS → Meilisearch → response |
+| **Search** | Browser → NestJS → MongoDB Atlas Search → response |
 | **AI Recommendation** | Browser → NestJS RecommendationModule → Redis cache check → (miss) → FastAPI → Redis feature store → LightFM+CBF → NestJS cache → response |
-| **Behavioral Event** | Browser → NestJS → Redis XADD `behavioral:events` → Celery consumer → MongoDB bulk insert |
-| **Training pipeline** | Celery Beat 02:00 ICT → fetch MongoDB → train LightFM → evaluate → promote → upload R2 → hot-reload FastAPI |
-| **Payment** | Browser → NestJS → VNPay/Momo → webhook callback → NestJS verify → update order |
+| **Behavioral Event** | Browser → NestJS → async MongoDB insert (fire-and-forget) |
+| **Training pipeline** | GitHub Actions cron 02:00 ICT → fetch MongoDB → train LightFM → evaluate → promote → upload R2 → hot-reload FastAPI |
+| **Payment** | Browser → NestJS → VNPay → webhook callback → NestJS verify → update order |
 | **Email** | NestJS → BullMQ `email-queue` → Resend API → inbox |
 
 ---
@@ -164,9 +148,9 @@ graph TD
     CM["CatalogModule\nFR-CATALOG-01..10\nProducts · Categories\nCSV import · R2 upload"]
     CartM["CartModule\nFR-CART-01..04\nCart · Coupons"]
     OM["OrderModule\nFR-ORDER-01..08\nLifecycle · Invoice"]
-    PM["PaymentModule\nFR-CART-05\nVNPay · Momo adapters"]
+    PM["PaymentModule\nFR-CART-05\nVNPay adapter"]
     RM["RecommendationModule\nFR-REC-01..10\nProxy to FastAPI\nCircuit breaker\nEvent publish"]
-    MM["MarketingModule\nFR-MKTG-01..08\nCampaigns · RFM\nGemini content gen"]
+    MM["MarketingModule\nFR-MKTG-01..06..09..10\nCampaigns · RFM\nEmail delivery"]
     NM["NotificationModule\nFR-NOTIF-01..05\nWeb Push · Email trigger"]
     AnM["AnalyticsModule\nFR-ANAL-01..06\nAggregation · Dashboard"]
 
@@ -196,15 +180,15 @@ graph TD
 | Module | FR Coverage | Core Responsibilities | MongoDB Collections | External Deps |
 |---|---|---|---|---|
 | **SharedModule** | — | DB conn, Redis client, Config, Logger, common DTOs, Guards, Pipes, Interceptors | — | — |
-| **AuthModule** | FR-AUTH-01..08 | Register, Login, JWT issue/refresh/revoke, bcrypt hashing, RBAC Guards | `users` | Redis (sessions) |
-| **CatalogModule** | FR-CATALOG-01..10 | Product CRUD, variant management, category tree, bulk CSV import, image upload, inventory track | `products`, `categories` | R2 (images), Meilisearch |
-| **CartModule** | FR-CART-01..04 | Cart add/update/remove, coupon validation, stock check, cart merge (guest → auth) | `carts`, `coupons` | Redis (cart cache) |
+| **AuthModule** | FR-AUTH-01..08 | Register, Login, JWT issue/refresh/revoke, bcrypt hashing, RBAC Guards | `users` | MongoDB (refresh tokens) |
+| **CatalogModule** | FR-CATALOG-01..10 | Product CRUD, variant management, category tree, bulk CSV import, image upload, inventory track | `products`, `categories` | R2 (images), Atlas Search |
+| **CartModule** | FR-CART-01..04 | Cart add/update/remove, coupon validation, stock check, cart merge (guest → auth) | `carts`, `coupons` | — |
 | **OrderModule** | FR-ORDER-01..08 | Order placement, status FSM, inventory deduct (transaction), shipping update, invoice gen | `orders` | BullMQ (email job) |
-| **PaymentModule** | FR-CART-05 | `IPaymentGateway` interface, VNPay adapter, Momo adapter, webhook HMAC verify, payment status sync | embedded in `orders` | VNPay, Momo |
-| **RecommendationModule** | FR-REC-01..10 | FastAPI proxy with circuit breaker, behavioral event publish to Redis Streams, fallback logic | Redis Streams | FastAPI AI Service |
-| **MarketingModule** | FR-MKTG-01..08 | Campaign CRUD, RFM segmentation (MongoDB aggregation), Gemini LLM content gen, BullMQ schedule | `campaigns`, `segments` | Gemini API, BullMQ |
+| **PaymentModule** | FR-CART-05 | `IPaymentGateway` interface, VNPay adapter, webhook HMAC verify, payment status sync | embedded in `orders` | VNPay |
+| **RecommendationModule** | FR-REC-01..10 | FastAPI proxy with circuit breaker, behavioral event async MongoDB write, fallback logic | MongoDB async write | FastAPI AI Service |
+| **MarketingModule** | FR-MKTG-01..03, 06, 09, 10 | Campaign CRUD, RFM segmentation on-demand (MongoDB aggregation), email delivery via BullMQ | `campaigns`, `segments` | Resend, BullMQ |
 | **NotificationModule** | FR-NOTIF-01..05 | Web Push VAPID send, email via BullMQ, push subscription management | — | Resend, Web Push |
-| **AnalyticsModule** | FR-ANAL-01..06 | Dashboard metrics aggregation, product performance, campaign ROI, AI CTR computation | `behavioral_events`, `orders`, `campaigns` | Grafana (data source) |
+| **AnalyticsModule** | FR-ANAL-01..06 | Dashboard metrics aggregation, product performance, campaign ROI, AI CTR computation | `behavioral_events`, `orders`, `campaigns` | In-app Admin Dashboard |
 
 ### 3.3 Order Status State Machine
 
@@ -245,14 +229,12 @@ ai-service/
 │   │   ├── cbf_service.py         # Cosine similarity matrix compute + query
 │   │   ├── hybrid.py              # α-weighted scoring + post-filter
 │   │   └── fallback.py            # Popularity-based fallback (circuit open)
-│   ├── ml/
-│   │   ├── train_cf.py            # LightFM fit, evaluate (precision@10, recall@10)
-│   │   ├── train_cbf.py           # sentence-transformers embed + cosine sim matrix
-│   │   └── model_registry.py      # Cloudflare R2 upload/download .pkl artifacts
-│   └── workers/
-│       ├── celery_app.py          # Celery config (Redis broker + backend)
-│       ├── beat_schedule.py       # Cron tasks: daily 02:00 ICT
-│       └── event_consumer.py      # Redis Streams XREADGROUP consumer → MongoDB bulk insert
+│   └── ml/
+│       ├── train_cf.py            # LightFM fit, evaluate (precision@10, recall@10)
+│       ├── train_cbf.py           # TF-IDF vectorize + cosine sim matrix
+│       └── model_registry.py      # Cloudflare R2 upload/download .pkl artifacts
+├── scripts/
+│   └── train_pipeline.py          # Entry point for GitHub Actions cron (daily 02:00 ICT)
 ├── tests/
 │   ├── test_recommend.py
 │   └── test_training.py
@@ -341,12 +323,10 @@ graph TD
     EVENT --> SEG
 
     SEG["Segment Resolution\nMongoDB aggregation pipeline\nRFM scoring → segment_id\nOR manual segment filter"]
-    SEG --> PERS["Content Personalization\nGemini 1.5 Flash API\nprompt: segment + product context\nOR manual HTML template"]
+    SEG --> PERS["Content Template\nManual HTML template\n{{name}}, {{email}}, {{segment}}\nvariables support"]
     PERS --> SEND_TYPE{Send Channel}
     SEND_TYPE -->|"email"| RESEND["BullMQ email-queue\n→ Resend API\nReact Email template"]
-    SEND_TYPE -->|"push"| PUSH["Web Push VAPID\nNestJS send directly\nto subscribed browsers"]
-    RESEND --> TRACK["Track Metrics\nResend webhook: open/click\nWeb Push: click event"]
-    PUSH --> TRACK
+    RESEND --> TRACK["Track Metrics\nResend webhook: open/click"]
     TRACK --> UPDATE["MongoDB\ncampaigns.metrics.{sent,opened,clicked,converted}"]
     UPDATE --> REPORT["AnalyticsModule\nCampaign ROI dashboard\nGrafana"]
 ```
@@ -710,21 +690,14 @@ services:
     ports: ["6379:6379"]
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
 
-  meilisearch:
-    image: getmeili/meilisearch:v1.8
-    ports: ["7700:7700"]
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
-
   nestjs:
     build: ./apps/api
     ports: ["3001:3001"]
     environment:
       MONGO_URI: mongodb://mongodb:27017/smartecom
       REDIS_URL: redis://redis:6379
-      MEILI_URL: http://meilisearch:7700
     volumes: ["./apps/api/src:/app/src"]  # hot reload
-    depends_on: [mongodb, redis, meilisearch]
+    depends_on: [mongodb, redis]
 
   nextjs:
     build: ./apps/web
@@ -741,21 +714,6 @@ services:
       MONGO_URI: mongodb://mongodb:27017/smartecom
     depends_on: [redis, mongodb]
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  celery_worker:
-    build: ./apps/ai-service
-    environment:
-      REDIS_URL: redis://redis:6379
-      MONGO_URI: mongodb://mongodb:27017/smartecom
-    depends_on: [redis, mongodb, fastapi]
-    command: celery -A app.workers.celery_app worker --loglevel=info
-
-  celery_beat:
-    build: ./apps/ai-service
-    environment:
-      REDIS_URL: redis://redis:6379
-    depends_on: [redis]
-    command: celery -A app.workers.celery_app beat --loglevel=info
 
 volumes:
   mongo_data:
@@ -832,9 +790,9 @@ graph TD
 
 | Scenario | Strategy |
 |---|---|
-| **Demo (current)** | Celery training scheduled 02:00 ICT (off-peak); single worker process in FastAPI container |
-| **Training vs Serving isolation** | Celery worker is separate process from FastAPI uvicorn → training CPU spike doesn't block inference |
-| **Scale training (if needed)** | Dedicated Celery worker on separate Render.com service (Render Starter $7/mo) |
+| **Demo (current)** | GitHub Actions cron training 02:00 ICT (off-peak); FastAPI chỉ serving inference (~270MB RAM) |
+| **Training vs Serving isolation** | Training chạy trên GitHub Actions runner (riêng biệt hoàn toàn) → **không ảnh hưởng** FastAPI inference |
+| **Scale training (if needed)** | GitHub Actions runner mạnh hơn (2 vCPU, 7GB RAM) — đủ cho LightFM + TF-IDF |
 | **Scale inference (if needed)** | Multiple FastAPI uvicorn workers (`--workers 2`) within same container; or horizontal scale on Render |
 
 ---
@@ -844,12 +802,11 @@ graph TD
 | SPOF | Severity | Impact | Mitigation |
 |---|---|---|---|
 | **MongoDB Atlas M0** (shared cluster) | HIGH | All read/write operations fail | Mongoose auto-reconnect with exponential backoff (3 retries); app-level retry for transient errors; Atlas M0 has 99.9% SLA on shared cluster |
-| **Upstash Redis** | MEDIUM | Sessions lost, cache cold, BullMQ paused, rate-limiting disabled | Graceful degradation: skip cache (serve from MongoDB, slower); BullMQ jobs retry on reconnect; rate-limiting fails open (allow requests) |
+| **Upstash Redis** | MEDIUM | AI rec cache cold, email queue paused, feature store unavailable | Graceful degradation: AI fallback to popularity list; BullMQ email jobs retry on reconnect; sessions + rate-limiting không bị ảnh hưởng (dùng MongoDB + memory store) |
 | **FastAPI AI Service** | MEDIUM | AI recommendations unavailable | Circuit breaker → popularity-based fallback; core e-commerce (catalog, cart, checkout) fully unaffected |
 | **Render.com NestJS** | HIGH | API completely down | UptimeRobot alert; Render.com 99.5% SLA; rolling deploy = no downtime during deploys |
 | **Render.com spin-down** | LOW | 10-15s cold start after idle | UptimeRobot (free) pings `/health` every 5 min → service never idles during demo |
-| **Meilisearch Cloud** | LOW | Product search returns no results | Fallback to MongoDB `$text` search (slower ~150ms, Vietnamese collation) |
-| **Gemini API** (rate limit 15 req/min) | LOW | Marketing content gen unavailable | Fallback: 503 + "Please write content manually"; queue requests with BullMQ retry |
+| **MongoDB Atlas Search** | LOW | Product search slower than normal | Atlas Search is part of MongoDB — if MongoDB is down, this is already covered by MongoDB SPOF above |
 | **Cloudflare R2** | LOW | Images don't load; model artifacts inaccessible | CDN cache serves images; FastAPI keeps loaded model in memory (no restart needed for hours) |
 | **Vercel** | MEDIUM | Frontend inaccessible | Vercel 99.99% SLA; instant rollback to previous deployment |
 | **GitHub Actions** | LOW | CI/CD blocked | Push to main still deploys (manual trigger); local development unaffected |
@@ -868,8 +825,8 @@ Architecture Decision Records (ADR) ghi lại các quyết định kiến trúc 
 **Status:** Accepted
 
 **Context:**
-- Team size: 1 developer (đồ án cá nhân)
-- Timeline: 16 tuần, 62 functional requirements
+- Team size: 1 developer + AI coding tools (đồ án cá nhân)
+- Timeline: 16 tuần, ~40 functional requirements
 - Budget: $0/month — maximum 2 free Render.com service slots
 - Scale: 100k users/month, 5k concurrent peak — không phải hyperscale
 - Microservices yêu cầu: service discovery (Consul/etcd), inter-service auth (mTLS), distributed tracing (Jaeger), saga pattern cho distributed transactions, API gateway, container orchestration (K8s) — tất cả đều tốn thêm engineering effort và tiền
@@ -887,37 +844,33 @@ Triển khai NestJS như một Modular Monolith duy nhất. FastAPI là sidecar 
 
 ---
 
-### ADR-002 — Redis Streams over Apache Kafka for Behavioral Event Pipeline
+### ADR-002 — Direct MongoDB Write over Redis Streams/Kafka for Behavioral Events
 
 **Date:** 2026-03-24
-**Status:** Accepted
+**Status:** Accepted (updated from Redis Streams)
 
 **Context:**
-Cần pipeline async để ingest behavioral events (click, view, add-to-cart, purchase) từ người dùng phục vụ ML training. Peak load: 5,000 concurrent users × ~2 events/min = ~167 events/sec.
+Cần pipeline async để ingest behavioral events (click, view, add-to-cart, purchase) từ người dùng phục vụ ML training.
 
-Kafka là industry standard cho event streaming nhưng:
-- Minimum viable Kafka: 3 brokers + ZooKeeper/KRaft = minimum 3 VMs
-- Không có Kafka free tier (Confluent Cloud 14-day trial only)
-- Operational overhead: partition rebalancing, consumer group management, offset commit
+Các lựa chọn đã xét:
+- **Kafka:** 3 brokers + ZooKeeper/KRaft = minimum 3 VMs, không có free tier → loại
+- **Redis Streams:** Throughput tốt (>100k msg/sec) nhưng tốn Redis commands trên Upstash 10k/day limit; cần Celery consumer → thêm process → OOM trên 512MB Render
+- **Direct MongoDB write:** Async `insertOne` fire-and-forget, ~2-5ms, không tốn Redis commands
 
-Redis Streams đã có sẵn trong project (dùng cho cache, BullMQ, sessions):
-- Redis Streams throughput > 100,000 msg/sec (>> 167 events/sec)
-- Consumer groups hỗ trợ exactly-once processing pattern
-- MAXLEN 50,000 = buffer 5 phút ở peak load
-- Zero additional service, zero cost
+Scale thực tế demo: ~10-50 concurrent users → ~20-100 events/phút — MongoDB `insertOne` dư sức xử lý.
 
 **Decision:**
-Dùng Redis Streams `behavioral:events` thay Kafka. NestJS `XADD`, Celery consumer `XREADGROUP`, batch insert vào MongoDB mỗi 500 events hoặc 5 giây (whichever comes first).
+NestJS nhận event qua `POST /api/v1/events` → async `insertOne` vào MongoDB `behavioral_events` collection (fire-and-forget, không block HTTP response). TTL index 90 ngày tự động purge.
 
 **Consequences:**
-- (+) Zero cost, zero additional service
-- (+) Already familiar technology (same Redis instance)
-- (+) Sufficient throughput for current scale (167 events/sec << 100k/sec capacity)
-- (-) No multi-day event replay (Kafka supports weeks of replay for debugging/reprocessing)
-- (-) If Redis goes down, buffered events are lost — ML training falls back to MongoDB snapshot (last 90 days), so no data loss in terms of training data
-- (-) Not suitable if event volume exceeds 10k/sec (current: 167/sec) — would need Kafka migration
+- (+) Zero Redis commands consumed — quan trọng với Upstash 10k/day limit
+- (+) Bỏ Celery consumer process — giảm memory usage trên FastAPI container
+- (+) Đơn giản hơn: không cần Redis Streams config, consumer groups, XREADGROUP
+- (+) Data sẵn trong MongoDB → GitHub Actions training script query trực tiếp
+- (-) Không có buffering — nếu MongoDB slow, write có thể mất ~10-50ms thay vì ~1ms (Redis XADD)
+- (-) Không có event replay capability (mitigated: data đã trong MongoDB, query lại bất cứ lúc nào)
 
-**Trigger for revisiting:** If event volume exceeds 5,000/sec or need multi-day replay capability.
+**Trigger for revisiting:** Nếu event volume > 1,000/sec hoặc cần real-time stream processing.
 
 ---
 

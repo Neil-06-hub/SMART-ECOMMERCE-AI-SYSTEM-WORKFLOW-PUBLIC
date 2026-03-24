@@ -539,11 +539,9 @@ recommendation/
 ```
 marketing/
 ├── dto/
-│   ├── create-campaign.dto.ts                 # {name, segmentId, channel: 'email'|'push'|'both',
+│   ├── create-campaign.dto.ts                 # {name, segmentId, channel: 'email',
 │   │                                          #  subject, template, scheduledAt?}
 │   ├── update-campaign.dto.ts                 # PartialType(CreateCampaignDto)
-│   ├── generate-content.dto.ts                # {campaignType, segmentName, targetProducts[],
-│   │                                          #  tone: 'urgent'|'friendly'|'informational'}
 │   ├── create-segment.dto.ts                  # {name, rfmRules: {rMin,rMax,fMin,fMax,mMin,mMax}}
 │   └── campaign-response.dto.ts               # Campaign + metrics{sent, opened, clicked, converted, revenue}
 ├── schemas/
@@ -554,22 +552,15 @@ marketing/
 │                                              #   lastComputedAt, userCount
 ├── interfaces/
 │   ├── campaign.interface.ts                  # ICampaign, CampaignStatus enum
-│   ├── segment.interface.ts                   # ISegment, RFMScore, RFMRules
-│   └── llm-provider.interface.ts              # ILLMProvider:
-│                                              #   generateContent(prompt: string): Promise<string>
-│                                              # → swap Gemini ↔ OpenAI ↔ Claude via 1 env var
+│   └── segment.interface.ts                   # ISegment, RFMRules
 ├── controllers/
 │   ├── campaign.controller.ts                 # CRUD /campaigns, POST /campaigns/:id/send
-│   │                                          # GET /campaigns/:id/metrics, POST /campaigns/generate-content
-│   └── segment.controller.ts                  # CRUD /segments, POST /segments/compute-rfm
+│   │                                          # GET /campaigns/:id/metrics
+│   └── segment.controller.ts                  # CRUD /segments, POST /segments/compute-rfm (on-demand)
 ├── services/
 │   ├── campaign.service.ts                    # create/update/send/pause/archive, trackMetric()
-│   ├── segment.service.ts                     # computeRFM() via MongoDB aggregation pipeline
-│   │                                          # buildSegment(), refreshSegmentUsers()
-│   ├── content-generator.service.ts           # generateContent() via ILLMProvider
-│   │                                          # Fallback: template-based content if LLM unavailable
-│   └── gemini.adapter.ts                      # Implements ILLMProvider for Google Gemini 1.5 Flash
-│                                              # Free: 1M tokens/day, 15 req/min
+│   └── segment.service.ts                     # computeRFM() via MongoDB aggregation pipeline (on-demand)
+│                                              # buildSegment(), refreshSegmentUsers()
 ├── repositories/
 │   ├── campaign.repository.ts                 # CRUD + updateMetrics() (atomic $inc)
 │   └── segment.repository.ts                  # CRUD + findUsersBySegment() + updateUserIds()
@@ -808,7 +799,7 @@ libs/shared/src/
 | **Constant file** | `kebab-case.ts` | `queue-names.ts`, `error-codes.ts` |
 | **Controller** | `PascalCase` + `Controller` | `ProductController` |
 | **Controller file** | `kebab-case.controller.ts` | `product.controller.ts` |
-| **Service** | `PascalCase` + `Service` | `CartService`, `GeminiAdapter` |
+| **Service** | `PascalCase` + `Service` | `CartService`, `SegmentService` |
 | **Service file** | `kebab-case.service.ts` | `cart.service.ts` |
 | **Repository** | `PascalCase` + `Repository` | `UserRepository` |
 | **Repository file** | `kebab-case.repository.ts` | `user.repository.ts` |
@@ -820,7 +811,7 @@ libs/shared/src/
 | **Filter file** | `kebab-case.filter.ts` | `global-exception.filter.ts` |
 | **Decorator** | `PascalCase` function | `@Roles()`, `@CurrentUser()` |
 | **Decorator file** | `kebab-case.decorator.ts` | `roles.decorator.ts` |
-| **Adapter** | `PascalCase` + `Adapter` | `VNPayAdapter`, `MomoAdapter`, `GeminiAdapter` |
+| **Adapter** | `PascalCase` + `Adapter` | `VNPayAdapter`, `MomoAdapter` |
 | **Adapter file** | `kebab-case.adapter.ts` | `vnpay.adapter.ts` |
 | **Event class** | `PascalCase` + `Event` | `OrderPlacedEvent`, `StockLowEvent` |
 | **Event file** | `kebab-case.event.ts` | `order-placed.event.ts` |
