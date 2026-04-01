@@ -9,7 +9,7 @@
 
 ---
 
-## Mục Lục
+## Table of Contents
 
 1. [Architecture Style & Rationale](#1-architecture-style--rationale)
 2. [System Architecture Diagram](#2-system-architecture-diagram)
@@ -25,39 +25,39 @@
 
 ## 1. Architecture Style & Rationale
 
-### 1.1 Lựa Chọn: "Majestic Monolith + AI Sidecar"
+### 1.1 Choice: "Majestic Monolith + AI Sidecar"
 
-Hệ thống gồm **hai deployable units** duy nhất:
+The system consists of exactly **two deployable units**:
 
-| Unit | Runtime | Vai Trò |
+| Unit | Runtime | Role |
 |---|---|---|
-| **NestJS API** | Node.js 20 LTS | Toàn bộ business logic: catalog, cart, order, payment, marketing, notification, analytics |
-| **FastAPI AI Service** | Python 3.11 | Chỉ phục vụ ML inference + training — lý do duy nhất tách riêng: Python ecosystem |
+| **NestJS API** | Node.js 20 LTS | All business logic: catalog, cart, order, payment, marketing, notification, analytics |
+| **FastAPI AI Service** | Python 3.11 | Serves only ML inference + training — the sole reason for separating it: Python ecosystem |
 
-Kết nối giữa hai units: **internal REST call** (NestJS → FastAPI) với circuit breaker bảo vệ, **Redis** làm shared cache layer (feature store + rec cache).
+Connection between the two units: **internal REST call** (NestJS → FastAPI) protected by a circuit breaker, with **Redis** as a shared cache layer (feature store + rec cache).
 
-### 1.2 Tại Sao KHÔNG Microservices
+### 1.2 Why NOT Microservices
 
-| Lý Do | Giải Thích |
+| Reason | Explanation |
 |---|---|
-| 1 developer + AI tools | Distributed system overhead (service discovery, inter-service auth, distributed tracing, saga pattern) = unmanageable cho solo developer |
-| Timeline 16 tuần / ~40 FRs | Development velocity > architectural isolation. Monolith = no network latency giữa modules |
-| Scale hiện tại | 100k user/month, 5k concurrent peak không cần horizontal split per domain |
-| Budget $0 | Mỗi microservice = 1 Render slot; free tier chỉ có 2 slots (đủ cho NestJS + FastAPI) |
-| "Make it work first" | Monolith với clear boundaries → refactor sang microservices khi thực sự cần |
+| 1 developer + AI tools | Distributed system overhead (service discovery, inter-service auth, distributed tracing, saga pattern) = unmanageable for a solo developer |
+| 16-week timeline / ~40 FRs | Development velocity > architectural isolation. Monolith = no network latency between modules |
+| Current scale | 100k users/month, 5k concurrent peak does not require horizontal split per domain |
+| Budget $0 | Each microservice = 1 Render slot; free tier only has 2 slots (sufficient for NestJS + FastAPI) |
+| "Make it work first" | Monolith with clear boundaries → refactor to microservices when truly needed |
 
 ### 1.3 Migration Path — Strangler Fig Pattern
 
 ```
-Phase 1 (hiện tại):    [NestJS Monolith] + [FastAPI AI Sidecar]
-                           ↓ (nếu cần scale, sau graduation)
+Phase 1 (current):     [NestJS Monolith] + [FastAPI AI Sidecar]
+                           ↓ (if scaling is needed, after graduation)
 Phase 2:               [NestJS Core] + [RecommendationService] + [FastAPI AI]
                        (extract RecommendationModule → standalone service)
-                           ↓ (nếu marketing batch jobs trở nên quá nặng)
+                           ↓ (if marketing batch jobs become too heavy)
 Phase 3:               [NestJS Core] + [RecommendationService] + [MarketingService] + [FastAPI AI]
 ```
 
-**Nguyên tắc Strangler Fig:** Không big-bang rewrite. Module nào chịu tải cao nhất → extract ra trước. NestJS module boundaries hôm nay = future service boundaries.
+**Strangler Fig principle:** No big-bang rewrite. The module with the highest load → extracted first. NestJS module boundaries today = future service boundaries.
 
 ---
 
@@ -121,7 +121,7 @@ graph TD
 
 ### 2.1 SSL/TLS Architecture (Without Cloudflare CDN Proxy)
 
-Kể từ ADR-004 (loại bỏ Cloudflare CDN proxy), SSL/TLS được xử lý trực tiếp bởi managed hosting:
+Since ADR-004 (removing the Cloudflare CDN proxy), SSL/TLS is handled directly by the managed hosting providers:
 
 | Service | TLS Provider | Certificate | Auto-Renew |
 |---|---|---|---|
@@ -129,13 +129,13 @@ Kể từ ADR-004 (loại bỏ Cloudflare CDN proxy), SSL/TLS được xử lý 
 | **Render.com** (NestJS + FastAPI) | Let's Encrypt via Render | Issued for `*.onrender.com` subdomain | ✅ Yes |
 | **Cloudflare R2** | Cloudflare built-in | For R2 public bucket URLs | ✅ Yes |
 
-Không cần cấu hình SSL thủ công. Không cần Cloudflare làm SSL termination proxy.
+No manual SSL configuration is needed. Cloudflare does not need to act as an SSL termination proxy.
 
 ### 2.2 Request Flow Summary
 
-| Luồng | Path |
+| Flow | Path |
 |---|---|
-| **Page load (SSR)** | Browser → Vercel Edge CDN → Next.js RSC → NestJS API (nếu cần server data) |
+| **Page load (SSR)** | Browser → Vercel Edge CDN → Next.js RSC → NestJS API (if server data is needed) |
 | **API call** | Browser → NestJS `/api/v1/*` (HTTPS direct, TLS via Render) |
 | **Search** | Browser → NestJS → MongoDB Atlas Search → response |
 | **AI Recommendation** | Browser → NestJS RecommendationModule → Redis cache check → (miss) → FastAPI → Redis feature store → LightFM+CBF → NestJS cache → response |
@@ -263,15 +263,15 @@ stateDiagram-v2
     REFUNDED --> [*]
 ```
 
-**Quy tắc transition:**
-- Stock deducted: khi PAID → PROCESSING
-- Stock restored: khi → CANCELLED hoặc → REFUNDED
-- Refund triggered: khi PAID → CANCELLED (auto) hoặc khi admin approves RETURN_REQUESTED
-- EventEmitter2 fires `order.status.changed` on every transition → NotificationModule gửi email
+**Transition rules:**
+- Stock deducted: when PAID → PROCESSING
+- Stock restored: when → CANCELLED or → REFUNDED
+- Refund triggered: when PAID → CANCELLED (auto) or when admin approves RETURN_REQUESTED
+- EventEmitter2 fires `order.status.changed` on every transition → NotificationModule sends email
 
 ### 3.5 Cross-Module Event Communication
 
-Tất cả async cross-module communication dùng **EventEmitter2** (không inject service trực tiếp):
+All async cross-module communication uses **EventEmitter2** (no direct service injection):
 
 | Event | Emitter | Listener | Payload |
 |---|---|---|---|

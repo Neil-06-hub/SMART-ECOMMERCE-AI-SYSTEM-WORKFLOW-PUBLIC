@@ -9,7 +9,7 @@
 
 ---
 
-## Mục Lục
+## Table of Contents
 
 1. [Project Root Structure](#1-project-root-structure)
 2. [Standard NestJS Module Template](#2-standard-nestjs-module-template)
@@ -162,10 +162,10 @@ SMART-ECOMMERCE-AI-SYSTEM/
 
 ## 2. Standard NestJS Module Template
 
-> **MongoDB note:** Vì dùng Mongoose (NoSQL), folder tên là `schemas/` thay vì `entities/`.
-> Mongoose `@Schema()` class = document schema definition, không phải SQL entity.
+> **MongoDB note:** Because Mongoose (NoSQL) is used, the folder is named `schemas/` instead of `entities/`.
+> A Mongoose `@Schema()` class is a document schema definition, not a SQL entity.
 
-Template này áp dụng **thống nhất** cho tất cả 9 feature modules:
+This template applies **uniformly** to all 9 feature modules:
 
 ```
 [module-name]/
@@ -200,16 +200,16 @@ Template này áp dụng **thống nhất** cho tất cả 9 feature modules:
 
 ### Folder Responsibility Rules
 
-| Folder | Chịu Trách Nhiệm | Được Phép Phụ Thuộc Vào | KHÔNG được |
+| Folder | Responsibility | May Depend On | Must NOT |
 |---|---|---|---|
 | `dto/` | Input validation + output shaping | `class-validator`, `class-transformer`, `@nestjs/swagger` | Business logic |
 | `schemas/` | Mongoose document definition, indexes, virtuals | `mongoose`, `@nestjs/mongoose` | HTTP layer, services |
 | `interfaces/` | Domain contracts, TypeScript types/enums | Pure TypeScript only | NestJS, Mongoose |
-| `controllers/` | HTTP method handlers, route mapping | Service của cùng module, DTOs, guards/decorators | Any business if/else logic |
-| `services/` | Business rules, transactions, orchestration | Repository của cùng module, SharedModule, adapters | Mongoose Model trực tiếp, HTTP layer |
+| `controllers/` | HTTP method handlers, route mapping | Same module's service, DTOs, guards/decorators | Any business if/else logic |
+| `services/` | Business rules, transactions, orchestration | Same module's repository, SharedModule, adapters | Direct Mongoose Model, HTTP layer |
 | `repositories/` | Mongoose queries, projections, aggregations | Mongoose Model (inject), BaseRepository | Business logic, HTTP layer |
 | `events/` | Domain event class definitions | Plain TypeScript | Any NestJS/Mongoose import |
-| `*.module.ts` | DI wiring: providers, imports, exports | Modules trong dependency map | Circular imports |
+| `*.module.ts` | DI wiring: providers, imports, exports | Modules in the dependency map | Circular imports |
 
 ---
 
@@ -218,10 +218,10 @@ Template này áp dụng **thống nhất** cho tất cả 9 feature modules:
 ### Dependency Rules
 
 1. `SharedModule` — imported by ALL modules (global infrastructure)
-2. `AuthModule` exports guards — applied via decorators, không cần import trực tiếp
-3. Feature modules chỉ import modules được liệt kê dưới đây
-4. Giao tiếp cross-module async qua `EventEmitter2` (không inject service trực tiếp)
-5. **Tuyệt đối không circular import**
+2. `AuthModule` exports guards — applied via decorators, no direct import needed
+3. Feature modules only import modules listed below
+4. Cross-module async communication uses `EventEmitter2` (no direct service injection)
+5. **Circular imports are strictly forbidden**
 
 ```mermaid
 graph TD
@@ -262,9 +262,9 @@ graph TD
 ```
 
 **Legend:**
-- `→` Solid: NestJS `imports: [ModuleX]` — có thể dùng exported providers
-- `-. ->` Dotted: Guards áp dụng qua `@UseGuards()` decorator — không import module
-- `==` Bold: Async `EventEmitter2` emit/listen — hoàn toàn decoupled
+- `→` Solid: NestJS `imports: [ModuleX]` — can use exported providers
+- `-. ->` Dotted: Guards applied via `@UseGuards()` decorator — module is not imported
+- `==` Bold: Async `EventEmitter2` emit/listen — fully decoupled
 
 ### Import Matrix
 
@@ -1022,49 +1022,49 @@ import { JwtAuthGuard }    from '../../../shared/guards/jwt-auth.guard';
 ## Module Creation Checklist — {ModuleName}
 
 ### Phase 1: Scaffold
-- [ ] Tạo thư mục `apps/api/src/modules/{module-name}/` + 7 subfolders
-- [ ] Tạo `{module}.module.ts` với @Module({ imports:[], controllers:[], providers:[], exports:[] })
-- [ ] Tạo `README.md`: Purpose, Exported services, Endpoints list, Dependencies
+- [ ] Create directory `apps/api/src/modules/{module-name}/` + 7 subfolders
+- [ ] Create `{module}.module.ts` with @Module({ imports:[], controllers:[], providers:[], exports:[] })
+- [ ] Create `README.md`: Purpose, Exported services, Endpoints list, Dependencies
 
 ### Phase 2: Schema
-- [ ] `@Schema({ timestamps: true })` + đầy đủ `@Prop()` với type/required/default/index
-- [ ] Compound indexes nếu cần
+- [ ] `@Schema({ timestamps: true })` + complete `@Prop()` with type/required/default/index
+- [ ] Compound indexes if needed
 - [ ] `SchemaFactory.createForClass()` export
 - [ ] Register: `MongooseModule.forFeature([{ name: Resource.name, schema: ResourceSchema }])`
 
 ### Phase 3: Repository
 - [ ] Extend `BaseRepository<ResourceDocument>`
-- [ ] `@InjectModel(Resource.name)` — không để raw queries trong service
-- [ ] Export trong module `providers` + `exports`
+- [ ] `@InjectModel(Resource.name)` — do not put raw queries in the service
+- [ ] Export in module `providers` + `exports`
 
 ### Phase 4: Service
-- [ ] Inject repository (KHÔNG inject Model trực tiếp)
-- [ ] All business logic ở đây — không trong controller, không trong repository
-- [ ] Throw HttpException subclasses với codes từ `@lib/constants/error-codes`
-- [ ] Export nếu các module khác cần dùng
+- [ ] Inject repository (do NOT inject Model directly)
+- [ ] All business logic lives here — not in the controller, not in the repository
+- [ ] Throw HttpException subclasses with codes from `@lib/constants/error-codes`
+- [ ] Export if other modules need to use it
 
 ### Phase 5: Controller
 - [ ] `@Controller('api/v1/{resources}')` — plural noun, kebab-case
-- [ ] `@UseGuards(JwtAuthGuard)` + `@Roles()` trên endpoints cần auth
-- [ ] Chỉ gọi service — không chứa if/else business logic
+- [ ] `@UseGuards(JwtAuthGuard)` + `@Roles()` on endpoints that require auth
+- [ ] Only calls service — must not contain if/else business logic
 - [ ] `@ApiOperation()`, `@ApiResponse()`, `@ApiBearerAuth()` Swagger decorators
-- [ ] Return DTO instance (KHÔNG return raw Mongoose document)
+- [ ] Return DTO instance (do NOT return raw Mongoose document)
 
 ### Phase 6: DTOs
-- [ ] CreateDto: required fields với validators
+- [ ] CreateDto: required fields with validators
 - [ ] UpdateDto: `PartialType(CreateDto)`
-- [ ] QueryDto: `@IsOptional()` + `@Transform()` cho numerics
+- [ ] QueryDto: `@IsOptional()` + `@Transform()` for numerics
 - [ ] ResponseDto: `@Exclude()` internal fields (passwordHash, __v)
 
 ### Phase 7: Tests
-- [ ] `services/{service}.spec.ts` — unit test với mocked repository
+- [ ] `services/{service}.spec.ts` — unit test with mocked repository
 - [ ] `test/{module}.e2e-spec.ts` — integration test
 - [ ] Happy path + 404 + 422 + 403 + edge cases
 - [ ] Coverage >= 80% branches in service layer
 - [ ] `npm run test -- --testPathPattern={module}` — all pass
 
 ### Phase 8: Registration
-- [ ] Import trong `app.module.ts`
+- [ ] Import in `app.module.ts`
 - [ ] `nest build` — no circular dependency warning
 - [ ] `GET /health` → 200 after adding module
 

@@ -1,8 +1,8 @@
 # Tech Stack Decision Record
 
 **Project:** SMART ECOMMERCE AI SYSTEM
-**Version:** 1.0.0
-**Date:** 2026-03-24
+**Version:** 2.0.0
+**Date:** 2026-04-01
 **Author:** Solutions Architect
 **Status:** Approved
 **References:** `docs/REQUIREMENTS.md` v2.1.0
@@ -11,17 +11,17 @@
 
 ## Design Axioms
 
-> **Axiom 1 — $0/month:** Mọi quyết định infrastructure phải thoả mãn free tier.
-> Project là đồ án đại học. Không có thẻ tín dụng, không có ngân sách. Mọi dịch vụ phải có
-> free tier thực sự (không hết hạn sau 14 ngày) hoặc tự host được bằng Docker.
+> **Axiom 1 — $0/month:** Every infrastructure decision must satisfy the free tier.
+> This is a university capstone project. No credit card, no budget. Every service must have
+> a genuinely free tier (not expiring after 14 days) or be self-hostable via Docker.
 >
-> **Axiom 2 — Team fit over hype:** Stack TypeScript/Node.js (NestJS + Next.js) là primary.
-> Python chỉ cho AI service. Không chọn công nghệ chỉ vì "trending" — phải justify
-> bằng requirement cụ thể trong REQUIREMENTS.md.
+> **Axiom 2 — Team fit over hype:** The TypeScript/Node.js stack (NestJS + Next.js) is primary.
+> Python is only for the AI service. Do not choose a technology just because it is "trending" —
+> it must be justified by a specific requirement in REQUIREMENTS.md.
 
 ---
 
-## Mục Lục
+## Table of Contents
 
 1. [Quick Reference Summary](#1-quick-reference-summary)
 2. [Architecture Overview](#2-architecture-overview)
@@ -31,7 +31,7 @@
 6. [Data Layer](#6-data-layer)
 7. [Infrastructure & DevOps](#7-infrastructure--devops)
 8. [Third-Party Services](#8-third-party-services)
-9. [Decision Matrix — 3 Quyết Định Khó Nhất](#9-decision-matrix--3-quyết-định-khó-nhất)
+9. [Decision Matrix — 3 Hardest Decisions](#9-decision-matrix--3-hardest-decisions)
 10. [Cost Estimate](#10-cost-estimate)
 11. [Security Mapping](#11-security-mapping)
 12. [Sprint Alignment](#12-sprint-alignment)
@@ -41,7 +41,7 @@
 
 ## 1. Quick Reference Summary
 
-| Layer | Công Nghệ | Version | Role | Hosted Where |
+| Layer | Technology | Version | Role | Hosted Where |
 |---|---|---|---|---|
 | Frontend Framework | Next.js (App Router) | 15.x | SSR/SSG/ISR/CSR hybrid | Vercel (free) |
 | UI Library | Tailwind CSS + shadcn/ui | Tailwind 3.x | Utility-first styling + headless components | — |
@@ -55,17 +55,16 @@
 | Recommendation (CBF) | scikit-learn (TF-IDF + cosine sim) | sklearn 1.4 | Content-based filtering, Vietnamese text | — |
 | ML Job Scheduler | GitHub Actions cron | — | Daily training pipeline (02:00 ICT) | GitHub (free) |
 | Primary Database | MongoDB Atlas | 7.x (M0 free) | Document store, flexible schema | MongoDB Atlas M0 |
-| ODM | Mongoose | 8.x | Schema validation + queries trong NestJS | — |
+| ODM | Mongoose | 8.x | Schema validation + queries in NestJS | — |
 | Cache + Queue broker | Redis | 7.x | AI rec cache, feature store, BullMQ (email) | Upstash (free) |
 | Background Jobs (Node) | BullMQ | 5.x | Email queue only | — |
 | Search Engine | MongoDB Atlas Search | 7.x | Full-text search, Vietnamese collation | MongoDB Atlas M0 (included) |
 | Object Storage | Cloudflare R2 | — | Product images + ML model artifacts | Cloudflare (free 10GB) |
-| CDN | Cloudflare | — | Static assets, DDoS, SSL termination | Cloudflare (free) |
 | Containerization | Docker + Docker Compose | 26.x | Local dev environment | Self-hosted |
 | CI/CD | GitHub Actions | — | Lint, test, deploy pipeline | GitHub (free) |
-| Error Tracking | Sentry | — | Exception monitoring FE + BE | Sentry (free 5k/mo) |
+| Error Tracking | MongoDB `error_logs` (in-app) | — | Server-side exception logging | Self-hosted ($0) |
 | Metrics | Admin Dashboard (in-app) | — | AI CTR + revenue metrics | Self-hosted ($0) |
-| Email | Resend | — | Transactional + marketing email | Resend (free 3k/mo) |
+| Email | Nodemailer + Gmail SMTP | — | Transactional + marketing email | Gmail SMTP (500 emails/day, free) |
 | Push Notifications | Web Push VAPID | — | Browser push, order status (FR-NOTIF-03) | Self-hosted ($0) |
 | Payment (VN) | VNPay | — | VN market payment (FR-CART-05) | Sandbox (free) |
 
@@ -78,12 +77,7 @@
 │                           CLIENTS                                 │
 │         Browser — Next.js 15 (SSR / SSG / ISR / CSR)             │
 └────────────────────────────┬─────────────────────────────────────┘
-                             │ HTTPS
-                             ▼
-┌──────────────────────────────────────────────────────────────────┐
-│              Cloudflare  (CDN · DDoS · SSL termination)           │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
+                             │ HTTPS (TLS auto-provisioned by Vercel / Render)
               ┌──────────────┴──────────────┐
               ▼                             ▼
 ┌─────────────────────┐       ┌──────────────────────────────┐
@@ -126,7 +120,7 @@
                                └──────────────────────┘
 
 EXTERNAL SERVICES:
-  VNPay (sandbox) · Resend (email)
+  VNPay (sandbox) · Gmail SMTP via Nodemailer (email)
 
 TRAINING PIPELINE (offline):
   GitHub Actions cron (daily 02:00 ICT)
@@ -134,11 +128,11 @@ TRAINING PIPELINE (offline):
     → upload .pkl to R2 → POST /internal/reload-model → FastAPI
 ```
 
-**Luồng request chính:**
-1. Browser → Cloudflare → Next.js (SSR/SSG page)
-2. Client JS → Cloudflare → NestJS REST `/api/v1/*`
+**Main request flows:**
+1. Browser → Vercel → Next.js (SSR/SSG page)
+2. Client JS → Render.com → NestJS REST `/api/v1/*`
 3. NestJS → MongoDB (read/write + Atlas Search) + Redis (AI cache hit)
-4. NestJS → BullMQ → email-queue → Resend
+4. NestJS → BullMQ → email-queue → Nodemailer → Gmail SMTP
 5. NestJS → POST /api/v1/events → MongoDB async write (behavioral events)
 6. FastAPI `/recommend` → Redis feature store (< 5ms) → LightFM + TF-IDF CBF → cache in Redis → return
 
@@ -148,47 +142,47 @@ TRAINING PIPELINE (offline):
 
 ### 3.1 Framework — Next.js 15 (App Router)
 
-| Thuộc Tính | Giá Trị |
+| Attribute | Value |
 |---|---|
 | **Version** | 15.x (App Router, React 19) |
 | **Hosting** | Vercel free tier (100GB bandwidth, unlimited Edge functions) |
-| **Why chosen** | Hybrid rendering: SSR + SSG + ISR + CSR trong cùng một project |
+| **Why chosen** | Hybrid rendering: SSR + SSG + ISR + CSR within the same project |
 
-**Chiến lược rendering theo loại trang (FR-CATALOG-07 structured data, SEO):**
+**Rendering strategy by page type (FR-CATALOG-07 structured data, SEO):**
 
-| Route | Chiến Lược | Revalidate | Lý Do |
+| Route | Strategy | Revalidate | Reason |
 |---|---|---|---|
-| `/` (Homepage) | SSR | Per-request | AI recommendation per-user, không thể static |
-| `/category/[slug]` | SSG + ISR | 3600s | SEO critical, content thay đổi hàng giờ |
+| `/` (Homepage) | SSR | Per-request | AI recommendation is per-user, cannot be static |
+| `/category/[slug]` | SSG + ISR | 3600s | SEO critical, content changes hourly |
 | `/products/[slug]` | ISR | 300s | Balance SEO + inventory freshness |
-| `/search` | SSR | Per-request | Dynamic params, SEO cho filtered URLs |
-| `/cart`, `/checkout` | CSR | — | Auth-gated, không có SEO value |
-| `/account/*` | CSR | — | Dữ liệu cá nhân, auth-gated |
+| `/search` | SSR | Per-request | Dynamic params, SEO for filtered URLs |
+| `/cart`, `/checkout` | CSR | — | Auth-gated, no SEO value |
+| `/account/*` | CSR | — | Personal data, auth-gated |
 | `/admin/*` | CSR | — | Internal tool, realtime data |
 
-**Tại sao KHÔNG chọn:**
-- **Vue/Nuxt:** Team background là React/TypeScript — context switch cost quá cao cho 16-week project
-- **Remix:** Ecosystem plugin e-commerce nhỏ hơn Next.js; ít community resource hơn cho VN market
-- **Vite SPA:** Mất SSR/SSG → mất SEO hoàn toàn — vi phạm FR-CATALOG-07 (structured data) và BG-01 (conversion rate phụ thuộc SEO traffic)
-- **Astro:** Tốt cho static content, nhưng interactive AI recommendation UI rất phức tạp
+**Why NOT chosen:**
+- **Vue/Nuxt:** Team background is React/TypeScript — context switch cost is too high for a 16-week project
+- **Remix:** Smaller e-commerce plugin ecosystem than Next.js; fewer community resources for the VN market
+- **Vite SPA:** Loses SSR/SSG → loses SEO entirely — violates FR-CATALOG-07 (structured data) and BG-01 (conversion rate depends on SEO traffic)
+- **Astro:** Good for static content, but interactive AI recommendation UI is very complex
 
-**Trade-off:**
-- Render.com free tier spin-down sau 15 min idle → cold start ~10-15s. Mitigate: UptimeRobot (free) ping `/health` mỗi 5 phút
-- Vercel free tier: không bị spin-down, Next.js first-class support → frontend luôn responsive
+**Trade-offs:**
+- Render.com free tier spins down after 15 min idle → cold start ~10-15s. Mitigation: UptimeRobot (free) pings `/health` every 5 minutes
+- Vercel free tier: no spin-down, first-class Next.js support → frontend is always responsive
 
 ---
 
 ### 3.2 UI Library — Tailwind CSS 3.x + shadcn/ui
 
-**Lý do chọn:**
-- **Tailwind:** utility-first, không có CSS-in-JS overhead, purge unused styles → bundle nhỏ
-- **shadcn/ui:** headless components (không ship CSS, chỉ ship component code) → full control styling, ARIA-compliant, copy-paste vào project
-- Kết hợp: tốc độ xây dựng UI nhanh mà không bị ràng buộc design system cứng nhắc
+**Why chosen:**
+- **Tailwind:** utility-first, no CSS-in-JS overhead, purges unused styles → smaller bundle
+- **shadcn/ui:** headless components (ships no CSS, only component code) → full styling control, ARIA-compliant, copy-paste into the project
+- Combined: fast UI development without being locked into a rigid design system
 
-**Tại sao KHÔNG chọn:**
-- **Material UI (MUI):** Bundle lớn (~300KB gzip), fighting Tailwind utility classes, opinionated styling khó override
-- **Ant Design:** Heavy bundle, thiết kế enterprise không phù hợp e-commerce consumer UI, Tailwind conflict
-- **Chakra UI:** Runtime CSS-in-JS → hydration issues với SSR Next.js App Router
+**Why NOT chosen:**
+- **Material UI (MUI):** Large bundle (~300KB gzip), conflicts with Tailwind utility classes, opinionated styling is hard to override
+- **Ant Design:** Heavy bundle, enterprise design does not suit consumer e-commerce UI, conflicts with Tailwind
+- **Chakra UI:** Runtime CSS-in-JS → hydration issues with SSR Next.js App Router
 
 ---
 
@@ -200,20 +194,20 @@ TRAINING PIPELINE (offline):
 |---|---|
 | Product listings, search results | `staleTime: 60s`, background refetch |
 | Cart data | `staleTime: 0`, realtime sync |
-| AI recommendations | `staleTime: 600s` (match Redis TTL 10 phút) |
+| AI recommendations | `staleTime: 600s` (matches Redis TTL 10 min) |
 | Order history | `staleTime: 300s` |
 
-- Optimistic mutations cho add-to-cart (FR-CART-01) → instant UI feedback
-- `stale-while-revalidate` pattern — hiển thị cached data ngay, refetch ngầm
+- Optimistic mutations for add-to-cart (FR-CART-01) → instant UI feedback
+- `stale-while-revalidate` pattern — show cached data immediately, refetch in the background
 
 #### Client State: Zustand v4
 
-- UI state thuần: modal open/close, cart drawer, multi-step checkout flow state, auth modal step
-- Không persist server data trong Zustand → không duplicate state với TanStack Query
+- Pure UI state: modal open/close, cart drawer, multi-step checkout flow state, auth modal step
+- Server data is not persisted in Zustand → no duplicate state with TanStack Query
 
-**Tại sao KHÔNG chọn Redux Toolkit:**
-- Boilerplate quá nhiều cho team 1 người trong 16 tuần
-- TanStack Query đã handle server state tốt → Redux chỉ cần cho UI state nhỏ → Zustand đủ
+**Why NOT Redux Toolkit:**
+- Too much boilerplate for a solo developer in 16 weeks
+- TanStack Query already handles server state well → Redux would only be needed for small UI state → Zustand is sufficient
 
 ---
 
@@ -221,16 +215,16 @@ TRAINING PIPELINE (offline):
 
 ### 4.1 Framework — NestJS 10.x
 
-| Thuộc Tính | Giá Trị |
+| Attribute | Value |
 |---|---|
 | **Version** | 10.x |
-| **Language** | TypeScript 5.x trên Node.js 20 LTS |
+| **Language** | TypeScript 5.x on Node.js 20 LTS |
 | **Architecture** | Modular Monolith |
 | **Hosting** | Render.com free tier (512MB RAM, 750 hrs/month) |
 
-**Lý do chọn NestJS:**
+**Why NestJS:**
 
-1. **Module system maps 1:1 với FR modules:**
+1. **Module system maps 1:1 with FR modules:**
    ```
    AuthModule       → FR-AUTH-*
    CatalogModule    → FR-CATALOG-*
@@ -243,38 +237,38 @@ TRAINING PIPELINE (offline):
    ```
 
 2. **Built-in infrastructure:**
-   - `@nestjs/swagger` → OpenAPI docs tự động (không tốn thời gian viết tay)
+   - `@nestjs/swagger` → automatic OpenAPI docs (no time wasted writing by hand)
    - `Guards` → RBAC implementation (FR-AUTH-04)
    - `Interceptors` → Request logging, response transform
    - `Pipes` → Input validation via `class-validator`
    - `@nestjs/throttler` → Rate limiting (NFR-SEC-02)
 
-3. **DI container:** Consistency khi làm việc solo — dễ mock trong tests
+3. **DI container:** Consistency when working solo — easy to mock in tests
 
-**API Style — REST only (không GraphQL):**
-- Team familiar với REST
-- HTTP caching headers đơn giản hơn với REST
-- 500 req/s target dễ đạt với Node.js REST
-- GraphQL over-engineering cho project scale này
+**API Style — REST only (no GraphQL):**
+- Team is familiar with REST
+- HTTP caching headers are simpler with REST
+- 500 req/s target is easily achievable with Node.js REST
+- GraphQL is over-engineering for this project scale
 
 **Background Jobs — BullMQ 5.x + Redis:**
 
 | Queue | Trigger | Job |
 |---|---|---|
-| `email-queue` | Order placed, campaign, abandoned cart | Resend email via React Email template |
+| `email-queue` | Order placed, campaign, abandoned cart | Send email via Nodemailer + Gmail SMTP |
 
-> **Giảm từ 4 queues xuống 1 để tiết kiệm Upstash Redis commands (10k/day limit).**
-> Mỗi BullMQ job lifecycle = ~15 Redis commands (ADD + STATUS + COMPLETE + CLEANUP).
+> **Reduced from 4 queues to 1 to conserve Upstash Redis commands (10k/day limit).**
+> Each BullMQ job lifecycle = ~15 Redis commands (ADD + STATUS + COMPLETE + CLEANUP).
 >
-> Các job cũ chuyển sang cơ chế nhẹ hơn:
-> - `inventory-queue` → `EventEmitter2` + in-process handler (không cần queue persistence)
-> - `search-sync-queue` → Bỏ (dùng MongoDB Atlas Search — data đã trong MongoDB, không cần sync)
-> - `analytics-queue` → `@nestjs/schedule` cron job (EOD aggregation chạy trực tiếp, không cần queue)
+> Old jobs migrated to lighter mechanisms:
+> - `inventory-queue` → `EventEmitter2` + in-process handler (no queue persistence needed)
+> - `search-sync-queue` → Removed (using MongoDB Atlas Search — data is already in MongoDB, no sync needed)
+> - `analytics-queue` → `@nestjs/schedule` cron job (EOD aggregation runs directly, no queue needed)
 
-**Tại sao KHÔNG chọn:**
-- **Express:** Không có DI, không có structure → mỗi developer tổ chức code khác nhau → khó maintain
-- **Fastify:** Performance tốt hơn nhưng không có DI built-in, ecosystem plugin nhỏ hơn NestJS
-- **Hono:** Edge-first framework, thiếu enterprise features (DI, Guards, Swagger) cần cho project này
+**Why NOT chosen:**
+- **Express:** No DI, no structure → every developer organizes code differently → hard to maintain
+- **Fastify:** Better performance but no built-in DI, smaller plugin ecosystem than NestJS
+- **Hono:** Edge-first framework, lacks enterprise features (DI, Guards, Swagger) needed for this project
 
 ---
 
@@ -322,51 +316,51 @@ User request → FastAPI /recommend?user_id=X&placement=homepage
 
 ### 5.2 Collaborative Filtering — LightFM 1.17
 
-| Thuộc Tính | Giá Trị |
+| Attribute | Value |
 |---|---|
 | **Algorithm** | WARP loss (Weighted Approximate-Rank Pairwise) |
 | **Input** | User-item interaction matrix (view, add-to-cart, purchase, rating) |
 | **Item features** | Category one-hot + price tier + tag embeddings |
 | **Training schedule** | Celery beat 02:00 ICT daily (MongoDB `behavioral_events` last 90 days) |
-| **Cold start** | Hybrid mode: new user → α=0 (CBF only); new item → item features từ catalog |
+| **Cold start** | Hybrid mode: new user → α=0 (CBF only); new item → item features from catalog |
 
-**Tại sao KHÔNG chọn:**
-- **Implicit (ALS):** Purely CF, không hỗ trợ item side features → không giải quyết cold-start (FR-REC-07)
-- **Surprise library:** Chỉ CF thuần, không hybrid mode, ít maintained
-- **PyTorch NCF:** Cần GPU, quá phức tạp cho free tier CPU-only inference
-- **MLflow:** Adds separate tracking service — disproportionate overhead cho project này
+**Why NOT chosen:**
+- **Implicit (ALS):** Purely CF, does not support item side features → does not solve cold-start (FR-REC-07)
+- **Surprise library:** Pure CF only, no hybrid mode, less maintained
+- **PyTorch NCF:** Requires GPU, too complex for free-tier CPU-only inference
+- **MLflow:** Adds a separate tracking service — disproportionate overhead for this project
 
 ---
 
 ### 5.3 Content-Based Filtering — scikit-learn TF-IDF
 
-| Component | Chi Tiết |
+| Component | Details |
 |---|---|
-| **Text model** | `TfidfVectorizer` (scikit-learn) — tokenize tiếng Việt bằng `underthesea` hoặc whitespace split |
+| **Text model** | `TfidfVectorizer` (scikit-learn) — tokenize Vietnamese using `underthesea` or whitespace split |
 | **Feature vector** | `[category_onehot] + [tfidf_text(name+description)] + [tag_overlap] + [price_tier_onehot]` |
 | **Similarity** | Cosine similarity matrix (`sklearn.metrics.pairwise.cosine_similarity`) — rebuilt nightly |
 | **Storage** | Similarity matrix `.npz` → Cloudflare R2, top-50 similar per item precomputed |
 
-**Tại sao TF-IDF thay vì sentence-transformers:**
-- `paraphrase-multilingual-MiniLM-L12-v2` cần ~470-500MB RAM chỉ cho model weights → **vượt Render.com 512MB free tier**
-- TF-IDF + cosine similarity chỉ cần ~5-10MB memory — fit thoải mái trong 512MB
-- Với scale demo (< 500 products), chất lượng TF-IDF đủ tốt cho similar items
-- LightFM (CF) vẫn là model chính (α=0.7 cho homepage) → CBF chỉ bổ trợ
+**Why TF-IDF instead of sentence-transformers:**
+- `paraphrase-multilingual-MiniLM-L12-v2` requires ~470-500MB RAM for model weights alone → **exceeds Render.com 512MB free tier**
+- TF-IDF + cosine similarity only needs ~5-10MB memory — comfortably fits within 512MB
+- At demo scale (< 500 products), TF-IDF quality is sufficient for similar items
+- LightFM (CF) remains the primary model (α=0.7 for homepage) → CBF only supplements it
 
-**Tại sao KHÔNG chọn sentence-transformers:**
+**Why NOT sentence-transformers:**
 - **Memory:** Model weights ~470MB + tokenizer + runtime > 512MB Render free tier
-- **Cold start:** Load model mất 10-15s → ảnh hưởng Render spin-up time
-- Overkill cho catalog < 10,000 items ở scale demo
+- **Cold start:** Loading the model takes 10-15s → impacts Render spin-up time
+- Overkill for a catalog < 10,000 items at demo scale
 
 ---
 
 ### 5.4 ML Training Pipeline — GitHub Actions Cron
 
-**Tại sao KHÔNG dùng Celery:**
-- Celery Worker + Celery Beat = 2 process riêng biệt, mỗi process chiếm ~100-200MB RAM
-- Cộng thêm FastAPI uvicorn → 3 processes trên 512MB Render → **OOM-kill**
-- Celery cần Redis broker → thêm Redis commands vào quota 10k/day
-- GitHub Actions free: 2,000 min/month, training ~15min/day = 450min/month — dư thừa
+**Why NOT Celery:**
+- Celery Worker + Celery Beat = 2 separate processes, each consuming ~100-200MB RAM
+- Adding FastAPI uvicorn → 3 processes on 512MB Render → **OOM-kill**
+- Celery requires a Redis broker → adds Redis commands to the 10k/day quota
+- GitHub Actions free: 2,000 min/month, training ~15min/day = 450min/month — plenty of headroom
 
 **Task chain (GitHub Actions cron — daily 02:00 ICT):**
 ```yaml
@@ -381,17 +375,17 @@ steps:
     # 1. fetch_features_from_mongo (behavioral_events last 90 days)
     # 2. train_CF_model (LightFM WARP, ~10 min)
     # 3. evaluate_CF (precision@10, recall@10)
-    # 4. promote_if_better (compare với model hiện tại)
+    # 4. promote_if_better (compare with current model)
     # 5. rebuild_CBF_similarity_matrix (TF-IDF, ~2 min)
     # 6. upload_artifacts_to_r2 (.pkl + .npz files)
     # 7. update_model_version_in_mongo
     # 8. POST /internal/reload-model → FastAPI hot-reload
 ```
 
-**Model Registry — đơn giản, không cần MLflow:**
+**Model Registry — simple, no MLflow needed:**
 - Artifacts `.pkl` / `.npz` → Cloudflare R2: `models/{cf|cbf}/{YYYY-MM-DD}/`
 - Metadata (version, metrics, promoted_at) → MongoDB collection `model_versions`
-- FastAPI hot-reload: nhận internal POST signal → load model mới từ R2 → không cần restart
+- FastAPI hot-reload: receives internal POST signal → loads new model from R2 → no restart needed
 
 ---
 
@@ -400,9 +394,9 @@ steps:
 | Tier | Storage | TTL | Content |
 |---|---|---|---|
 | **Online** (inference) | Redis Hash `features:user:{id}` | 2h | recent_views[], purchase_categories[], price_range, segment_id |
-| **Offline** (training) | MongoDB collection `feature_snapshots` | Append-only | Daily snapshot cho training dataset |
+| **Offline** (training) | MongoDB collection `feature_snapshots` | Append-only | Daily snapshot for training dataset |
 
-Freshness SLA: `@nestjs/schedule` cron job mỗi giờ cập nhật online features từ MongoDB → Redis. Alert nếu lag > 3h (FR-REC-10).
+Freshness SLA: `@nestjs/schedule` cron job updates online features from MongoDB → Redis every hour. Alert if lag > 3h (FR-REC-10).
 
 ---
 
@@ -411,20 +405,20 @@ Freshness SLA: `@nestjs/schedule` cron job mỗi giờ cập nhật online featu
 ```
 Browser click/view/purchase
     → POST /api/v1/events (NestJS)
-    → async MongoDB insertOne (fire-and-forget, không block response)
+    → async MongoDB insertOne (fire-and-forget, does not block response)
     → behavioral_events collection (TTL 90 days)
 ```
 
-**Tại sao ghi trực tiếp MongoDB thay vì Redis Streams:**
-- Scale demo: ~10-50 users → ~20-100 events/phút — MongoDB insertOne dư sức xử lý
-- Bỏ Redis Streams = tiết kiệm ~500+ Redis commands/day (quan trọng với Upstash 10k limit)
-- Bỏ Celery consumer = giảm 1 process, giảm complexity
-- MongoDB `insertOne` async: ~2-5ms, không block web response
-- Nếu cần batch insert sau này: dùng NestJS `@nestjs/schedule` cron job buffer
+**Why write directly to MongoDB instead of Redis Streams:**
+- Demo scale: ~10-50 users → ~20-100 events/minute — MongoDB insertOne handles it easily
+- Eliminating Redis Streams saves ~500+ Redis commands/day (important given Upstash 10k limit)
+- Eliminating the Celery consumer reduces 1 process and lowers complexity
+- MongoDB `insertOne` async: ~2-5ms, does not block the web response
+- If batch insert is needed later: use NestJS `@nestjs/schedule` cron job buffer
 
-**Tại sao KHÔNG dùng Kafka:** (giữ nguyên lý do)
-- Kafka minimum viable deployment: 3 broker nodes, ZooKeeper — zero free hosting
-- Overkill cho scale demo
+**Why NOT Kafka:** (reasons retained)
+- Kafka minimum viable deployment: 3 broker nodes, ZooKeeper — zero free hosting options
+- Overkill for demo scale
 
 ---
 
@@ -434,16 +428,16 @@ Browser click/view/purchase
 
 ### 6.1 Primary Database — MongoDB Atlas M0
 
-| Thuộc Tính | Giá Trị |
+| Attribute | Value |
 |---|---|
 | **Version** | MongoDB 7.x |
 | **Tier** | M0 (free forever — 512MB, shared cluster) |
 | **ODM** | Mongoose 8.x via `@nestjs/mongoose` |
-| **Region** | Singapore (ap-southeast-1) — gần VN nhất trên Atlas M0 |
+| **Region** | Singapore (ap-southeast-1) — closest to Vietnam on Atlas M0 |
 
 **Collections:**
 
-| Collection | Dữ Liệu | Key Schema Pattern |
+| Collection | Data | Key Schema Pattern |
 |---|---|---|
 | `users` | Accounts, addresses (embedded), wishlist | `{_id, email, passwordHash, addresses: [...], roles: []}` |
 | `products` | Catalog, variants (embedded), images | `{_id, sku, name, variants: [{size, color, stock, price}], attributes: {}}` |
@@ -459,76 +453,76 @@ Browser click/view/purchase
 | `audit_logs` | Immutable audit trail | `{_id, actor, action, resource, timestamp, diff: {}}` |
 | `coupons` | Discount codes | `{_id, code, type, value, usageLimit, usedCount, expiresAt}` |
 
-**Tại sao MongoDB phù hợp cho E-Commerce:**
+**Why MongoDB suits E-Commerce:**
 
-1. **Flexible schema cho product catalog:** Áo có attributes `{size, color, material}`, laptop có `{RAM, CPU, storage}` — với SQL cần EAV pattern (phức tạp) hoặc nhiều nullable columns. MongoDB embedded document tự nhiên hơn.
+1. **Flexible schema for product catalog:** A shirt has attributes `{size, color, material}`, a laptop has `{RAM, CPU, storage}` — with SQL you need the EAV pattern (complex) or many nullable columns. MongoDB embedded documents handle this naturally.
 
-2. **Order document = 1 read thay vì 5 JOINs:** Order chứa embedded `items[]`, `shippingAddress`, `payment` — 1 `findById` đủ để render order detail page.
+2. **Order document = 1 read instead of 5 JOINs:** An order contains embedded `items[]`, `shippingAddress`, `payment` — a single `findById` is enough to render the order detail page.
 
-3. **Behavioral events write-heavy:** Insert ~167 events/sec — MongoDB bulk insert performance tốt, không cần schema migration khi thêm event type mới.
+3. **Behavioral events are write-heavy:** Inserting ~167 events/sec — MongoDB bulk insert performs well, and no schema migration is needed when adding a new event type.
 
-4. **MongoDB Atlas Search (included free):** Full-text search với Vietnamese Unicode support — alternative cho Meilisearch nếu muốn giảm số service.
+4. **MongoDB Atlas Search (included free):** Full-text search with Vietnamese Unicode support — an alternative to Meilisearch if you want to reduce the number of services.
 
-5. **Aggregation Pipeline cho RFM:** `$group`, `$lookup`, `$bucket` đủ để compute RFM segments mà không cần data warehouse riêng ở scale demo.
+5. **Aggregation Pipeline for RFM:** `$group`, `$lookup`, `$bucket` are sufficient to compute RFM segments without a separate data warehouse at demo scale.
 
-6. **Multi-document transactions (v4.0+):** ACID cho order placement + inventory deduction.
+6. **Multi-document transactions (v4.0+):** ACID for order placement + inventory deduction.
 
-**Tại sao KHÔNG chọn:**
-- **PostgreSQL:** Atlas free tier (Neon, Supabase) chỉ free 90 ngày hoặc hạn chế; MongoDB M0 free forever. SQL migrations phức tạp hơn cho flexible product attributes.
-- **MySQL:** Ít features hơn cả MongoDB lẫn PostgreSQL. Không có built-in full-text search cho Vietnamese.
-- **Firebase Firestore:** Free tier nhỏ (1GB reads/day limit), vendor lock-in hoàn toàn vào Google ecosystem, không có aggregation pipeline, query bị hạn chế nghiêm (no `OR` queries cross-collection).
-- **DynamoDB:** AWS free tier hết hạn sau 12 tháng, không có aggregation, ít flexible cho ad-hoc queries.
+**Why NOT chosen:**
+- **PostgreSQL:** Atlas free tier (Neon, Supabase) is only free for 90 days or has limitations; MongoDB M0 is free forever. SQL migrations are more complex for flexible product attributes.
+- **MySQL:** Fewer features than both MongoDB and PostgreSQL. No built-in full-text search for Vietnamese.
+- **Firebase Firestore:** Small free tier (1GB reads/day limit), full vendor lock-in to Google ecosystem, no aggregation pipeline, queries are severely restricted (no `OR` queries cross-collection).
+- **DynamoDB:** AWS free tier expires after 12 months, no aggregation, less flexible for ad-hoc queries.
 
 ---
 
 ### 6.2 Cache Layer — Redis 7 (Upstash)
 
-| Thuộc Tính | Giá Trị |
+| Attribute | Value |
 |---|---|
 | **Provider** | Upstash (serverless Redis) |
 | **Free tier** | 10,000 commands/day, 256MB |
 | **Access** | HTTP REST API + Redis protocol |
 
-**3 use cases duy nhất (tối ưu cho Upstash 10k commands/day):**
+**3 sole use cases (optimized for Upstash 10k commands/day):**
 
-| Use Case | Key Pattern | TTL | Ước tính cmds/day |
+| Use Case | Key Pattern | TTL | Estimated cmds/day |
 |---|---|---|---|
 | AI Rec cache | `rec:{userId}:{placement}` | 10 min | ~500-1,000 |
 | Feature store | `features:user:{id}` | 2h | ~200-500 |
 | BullMQ (email) | `bull:email-queue:*` | Managed | ~200-500 |
 | Fallback popular | `fallback:popular:{placement}` | 1h | ~50-100 |
-| **Tổng ước tính** | | | **~1,000-2,100** |
+| **Total estimate** | | | **~1,000-2,100** |
 
-> **Giải thích tại sao giảm từ 7 xuống 3 use cases chính:**
+> **Why reduced from 7 to 3 main use cases:**
 >
-> | Use case cũ | Chuyển sang | Lý do |
+> | Old use case | Replaced by | Reason |
 > |---|---|---|
-> | Sessions (`sess:*`) | MongoDB collection `sessions` + JWT-only | Tiết kiệm ~300+ cmds/day; MongoDB TTL index tự cleanup |
-> | Product cache (`product:*`) | `node-cache` (in-memory NestJS) | Tiết kiệm ~500+ cmds/day; TTL 5min; đủ cho single instance |
-> | Category cache (`cat:*`) | `node-cache` (in-memory NestJS) | Ít categories, ít thay đổi → in-memory cache đủ |
-> | Rate limiting (`rl:*`) | `@nestjs/throttler` memory store | Default behavior, không cần Redis; đủ cho single instance |
-> | Redis Streams | Direct MongoDB async write | Tiết kiệm ~500+ cmds/day; scale demo không cần buffering |
+> | Sessions (`sess:*`) | MongoDB collection `sessions` + JWT-only | Saves ~300+ cmds/day; MongoDB TTL index handles cleanup automatically |
+> | Product cache (`product:*`) | `node-cache` (in-memory NestJS) | Saves ~500+ cmds/day; TTL 5min; sufficient for a single instance |
+> | Category cache (`cat:*`) | `node-cache` (in-memory NestJS) | Few categories, rarely changes → in-memory cache is sufficient |
+> | Rate limiting (`rl:*`) | `@nestjs/throttler` memory store | Default behavior, no Redis needed; sufficient for a single instance |
+> | Redis Streams | Direct MongoDB async write | Saves ~500+ cmds/day; demo scale does not need buffering |
 
 **Upstash vs self-hosted Redis:**
-- Upstash: serverless, free 10k cmd/day, không cần manage Redis server, HTTP REST API (phù hợp Render.com)
-- Self-hosted: free nhưng cần 1 server slot trên Render (đã dùng cho NestJS và FastAPI)
-- Với chiến lược tối ưu trên, **~2,000 cmds/day << 10,000 limit** — an toàn ngay cả khi demo đông người
+- Upstash: serverless, free 10k cmd/day, no Redis server to manage, HTTP REST API (suits Render.com)
+- Self-hosted: free but requires 1 server slot on Render (already used by NestJS and FastAPI)
+- With the optimized strategy above, **~2,000 cmds/day << 10,000 limit** — safe even during a busy demo
 
 ---
 
-### 6.3 Search Engine — MongoDB Atlas Search (thay Meilisearch)
+### 6.3 Search Engine — MongoDB Atlas Search (replacing Meilisearch)
 
-| Thuộc Tính | Giá Trị |
+| Attribute | Value |
 |---|---|
 | **Version** | MongoDB 7.x Atlas Search |
-| **Hosting** | Included free trong MongoDB Atlas M0 |
-| **Latency** | ~100-150ms (trong NFR target p95 < 300ms) |
+| **Hosting** | Included free in MongoDB Atlas M0 |
+| **Latency** | ~100-150ms (within NFR target p95 < 300ms) |
 
-**Tại sao chuyển từ Meilisearch sang Atlas Search:**
-- **Giảm 1 external service** → giảm complexity, giảm số API keys cần quản lý
-- Atlas Search **included free** trong M0 — không cần thêm account hay cấu hình riêng
-- Data đã ở MongoDB → **không cần sync pipeline** (bỏ `search-sync-queue` khỏi BullMQ)
-- Latency ~100-150ms vẫn tốt cho NFR target (p95 < 300ms)
+**Why switching from Meilisearch to Atlas Search:**
+- **Eliminates 1 external service** → reduces complexity, fewer API keys to manage
+- Atlas Search is **included free** in M0 — no additional account or separate configuration
+- Data is already in MongoDB → **no sync pipeline needed** (removes `search-sync-queue` from BullMQ)
+- Latency ~100-150ms is still good for the NFR target (p95 < 300ms)
 - Vietnamese Unicode collation support
 
 **Atlas Search Index config:**
@@ -549,54 +543,53 @@ Browser click/view/purchase
 }
 ```
 
-**Tại sao KHÔNG chọn:**
-- **Meilisearch Cloud:** Latency tốt hơn (~30ms) nhưng thêm 1 service + cần sync pipeline (BullMQ queue) → tốn thêm Redis commands trên Upstash 10k/day limit
-- **Elasticsearch:** Free tier không tồn tại; self-host cần 2GB RAM minimum
-- **Typesense Cloud:** Free tier chỉ 10k documents
+**Why NOT chosen:**
+- **Meilisearch Cloud:** Better latency (~30ms) but adds 1 service + requires a sync pipeline (BullMQ queue) → consumes extra Redis commands against the Upstash 10k/day limit
+- **Elasticsearch:** No free tier exists; self-hosting requires a minimum of 2GB RAM
+- **Typesense Cloud:** Free tier is only 10k documents
 
-### 6.4 Behavioral Event Ingestion — Direct MongoDB (thay Redis Streams)
+### 6.4 Behavioral Event Ingestion — Direct MongoDB (replacing Redis Streams)
 
-Không cần message broker riêng cho behavioral events:
-- **Scale demo:** ~20-100 events/phút — MongoDB `insertOne` async dư sức
-- **Tiết kiệm Redis commands:** XADD + XREADGROUP + XACK = ~3 cmds/batch → tiết kiệm ~500+ cmds/day
-- **Giảm complexity:** Bỏ Celery consumer, bỏ Redis Streams config
-- **Đủ cho ML training:** GitHub Actions cron query trực tiếp MongoDB `behavioral_events` collection
+No separate message broker is needed for behavioral events:
+- **Demo scale:** ~20-100 events/minute — MongoDB `insertOne` async handles it easily
+- **Saves Redis commands:** XADD + XREADGROUP + XACK = ~3 cmds/batch → saves ~500+ cmds/day
+- **Reduces complexity:** Eliminates the Celery consumer and Redis Streams configuration
+- **Sufficient for ML training:** GitHub Actions cron queries the MongoDB `behavioral_events` collection directly
 
 ---
 
 ## 7. Infrastructure & DevOps
 
-### 7.1 Tổng Quan — $0/month, 100% Free Tier
+### 7.1 Overview — $0/month, 100% Free Tier
 
-| Service | Provider | Free Tier | Giới Hạn Cần Biết |
+| Service | Provider | Free Tier | Limits to Know |
 |---|---|---|---|
 | Frontend (Next.js) | **Vercel** | 100GB bandwidth, unlimited SSR | — |
-| API Server (NestJS) | **Render.com** | 750 hrs/month, 512MB RAM | Spin-down 15 min idle |
-| AI Service (FastAPI) | **Render.com** | 750 hrs/month, 512MB RAM | Spin-down 15 min idle; ~270MB used |
-| Primary DB + Search | **MongoDB Atlas M0** | 512MB, no expiry, Atlas Search included | Shared cluster, không replica set |
-| Cache + Queue | **Upstash Redis** | 10k commands/day, 256MB | Chỉ dùng ~2k cmds/day (đã tối ưu) |
+| API Server (NestJS) | **Render.com** | 750 hrs/month, 512MB RAM | Spin-down after 15 min idle |
+| AI Service (FastAPI) | **Render.com** | 750 hrs/month, 512MB RAM | Spin-down after 15 min idle; ~270MB used |
+| Primary DB + Search | **MongoDB Atlas M0** | 512MB, no expiry, Atlas Search included | Shared cluster, no replica set |
+| Cache + Queue | **Upstash Redis** | 10k commands/day, 256MB | Only ~2k cmds/day used (optimized) |
 | Object Storage | **Cloudflare R2** | 10GB, 10M reads/month | — |
-| CDN + SSL + DDoS | **Cloudflare** | Always free | — |
 | CI/CD | **GitHub Actions** | 2,000 min/month | — |
-| Error Tracking | **Sentry** | 5k events/month | — |
-| Email | **Resend** | 3,000 emails/month | — |
-| Payment | **VNPay sandbox** | Free (sandbox mode) | Không real money |
+| Error Tracking | **MongoDB error_logs** (in-app) | Self-hosted, no limit | Append-only collection in Atlas M0 |
+| Email | **Gmail SMTP (Nodemailer)** | 500 emails/day | No new service account needed |
+| Payment | **VNPay sandbox** | Free (sandbox mode) | No real money |
 | Push Notification | **Web Push VAPID** | Self-hosted | $0 |
 | ML Training | **GitHub Actions** | (shared with CI/CD) ~450 min/month | Daily 02:00 ICT |
-| Uptime monitoring | **UptimeRobot** | 50 monitors, 5-min interval | Workaround Render spin-down |
+| Uptime monitoring | **UptimeRobot** | 50 monitors, 5-min interval | Workaround for Render spin-down |
 | **TOTAL** | | | **$0/month** |
 
 **Render.com spin-down workaround:**
-UptimeRobot (free) ping `GET /health` mỗi 5 phút → service không bao giờ sleep trong giờ demo.
+UptimeRobot (free) pings `GET /health` every 5 minutes → service never sleeps during the demo.
 
 ---
 
 ### 7.2 Deployment Environments
 
-| Environment | Stack | Khi Nào |
+| Environment | Stack | When |
 |---|---|---|
 | **Local Dev** | Docker Compose full stack | Sprint 1-3 (development) |
-| **Cloud Demo** | Vercel + Render + Atlas | Sprint 4 (trước khi bảo vệ) |
+| **Cloud Demo** | Vercel + Render + Atlas | Sprint 4 (before defense) |
 
 ---
 
@@ -607,12 +600,12 @@ UptimeRobot (free) ping `GET /health` mỗi 5 phút → service không bao giờ
 services:
   mongodb:       # mongo:7 — port 27017
   redis:         # redis:7-alpine — port 6379
-  nestjs:        # custom Dockerfile, hot-reload với ts-node-dev
+  nestjs:        # custom Dockerfile, hot-reload with ts-node-dev
   nextjs:        # custom Dockerfile, next dev
   fastapi:       # custom Dockerfile, uvicorn --reload
 ```
 
-> **Đã bỏ:** `meilisearch` (dùng MongoDB Atlas Search), `celery` (dùng GitHub Actions cron)
+> **Removed:** `meilisearch` (using MongoDB Atlas Search), `celery` (using GitHub Actions cron)
 
 **Multi-stage Dockerfiles:**
 - `nestjs/Dockerfile`: `node:20-alpine` base → `npm ci` → `tsc build` → copy `dist/` → production image
@@ -649,17 +642,19 @@ ml-training.yml     (trigger: cron 0 19 * * * = 02:00 ICT daily)
 
 ### 7.5 Monitoring
 
-| Tool | Mục Đích | Metrics Quan Trọng |
+| Tool | Purpose | Key Metrics |
 |---|---|---|
-| **Sentry** (free) | Exception tracking FE + BE | Error rate, source maps, stack traces |
+| **MongoDB `error_logs`** (in-app) | Server-side exception logging — replaces Sentry | Error type, stack trace, timestamp, request context, actor |
 | **Admin Dashboard** (in-app) | AI performance + business metrics | AI CTR (FR-REC-02), revenue, orders, cache hit rate |
 | **Render.com dashboard** | Container health, deploy logs | CPU, memory, request count |
 | **UptimeRobot** (free) | Availability monitoring | Uptime %, response time |
 
-**In-app Admin Dashboard (thay Grafana Cloud):**
-- Tích hợp trực tiếp trong AnalyticsModule → admin UI
-- Data source: MongoDB aggregation pipeline trực tiếp
-- Giảm 1 external service, dữ liệu realtime hơn
+> **Why drop Sentry:** Adds an external service account with no clear advantage over an append-only `error_logs` MongoDB collection at demo scale. The collection stores `{ level, message, stack, context, timestamp }` — searchable via Atlas and visible in the Admin Dashboard.
+
+**In-app Admin Dashboard (replacing Grafana Cloud):**
+- Integrated directly in AnalyticsModule → admin UI
+- Data source: MongoDB aggregation pipeline directly
+- Eliminates 1 external service, data is more realtime
 
 ---
 
@@ -667,95 +662,106 @@ ml-training.yml     (trigger: cron 0 19 * * * = 02:00 ICT daily)
 
 ### 8.1 Payment — VNPay (sandbox only)
 
-| Thuộc Tính | Chi Tiết |
+| Attribute | Details |
 |---|---|
 | **Primary** | VNPay QR + ATM card (FR-CART-05) |
-| **Architecture** | `IPaymentGateway` interface → `VNPayAdapter` (extensible cho Momo sau nếu cần) |
-| **Phase 1** | Sandbox mode — không real money |
+| **Architecture** | `IPaymentGateway` interface → `VNPayAdapter` (extensible for Momo later if needed) |
+| **Phase 1** | Sandbox mode — no real money |
 | **Webhook** | Signed HMAC-SHA512 callback → verify + update order status |
 
-**Tại sao chỉ VNPay (bỏ Momo Phase 1):**
-- VNPay đã cover QR + ATM + Internet Banking → đủ cho demo
-- Thêm Momo = thêm 1 adapter + 1 sandbox account + webhook config → phức tạp không cần thiết
-- `IPaymentGateway` interface cho phép thêm `MomoAdapter` sau mà không cần refactor
+**Why VNPay only (dropping Momo Phase 1):**
+- VNPay already covers QR + ATM + Internet Banking → sufficient for the demo
+- Adding Momo = adding 1 adapter + 1 sandbox account + webhook config → unnecessary complexity
+- `IPaymentGateway` interface allows adding `MomoAdapter` later without refactoring
 
-**Tại sao KHÔNG Stripe:** Không support VN cards; thẻ Visa quốc tế không phổ biến với target users VN.
+**Why NOT Stripe:** Does not support VN cards; international Visa cards are not common among the VN target users.
 
 ---
 
-### 8.2 Email — Resend
+### 8.2 Email — Nodemailer + Gmail SMTP
 
-| Thuộc Tính | Chi Tiết |
+| Attribute | Details |
 |---|---|
-| **Free tier** | 3,000 emails/month |
-| **Templates** | React Email — JSX component → HTML email |
+| **Free tier** | 500 emails/day via Google Workspace / personal Gmail with App Password |
+| **Library** | `nodemailer` npm package — SMTP transport |
+| **Templates** | Handlebars / inline HTML string — rendered server-side in NestJS |
 | **Use cases** | Order confirmation, shipping update, password reset, marketing campaigns |
-| **Bounce handling** | Resend webhook → update `users.emailStatus` |
+| **Bounce handling** | No webhook — track delivery failures via Nodemailer SMTP error callbacks; update `users.emailStatus` on hard bounce |
+
+**Why switch from Resend to Nodemailer + Gmail SMTP:**
+- Eliminates 1 external service account (no Resend API key to manage)
+- Gmail SMTP is free (500 emails/day) — sufficient for an academic demo
+- `nodemailer` is a well-known npm package, no new SDK to learn
+- Consistent with the goal of minimizing 3rd-party dependencies
+
+**Why NOT Resend:**
+- Requires a separate account and API key
+- Free tier (3k/month) is generous but introduces 1 more external dependency with no advantage at demo scale
 
 ---
 
 ### 8.3 Push Notifications — Web Push VAPID
 
-- Self-hosted, $0 — NestJS gửi trực tiếp tới browser
+- Self-hosted, $0 — NestJS sends directly to the browser
 - `web-push` npm package
 - Use cases: order status update (FR-NOTIF-03), price drop alert, cart abandonment reminder
 
 ---
 
-### 8.4 SMS — Đã Loại Bỏ (Phase 1)
+### 8.4 SMS — Removed (Phase 1)
 
-SMS (ESMS.vn) bị loại hoàn toàn khỏi Phase 1. Lý do: tính phí per-SMS, không có free tier. Email + Web Push đủ để cover FR-NOTIF-*.
-
----
-
-### 8.5 Address — Static JSON (Bỏ Goong.io)
-
-- Dùng `provinces-api` static JSON cho province/district/ward dropdowns — **không cần API call, $0**
-- Giảm 1 external service dependency
-- User nhập địa chỉ chi tiết (đường/số nhà) thủ công — đủ cho e-commerce demo
-- Nếu cần autocomplete sau: thêm Goong.io adapter (200k calls/month free)
+SMS (ESMS.vn) is fully removed from Phase 1. Reason: charged per SMS, no free tier. Email + Web Push is sufficient to cover FR-NOTIF-*.
 
 ---
 
-## 9. Decision Matrix — 3 Quyết Định Khó Nhất
+### 8.5 Address — Static JSON (Dropping Goong.io)
+
+- Uses `provinces-api` static JSON for province/district/ward dropdowns — **no API call needed, $0**
+- Eliminates 1 external service dependency
+- User enters the detailed address (street/house number) manually — sufficient for an e-commerce demo
+- If autocomplete is needed later: add a Goong.io adapter (200k calls/month free)
+
+---
+
+## 9. Decision Matrix — 3 Hardest Decisions
 
 ### Decision 1 — Backend Framework
 
-**Bối cảnh:** Team TypeScript/Node.js. Cần structure cho ~40 FRs. 16 tuần. Solo developer.
+**Context:** TypeScript/Node.js team. Need structure for ~40 FRs. 16 weeks. Solo developer.
 
-| Framework | Team Fit (30%) | Code Structure (30%) | Ecosystem (20%) | Performance (10%) | Learning Curve (10%) | **Tổng** |
+| Framework | Team Fit (30%) | Code Structure (30%) | Ecosystem (20%) | Performance (10%) | Learning Curve (10%) | **Total** |
 |---|---|---|---|---|---|---|
 | **NestJS 10** | 8 | **10** | 9 | 7 | 6 | **8.3** |
 | Express 5 | 9 | 4 | 10 | 9 | 9 | 7.4 |
 | Fastify 4 | 7 | 5 | 7 | 10 | 7 | 6.5 |
 | Hono 4 | 5 | 4 | 5 | 10 | 6 | 5.2 |
 
-**Verdict:** NestJS — DI + Module system = cấu trúc rõ ràng cho ~40 FRs, team không cần thoả thuận về architecture conventions.
+**Verdict:** NestJS — DI + Module system = clear structure for ~40 FRs, the team does not need to agree on architecture conventions.
 
 ---
 
 ### Decision 2 — Primary Database
 
-**Bối cảnh:** Budget $0. Product catalog flexible attributes. E-commerce document model. Solo dev không muốn manage migrations.
+**Context:** Budget $0. Flexible product catalog attributes. E-commerce document model. Solo dev does not want to manage migrations.
 
-| Database | Free Tier Forever (35%) | Schema Flexibility (25%) | Query Power (20%) | Team Familiarity (10%) | VN Latency (10%) | **Tổng** |
+| Database | Free Tier Forever (35%) | Schema Flexibility (25%) | Query Power (20%) | Team Familiarity (10%) | VN Latency (10%) | **Total** |
 |---|---|---|---|---|---|---|
 | **MongoDB Atlas M0** | **10** | **10** | 8 | 7 | 9 | **9.0** |
 | PostgreSQL (Neon free) | 6 | 4 | 10 | 5 | 8 | 6.3 |
 | Firebase Firestore | 7 | 8 | 4 | 6 | 9 | 6.6 |
 | MySQL (PlanetScale free) | 5 | 4 | 8 | 5 | 8 | 5.6 |
 
-**Verdict:** MongoDB Atlas M0 — free forever, flexible schema tự nhiên cho e-commerce catalog, Mongoose familiar với JS team.
+**Verdict:** MongoDB Atlas M0 — free forever, flexible schema that naturally suits e-commerce catalog, Mongoose is familiar to the JS team.
 
-*(Note: PlanetScale đã ngừng free tier từ 2024. Neon PostgreSQL free tier tồn tại nhưng có inactivity pause.)*
+*(Note: PlanetScale discontinued its free tier in 2024. Neon PostgreSQL free tier exists but has inactivity pause.)*
 
 ---
 
 ### Decision 3 — Frontend Rendering Strategy
 
-**Bối cảnh:** AI recommendation homepage (per-user, cannot be static). SEO critical cho category/product pages. $0 hosting.
+**Context:** AI recommendation homepage (per-user, cannot be static). SEO critical for category/product pages. $0 hosting.
 
-| Approach | SEO (30%) | AI Personalization (25%) | Dev Speed (20%) | Hosting Cost (15%) | Performance (10%) | **Tổng** |
+| Approach | SEO (30%) | AI Personalization (25%) | Dev Speed (20%) | Hosting Cost (15%) | Performance (10%) | **Total** |
 |---|---|---|---|---|---|---|
 | **Next.js 15 Hybrid** | **10** | **10** | 8 | 7 | 8 | **9.05** |
 | Remix (SSR only) | 8 | 9 | 7 | 7 | 9 | 8.0 |
@@ -763,7 +769,7 @@ SMS (ESMS.vn) bị loại hoàn toàn khỏi Phase 1. Lý do: tính phí per-SMS
 | Vite SPA (CSR only) | 3 | 10 | 9 | 9 | 7 | 6.6 |
 | Astro (islands) | 8 | 5 | 6 | 9 | 10 | 7.1 |
 
-**Verdict:** Next.js 15 — hybrid rendering là unique selling point: static catalog (SEO) + dynamic homepage (AI rec) + CSR cart (interactivity) trong cùng 1 codebase. Vercel free tier = best Next.js hosting.
+**Verdict:** Next.js 15 — hybrid rendering is the unique selling point: static catalog (SEO) + dynamic homepage (AI rec) + CSR cart (interactivity) all in one codebase. Vercel free tier = best Next.js hosting.
 
 ---
 
@@ -779,84 +785,83 @@ SMS (ESMS.vn) bị loại hoàn toàn khỏi Phase 1. Lý do: tính phí per-SMS
 | Primary Database + Search | MongoDB Atlas M0 | Free (512MB, Atlas Search included) | $0 |
 | Cache + Queue (Redis) | Upstash | Free (10k cmd/day, ~2k used) | $0 |
 | Object Storage (images + models) | Cloudflare R2 | Free (10GB, 10M reads) | $0 |
-| CDN + DDoS + SSL | Cloudflare | Free | $0 |
 | CI/CD | GitHub Actions | Free (2k min/month) | $0 |
-| Error Tracking | Sentry | Free (5k events/month) | $0 |
-| Email (transactional + marketing) | Resend | Free (3k/month) | $0 |
+| Error Tracking | MongoDB error_logs (in-app) | Self-hosted in Atlas M0 | $0 |
+| Email (transactional + marketing) | Gmail SMTP (Nodemailer) | Free (500/day) | $0 |
 | Payment Gateway | VNPay | Free (sandbox) | $0 |
 | Push Notification | Web Push VAPID | Self-hosted | $0 |
 | ML Training | GitHub Actions cron | Free (shared w/ CI, ~450 min/month) | $0 |
 | Uptime Monitor | UptimeRobot | Free | $0 |
 | **TOTAL** | | | **$0/month** |
 
-### Giới Hạn Free Tier Cần Lưu Ý
+### Free Tier Limits to Watch
 
-| Service | Giới Hạn | Nguy Cơ | Mitigation |
+| Service | Limit | Risk | Mitigation |
 |---|---|---|---|
-| Render.com | Spin-down 15 min idle | Demo bị cold start | UptimeRobot ping mỗi 5 min |
-| MongoDB Atlas M0 | 512MB storage | Overflow nếu > 50k orders + full behavioral events | Purge behavioral_events > 90 days cũ |
-| Upstash Redis | 10k cmd/day | Chỉ dùng ~2k/day (đã tối ưu: chỉ AI cache + feature store + email queue) | Monitor via Upstash dashboard |
+| Render.com | Spin-down after 15 min idle | Cold start during demo | UptimeRobot ping every 5 min |
+| MongoDB Atlas M0 | 512MB storage | Overflow if > 50k orders + full behavioral events | Purge behavioral_events older than 90 days |
+| Upstash Redis | 10k cmd/day | Only ~2k/day used (optimized: only AI cache + feature store + email queue) | Monitor via Upstash dashboard |
 
-### Nếu Cần Scale Sau Graduation
+### If Scaling Is Needed After Graduation
 
-| Scenario | Stack Thay Đổi | Chi Phí Ước Tính |
+| Scenario | Stack Changes | Estimated Cost |
 |---|---|---|
 | Production (1k users/day) | Render Starter ($7) + Atlas M10 ($57) + Upstash Pay-as-you-go | ~$70/month |
-| Self-host trên VPS | $10-20/month VPS + MongoDB Community (free) + Redis OSS (free) | ~$15/month |
+| Self-host on VPS | $10-20/month VPS + MongoDB Community (free) + Redis OSS (free) | ~$15/month |
 | Enterprise scale | AWS ECS + DocumentDB + ElastiCache + CloudSearch | ~$200-500/month |
 
 ---
 
 ## 11. Security Mapping
 
-| NFR / Threat | Implementation | Công Nghệ |
+| NFR / Threat | Implementation | Technology |
 |---|---|---|
 | Authentication | JWT access token (15 min) + refresh token HTTP-only cookie (7 days) | `@nestjs/jwt`, `cookie-parser` |
 | Password storage | bcrypt, cost factor 12 | `bcryptjs` |
 | NoSQL injection | Mongoose schema validation; whitelist `$` operators; no raw `$where` | Mongoose 8.x |
 | XSS | React automatic HTML escaping; CSP headers via Next.js `headers()` config | Next.js 15 |
-| CSRF | SameSite=Strict cookie; CSRF token cho state-changing mutations | Custom NestJS Guard |
-| Rate limiting | `@nestjs/throttler` memory store (default, single instance đủ dùng) | `@nestjs/throttler` |
+| CSRF | SameSite=Strict cookie; CSRF token for state-changing mutations | Custom NestJS Guard |
+| Rate limiting | `@nestjs/throttler` memory store (default, single instance is sufficient) | `@nestjs/throttler` |
 | RBAC | `@Roles()` decorator + `RolesGuard` in NestJS; roles: `buyer`, `staff`, `admin` | NestJS Guards |
-| HTTPS / TLS | Cloudflare TLS termination (TLS 1.2+, HSTS) | Cloudflare |
-| Audit log immutability | MongoDB `audit_logs` collection — app service account chỉ có insert permission | MongoDB Atlas role |
-| Secrets management | Environment variables, không commit `.env` — `.env.example` chỉ có key names | GitHub Actions secrets |
-| Dependency scanning | `npm audit` + Dependabot alerts trong CI | GitHub |
+| HTTPS / TLS | Vercel (frontend) + Render.com (backend) auto-provision TLS 1.2+/1.3; HSTS enabled | Vercel, Render.com |
+| Audit log immutability | MongoDB `audit_logs` collection — app service account has insert-only permission | MongoDB Atlas role |
+| Secrets management | Environment variables, never commit `.env` — `.env.example` contains key names only | GitHub Actions secrets |
+| Dependency scanning | `npm audit` + Dependabot alerts in CI | GitHub |
 
 ---
 
 ## 12. Sprint Alignment
 
-| Sprint | Tuần | Tech Được Giới Thiệu |
+| Sprint | Weeks | Technologies Introduced |
 |---|---|---|
-| **Sprint 1** | 1–4 | Docker Compose setup (MongoDB + Redis + NestJS + Next.js + FastAPI); MongoDB Atlas M0 + Mongoose schemas; NestJS modules scaffold (Auth, Catalog, Cart); Next.js App Router setup; Cloudflare R2 + CDN; GitHub Actions CI |
-| **Sprint 2** | 5–8 | Order module + VNPay sandbox; BullMQ email queue + Resend; Atlas Search setup; Web Push VAPID; Admin Dashboard cơ bản; CD pipeline (Render + Vercel staging) |
-| **Sprint 3** | 9–12 | FastAPI AI service bootstrap; LightFM training pipeline (GitHub Actions cron); Feature store 2-tier (Redis + MongoDB); TF-IDF CBF similarity matrix; Behavioral event ingestion (direct MongoDB); RFM segmentation (MongoDB aggregation) |
-| **Sprint 4** | 13–16 | Hybrid recommendation scoring (α tuning); Marketing campaign MVP; Sentry error tracking; Performance tuning; Demo environment prep; Documentation final |
+| **Sprint 1** | 1–4 | Docker Compose setup (MongoDB + Redis + NestJS + Next.js + FastAPI); MongoDB Atlas M0 + Mongoose schemas; NestJS modules scaffold (Auth, Catalog, Cart); Next.js App Router setup; Cloudflare R2; GitHub Actions CI |
+| **Sprint 2** | 5–8 | Order module + VNPay sandbox; BullMQ email queue + Nodemailer/Gmail SMTP; Atlas Search setup; Web Push VAPID; Basic Admin Dashboard; CD pipeline (Render + Vercel staging) |
+| **Sprint 3** | 9–12 | FastAPI AI service bootstrap; LightFM training pipeline (GitHub Actions cron); 2-tier feature store (Redis + MongoDB); TF-IDF CBF similarity matrix; Behavioral event ingestion (direct MongoDB); RFM segmentation (MongoDB aggregation) |
+| **Sprint 4** | 13–16 | Hybrid recommendation scoring (α tuning); Marketing campaign MVP; error_logs in-app monitoring; Performance tuning; Demo environment prep; Final documentation |
 
 ---
 
 ## 13. Glossary
 
-| Thuật Ngữ | Định Nghĩa |
+| Term | Definition |
 |---|---|
-| **ALS** | Alternating Least Squares — thuật toán Matrix Factorization cho Collaborative Filtering |
-| **BPR** | Bayesian Personalized Ranking — loss function trong LightFM |
-| **CBF** | Content-Based Filtering — gợi ý dựa trên thuộc tính sản phẩm |
-| **CF** | Collaborative Filtering — gợi ý dựa trên hành vi tập thể người dùng |
-| **CSR** | Client-Side Rendering — render HTML trong browser bằng JavaScript |
-| **DI** | Dependency Injection — design pattern inject dependencies thay vì khởi tạo trực tiếp |
-| **ISR** | Incremental Static Regeneration — Next.js pattern: static page rebuild theo interval |
-| **LLM** | Large Language Model — mô hình ngôn ngữ lớn (Gemini, GPT, Claude...) |
-| **ODM** | Object Document Mapper — tương tự ORM nhưng cho NoSQL document DB (Mongoose) |
-| **RBAC** | Role-Based Access Control — kiểm soát truy cập theo vai trò (buyer/staff/admin) |
-| **RFM** | Recency-Frequency-Monetary — phương pháp phân khúc khách hàng theo giá trị |
-| **SSG** | Static Site Generation — pre-render HTML tại build time |
-| **SSR** | Server-Side Rendering — render HTML trên server theo từng request |
-| **VAPID** | Voluntary Application Server Identification — chuẩn xác thực Web Push |
-| **WARP** | Weighted Approximate-Rank Pairwise — loss function LightFM tối ưu cho top-N recommendation |
+| **ALS** | Alternating Least Squares — Matrix Factorization algorithm for Collaborative Filtering |
+| **BPR** | Bayesian Personalized Ranking — loss function in LightFM |
+| **CBF** | Content-Based Filtering — recommendations based on product attributes |
+| **CF** | Collaborative Filtering — recommendations based on collective user behavior |
+| **CSR** | Client-Side Rendering — render HTML in the browser using JavaScript |
+| **DI** | Dependency Injection — design pattern that injects dependencies instead of instantiating them directly |
+| **ISR** | Incremental Static Regeneration — Next.js pattern: static page rebuilt on a set interval |
+| **LLM** | Large Language Model — large language model (Gemini, GPT, Claude...) |
+| **ODM** | Object Document Mapper — similar to ORM but for NoSQL document DBs (Mongoose) |
+| **RBAC** | Role-Based Access Control — access control based on roles (buyer/staff/admin) |
+| **RFM** | Recency-Frequency-Monetary — customer segmentation method based on value |
+| **SSG** | Static Site Generation — pre-render HTML at build time |
+| **SSR** | Server-Side Rendering — render HTML on the server per request |
+| **VAPID** | Voluntary Application Server Identification — Web Push authentication standard |
+| **WARP** | Weighted Approximate-Rank Pairwise — LightFM loss function optimized for top-N recommendations |
 
 ---
 
-*TECH_STACK.md — v1.0.0 — 2026-03-24*
-*Tài liệu này là Bước 2/5 trong workflow thiết kế hệ thống. Bước tiếp theo: `docs/SYSTEM_DESIGN.md`*
+*TECH_STACK.md — v2.0.0 — 2026-04-01*
+*This document is Step 2/5 in the system design workflow. Next step: `docs/SYSTEM_DESIGN.md`*

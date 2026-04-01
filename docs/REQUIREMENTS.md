@@ -1,313 +1,313 @@
-# Đặc Tả Yêu Cầu Hệ Thống (Requirements Specification)
+# System Requirements Specification
 
 **Project:** SMART ECOMMERCE AI SYSTEM
 **Version:** 2.2.0
 **Date:** 2026-04-01
 **Course:** Môn Học Năm 4 - HK2
 **Status:** Approved
-**Language:** Tiếng Việt — thuật ngữ kỹ thuật giữ nguyên tiếng Anh
+**Language:** English
 
 ---
 
-## Mục Lục
+## Table of Contents
 
-1. [Yêu Cầu Kinh Doanh (Business Requirements)](#1-yêu-cầu-kinh-doanh)
-2. [Yêu Cầu Chức Năng (Functional Requirements)](#2-yêu-cầu-chức-năng)
-3. [Yêu Cầu Phi Chức Năng (Non-Functional Requirements)](#3-yêu-cầu-phi-chức-năng)
+1. [Business Requirements](#1-business-requirements)
+2. [Functional Requirements](#2-functional-requirements)
+3. [Non-Functional Requirements](#3-non-functional-requirements)
 4. [User Stories](#4-user-stories)
-5. [Ràng Buộc & Giả Định (Constraints & Assumptions)](#5-ràng-buộc--giả-định)
-6. [Ngoài Phạm Vi Phase 1 (Out of Scope)](#6-ngoài-phạm-vi-phase-1)
-7. [Bảng Tóm Tắt (Summary)](#7-bảng-tóm-tắt)
+5. [Constraints & Assumptions](#5-constraints--assumptions)
+6. [Out of Scope — Phase 1](#6-out-of-scope--phase-1)
+7. [Summary](#7-summary)
 
 ---
 
-## 1. Yêu Cầu Kinh Doanh
+## 1. Business Requirements
 
-### 1.1 Phát Biểu Vấn Đề (Core Problem Statement)
+### 1.1 Core Problem Statement
 
-Các nền tảng thương mại điện tử truyền thống đang thất bại ở hai điểm cốt lõi: người mua hàng phải tự tìm kiếm sản phẩm phù hợp trong catalog hàng nghìn SKU mà không được hỗ trợ cá nhân hóa, dẫn đến tỷ lệ bỏ trang cao và tỷ lệ chuyển đổi thấp; trong khi đó, team marketing phải thực hiện phân khúc khách hàng và soạn nội dung chiến dịch thủ công, tốn nhiều nhân lực mà hiệu quả không đo lường được chính xác. Hệ thống này giải quyết cả hai bài toán đồng thời bằng cách tích hợp AI recommendation engine cá nhân hóa trải nghiệm mua sắm và AI marketing automation tự động hóa toàn bộ vòng đời chiến dịch từ phân đoạn đến gửi nội dung tối ưu, nhằm tăng doanh thu và giữ chân khách hàng mà không tăng chi phí vận hành theo tuyến tính.
+Traditional e-commerce platforms are failing on two core fronts: shoppers must search for relevant products themselves across a catalog of thousands of SKUs with no personalization support, leading to high bounce rates and low conversion rates; meanwhile, marketing teams must perform customer segmentation and draft campaign content manually, consuming significant human resources while campaign effectiveness cannot be accurately measured. This system addresses both problems simultaneously by integrating an AI recommendation engine that personalizes the shopping experience and AI marketing automation that automates the entire campaign lifecycle from segmentation to delivering optimized content — all with the goal of increasing revenue and retaining customers without linearly increasing operational costs.
 
-### 1.2 Mục Tiêu Kinh Doanh (Business Goals)
+### 1.2 Business Goals
 
-| Goal ID | Mục Tiêu | Chỉ Số Đo Lường | Target (Phase 1) |
+| Goal ID | Objective | Measurement Metric | Target (Phase 1) |
 |---|---|---|---|
-| BG-01 | Tăng tỷ lệ chuyển đổi mua hàng | Conversion rate (visits → purchase) | >= 3.5% |
-| BG-02 | Cải thiện hiệu quả AI Recommendation | CTR trên gợi ý AI | >= 5% |
-| BG-03 | Tăng giá trị đơn hàng trung bình | Average Order Value (AOV) | +15% so với baseline |
-| BG-04 | Giảm chi phí marketing | Chi phí thu hút / khách hàng quay lại | -20% so với chiến dịch thủ công |
-| BG-05 | Nâng cao hiệu quả chiến dịch email | Email open rate | >= 20% |
-| BG-06 | Giảm tỷ lệ bỏ giỏ hàng | Cart abandonment rate | <= 65% |
-| BG-07 | Tăng hiệu quả vận hành admin | Thời gian xử lý 1 đơn hàng của admin | -30% so với baseline |
+| BG-01 | Increase purchase conversion rate | Conversion rate (visits → purchase) | >= 3.5% |
+| BG-02 | Improve AI Recommendation effectiveness | CTR on AI recommendations | >= 5% |
+| BG-03 | Increase average order value | Average Order Value (AOV) | +15% vs. baseline |
+| BG-04 | Reduce marketing costs | Acquisition cost per returning customer | -20% vs. manual campaigns |
+| BG-05 | Improve email campaign effectiveness | Email open rate | >= 20% |
+| BG-06 | Reduce cart abandonment rate | Cart abandonment rate | <= 65% |
+| BG-07 | Improve admin operational efficiency | Time to process 1 order by admin | -30% vs. baseline |
 
 ### 1.3 User Personas
 
 ---
 
-#### Persona 1 — Buyer (Người Mua Hàng)
+#### Persona 1 — Buyer
 
-**Mô tả:** Người dùng cuối, 18–45 tuổi, mua sắm trực tuyến thường xuyên trên nhiều thiết bị. Bao gồm cả khách ẩn danh (guest) và tài khoản đã đăng ký.
+**Description:** End user, aged 18–45, shops online frequently across multiple devices. Includes both anonymous guests and registered account holders.
 
 **Goals:**
-- Tìm được sản phẩm phù hợp nhanh chóng, không mất thời gian lướt dài
-- Nhận ưu đãi đúng lúc, đúng sản phẩm đang quan tâm
-- Biết trạng thái đơn hàng mà không cần liên hệ hỗ trợ
-- Trải nghiệm mua sắm nhất quán trên mobile lẫn desktop
+- Find relevant products quickly without spending time browsing endlessly
+- Receive the right offers at the right time for products they care about
+- Know order status without needing to contact support
+- Consistent shopping experience on both mobile and desktop
 
 **Pain Points:**
-- Bị tràn ngập sản phẩm không liên quan khi vào trang chủ
-- Quy trình checkout nhiều bước, phải nhập lại thông tin
-- Không nhận được thông báo khi sản phẩm yêu thích giảm giá hoặc có hàng trở lại
-- Email marketing generic, không liên quan đến nhu cầu thực tế
+- Overwhelmed by irrelevant products on the homepage
+- Multi-step checkout process requiring repeated data entry
+- No notifications when a favorite product drops in price or comes back in stock
+- Generic marketing emails unrelated to actual needs
 
 **Key Needs:**
-- Search thông minh hiểu tiếng Việt, bộ lọc nhanh
-- Gợi ý AI cá nhân hóa trên homepage và trang sản phẩm
-- Checkout nhanh với địa chỉ và thanh toán đã lưu
-- Thông báo realtime trạng thái đơn hàng
+- Smart search that understands Vietnamese, with quick filters
+- Personalized AI recommendations on the homepage and product pages
+- Fast checkout with saved addresses and payment methods
+- Real-time order status notifications
 
 ---
 
-#### Persona 2 — Seller / Product Manager (Người Quản Lý Sản Phẩm)
+#### Persona 2 — Seller / Product Manager
 
-**Mô tả:** Nhân viên nội bộ chịu trách nhiệm quản lý catalog sản phẩm, giá, tồn kho. Có kiến thức nghiệp vụ nhưng không có kỹ năng kỹ thuật sâu.
+**Description:** Internal staff responsible for managing the product catalog, pricing, and inventory. Has domain knowledge but no deep technical skills.
 
 **Goals:**
-- Upload và cập nhật sản phẩm hàng loạt một cách nhanh chóng
-- Luôn nắm được tình trạng tồn kho, không để hết hàng mà không biết
-- Hiểu sản phẩm nào đang bán tốt để ra quyết định về giá và khuyến mãi
+- Upload and update products in bulk quickly
+- Always be aware of inventory status so items never go out of stock unknowingly
+- Understand which products are selling well to make pricing and promotion decisions
 
 **Pain Points:**
-- Phải tạo từng sản phẩm/variant thủ công khi catalog lớn
-- Không có cảnh báo tự động khi stock sắp hết
-- Thiếu insight về tại sao một sản phẩm view nhiều nhưng conversion thấp
+- Must create each product/variant manually when the catalog is large
+- No automatic alerts when stock is running low
+- Lacks insight into why a product has many views but a low conversion rate
 
 **Key Needs:**
-- Bulk import/export CSV với variant generation tự động
-- Cảnh báo inventory tự động với ngưỡng cấu hình được
-- Báo cáo hiệu suất sản phẩm: view, add-to-cart rate, conversion rate
+- Bulk CSV import/export with automatic variant generation
+- Automatic inventory alerts with configurable thresholds
+- Product performance reports: views, add-to-cart rate, conversion rate
 
 ---
 
 #### Persona 3 — Marketing Manager
 
-**Mô tả:** Chịu trách nhiệm chiến lược digital marketing, phân tích hành vi người dùng, tối ưu tỷ lệ chuyển đổi. Quen với các tool marketing nhưng không biết lập trình.
+**Description:** Responsible for digital marketing strategy, user behavior analysis, and conversion rate optimization. Comfortable with marketing tools but does not know how to code.
 
 **Goals:**
-- Tạo và tự động hóa chiến dịch marketing nhắm đúng đối tượng
-- Sử dụng AI để tiết kiệm thời gian tạo nội dung
-- Đo được ROI của từng chiến dịch một cách chính xác
+- Create and automate marketing campaigns targeting the right audience
+- Use AI to save time on content creation
+- Accurately measure ROI for each campaign
 
 **Pain Points:**
-- Phân đoạn khách hàng thủ công tốn hàng ngày công sức
-- Nội dung email generic, tỷ lệ mở thấp
-- Không biết thời điểm tốt nhất để gửi thông báo cho từng nhóm khách hàng
-- Kết quả A/B test phải tự tính toán trong spreadsheet
+- Manual customer segmentation takes days of effort
+- Generic email content results in low open rates
+- Does not know the best time to send notifications to each customer group
+- A/B test results must be calculated manually in a spreadsheet
 
 **Key Needs:**
-- AI segmentation tự động (RFM) + custom segment builder
-- LLM content generation cho email subject, body, push notification
-- Send-time optimization dự đoán thời điểm gửi tốt nhất cho từng user
-- Dashboard A/B test với statistical significance tự động
+- Automatic AI segmentation (RFM) + custom segment builder
+- LLM content generation for email subjects, bodies, and push notifications
+- Send-time optimization that predicts the best send time for each user
+- A/B test dashboard with automatic statistical significance calculation
 
 ---
 
 #### Persona 4 — Admin / System Administrator
 
-**Mô tả:** Quản trị viên hệ thống, quản lý toàn bộ platform: người dùng, phân quyền, giám sát vận hành, xử lý sự cố.
+**Description:** System administrator managing the entire platform: users, permissions, operational monitoring, and incident response.
 
 **Goals:**
-- Hệ thống hoạt động ổn định, biết ngay khi có vấn đề
-- Phân quyền rõ ràng theo vai trò, không ai truy cập vượt quyền hạn
-- Có đủ bằng chứng audit khi cần điều tra sự cố
+- System runs stably with immediate awareness of any issues
+- Clear role-based access control so no one exceeds their permissions
+- Sufficient audit evidence when investigating incidents
 
 **Pain Points:**
-- Thiếu visibility vào hiệu suất của AI services
-- Log phân tán ở nhiều chỗ, khó tìm nguyên nhân khi có lỗi
-- Không có cơ chế rollback nhanh khi deploy có vấn đề
+- Lack of visibility into AI service performance
+- Logs scattered across multiple locations, making root cause analysis difficult
+- No fast rollback mechanism when a deployment has issues
 
 **Key Needs:**
-- Centralized monitoring bao gồm cả AI model metrics
-- Role-based access control chi tiết với audit trail đầy đủ
-- Health dashboard và alerting khi metrics vượt ngưỡng
+- Centralized monitoring including AI model metrics
+- Detailed role-based access control with a complete audit trail
+- Health dashboard and alerting when metrics exceed thresholds
 
 ---
 
-## 2. Yêu Cầu Chức Năng
+## 2. Functional Requirements
 
-> **Format:** `- [ ] **FR-[MODULE]-[ID]** \`Priority\`: [Mô tả chi tiết]`
-> **Priority:** `Must` = bắt buộc trước demo | `Should` = quan trọng, làm nếu kịp | `Could` = nice-to-have
-> Mỗi FR đủ rõ để developer implement mà không cần hỏi thêm.
-> Không đề cập công nghệ cụ thể (xem `TECH_STACK.md`).
-> **Tổng Must: 21 | Should: 27 | Could: 10**
-
----
-
-### 2.1 FR-AUTH — Module Xác Thực & Người Dùng
-
-- [ ] **FR-AUTH-01** `Must`: Đăng ký tài khoản bằng email và mật khẩu — hệ thống validate định dạng email hợp lệ, enforce password policy (tối thiểu 8 ký tự, ít nhất 1 chữ hoa, 1 chữ số, 1 ký tự đặc biệt), gửi email xác minh chứa link dùng một lần hết hạn sau 24 giờ; tài khoản chỉ được kích hoạt sau khi xác minh email thành công.
-- [ ] **FR-AUTH-02** `Should`: Đăng ký và đăng nhập qua OAuth provider (Google, Facebook) — hệ thống nhận authorization code, trao đổi lấy access token từ provider, tạo tài khoản nội bộ mới nếu email chưa tồn tại hoặc liên kết với tài khoản hiện có nếu cùng email; không lưu mật khẩu của provider trong hệ thống.
-- [ ] **FR-AUTH-03** `Could`: Xác thực hai lớp (2FA) — hỗ trợ TOTP (ứng dụng authenticator như Google Authenticator) và SMS OTP (6 chữ số, hết hạn sau 5 phút); người dùng bật/tắt 2FA trong phần cài đặt bảo mật; sau 5 lần nhập OTP sai liên tiếp, khóa đăng nhập 15 phút và thông báo qua email.
-- [ ] **FR-AUTH-04** `Must`: Quản lý phiên đăng nhập — phát hành Access Token (thời hạn ngắn, configurable) và Refresh Token (thời hạn dài, lưu trong HTTP-only Secure cookie); hỗ trợ tính năng "logout từ tất cả thiết bị" thu hồi toàn bộ Refresh Token; người dùng xem danh sách active sessions (thiết bị, IP, thời gian đăng nhập lần cuối) và có thể thu hồi từng session.
-- [ ] **FR-AUTH-05** `Should`: Quên mật khẩu và reset — người dùng nhập email, hệ thống gửi link reset chứa token dùng một lần hết hạn sau 1 giờ; sau khi đổi mật khẩu thành công, token bị vô hiệu hóa lập tức và tất cả Refresh Token hiện tại bị thu hồi; hiển thị thông báo thành công dù email tồn tại hay không (chống email enumeration).
-- [ ] **FR-AUTH-06** `Should`: Quản lý hồ sơ cá nhân — người dùng chỉnh sửa tên hiển thị, số điện thoại (validate format Việt Nam), ảnh đại diện (upload file ảnh, hệ thống resize và crop về kích thước chuẩn server-side), quản lý tối đa 5 địa chỉ giao hàng (tỉnh/thành phố, quận/huyện, phường/xã, địa chỉ cụ thể, tên người nhận, SĐT nhận hàng); đánh dấu 1 địa chỉ là mặc định.
-- [ ] **FR-AUTH-07** `Could`: Hệ thống điểm thưởng (Loyalty Points) — mỗi đơn hàng hoàn thành (trạng thái COMPLETED) cộng điểm theo tỷ lệ cấu hình được (ví dụ: 1 điểm / 10,000 VND); điểm có thể quy đổi thành voucher giảm giá (ví dụ: 100 điểm = 10,000 VND); người dùng xem lịch sử điểm đầy đủ với timestamp, lý do cộng/trừ, số điểm thay đổi, số dư sau giao dịch; điểm không có thời hạn sử dụng trong Phase 1.
-- [ ] **FR-AUTH-08** `Should`: Danh sách yêu thích (Wishlist) — người dùng đã đăng nhập thêm/xóa sản phẩm (theo product ID, không phân biệt variant), xem toàn bộ wishlist với thông tin giá và trạng thái stock hiện tại, chuyển toàn bộ sản phẩm còn hàng trong wishlist vào giỏ hàng bằng 1 thao tác; wishlist được lưu persistent gắn với tài khoản.
+> **Format:** `- [ ] **FR-[MODULE]-[ID]** \`Priority\`: [Detailed description]`
+> **Priority:** `Must` = mandatory before demo | `Should` = important, implement if time allows | `Could` = nice-to-have
+> Each FR is clear enough for a developer to implement without further clarification.
+> No specific technology is mentioned here (see `TECH_STACK.md`).
+> **Total Must: 21 | Should: 27 | Could: 10**
 
 ---
 
-### 2.2 FR-CATALOG — Module Catalog & Tìm Kiếm
+### 2.1 FR-AUTH — Authentication & User Module
 
-- [ ] **FR-CATALOG-01** `Must`: CRUD sản phẩm đầy đủ — các trường bắt buộc: tên sản phẩm, mô tả ngắn (plain text), mô tả dài (rich text hỗ trợ heading/bold/list/image), giá niêm yết, SKU, trạng thái (draft / active / inactive); trường tùy chọn: giá khuyến mãi, barcode, thương hiệu, tags (tối đa 20 tag), hình ảnh (tối đa 10 ảnh/sản phẩm, hỗ trợ bulk upload, tự động resize về các kích thước chuẩn); admin có thể xem trước trang sản phẩm trước khi publish.
-- [ ] **FR-CATALOG-02** `Must`: Quản lý danh mục đa cấp (Category Tree) — cấu trúc cây tối đa 3 cấp (ví dụ: Thời Trang > Nam > Áo sơ mi); CRUD category với tên, slug (auto-generate từ tên, có thể tùy chỉnh), mô tả, hình ảnh đại diện, thứ tự hiển thị; sản phẩm có thể thuộc nhiều category; category có meta title và meta description cho SEO.
-- [ ] **FR-CATALOG-03** `Should`: Quản lý biến thể sản phẩm (Product Variants) — admin định nghĩa attribute groups (ví dụ: Size với các giá trị S/M/L/XL; Màu sắc với Đỏ/Xanh/Trắng); hệ thống tự động tạo matrix tất cả combinations thành các SKU riêng biệt; mỗi SKU có giá, tồn kho, và ảnh riêng; giao diện matrix editor cho phép set giá/stock hàng loạt theo hàng/cột.
-- [ ] **FR-CATALOG-04** `Must`: Full-text search hỗ trợ tiếng Việt — tìm kiếm theo tên sản phẩm, mô tả, SKU, tag, tên thương hiệu; xử lý dấu tiếng Việt (tìm "ao so mi" khớp "áo sơ mi"); hỗ trợ tìm kiếm mờ (fuzzy search) cho typo phổ biến; kết quả được xếp hạng theo relevance score kết hợp với popularity; thời gian phản hồi p95 < 300ms.
-- [ ] **FR-CATALOG-05** `Should`: Bộ lọc nâng cao (Advanced Filters) — các bộ lọc: danh mục (multi-select), khoảng giá (range slider với min/max), đánh giá (>= X sao), thương hiệu (multi-select), trạng thái còn hàng (toggle), thuộc tính tùy chỉnh theo danh mục (ví dụ: Size chỉ hiện khi lọc Thời Trang); kết hợp nhiều filter bằng AND logic; trạng thái filter được phản ánh vào URL query parameters để có thể bookmark và share.
-- [ ] **FR-CATALOG-06** `Should`: Sắp xếp kết quả (Sorting) — các tùy chọn sắp xếp: giá tăng dần, giá giảm dần, mới nhất, bán chạy nhất, đánh giá cao nhất, độ liên quan AI (chỉ cho user đã đăng nhập); mặc định: AI relevance cho user đăng nhập, bán chạy nhất cho guest; thứ tự sắp xếp được giữ khi thay đổi filter.
-- [ ] **FR-CATALOG-07** `Must`: Trang chi tiết sản phẩm (Product Detail Page) — hiển thị: gallery ảnh với thumbnail và zoom khi hover, selector biến thể cập nhật giá/stock/ảnh realtime khi chọn, badge "Hết hàng" khi stock = 0, countdown timer nếu đang có flash sale, breadcrumb navigation phản ánh category path, structured data markup (JSON-LD Schema.org/Product) cho SEO.
-- [ ] **FR-CATALOG-08** `Should`: Đánh giá và nhận xét (Review & Rating) — chỉ user đã mua sản phẩm thành công (đơn hàng trạng thái COMPLETED) mới được viết review; rating 1–5 sao, tiêu đề ngắn (tùy chọn), nội dung (tùy chọn), tối đa 5 ảnh kèm; trang sản phẩm hiển thị rating trung bình, tổng số review, histogram phân phối sao; admin ẩn/xóa review vi phạm với ghi chú lý do; review được sắp xếp theo mới nhất, hữu ích nhất (dựa trên upvote).
-- [ ] **FR-CATALOG-09** `Should`: Quản lý tồn kho (Inventory Management) — admin cập nhật stock theo từng variant; cảnh báo tự động (email/notification trong dashboard) khi stock của bất kỳ variant nào giảm xuống dưới ngưỡng cấu hình được (mặc định: 10); trạng thái "Hết hàng" tự động khi stock = 0, tự động "Còn hàng" khi stock > 0; lịch sử nhập/xuất kho với timestamp, lý do thay đổi, và actor.
-- [ ] **FR-CATALOG-10** `Could`: Flash Sale & Khuyến Mãi Theo Thời Gian — admin tạo promotion với: tên, loại giảm (% hoặc số tiền cố định), thời gian bắt đầu và kết thúc (chính xác đến giây), áp dụng cho sản phẩm cụ thể hoặc toàn bộ category; trang sản phẩm hiển thị giá gốc gạch ngang, giá sau giảm, countdown timer đến khi kết thúc; giá khuyến mãi tự động có hiệu lực và hết hiệu lực đúng thời điểm cấu hình, không cần can thiệp thủ công.
+- [ ] **FR-AUTH-01** `Must`: Account registration via email and password — the system validates the email format, enforces password policy (minimum 8 characters, at least 1 uppercase letter, 1 digit, 1 special character), sends a verification email containing a one-time link that expires after 24 hours; the account is only activated after email verification is successful.
+- [ ] **FR-AUTH-02** `Should`: Registration and login via OAuth providers (Google, Facebook) — the system receives the authorization code, exchanges it for an access token from the provider, creates a new internal account if the email does not already exist or links to an existing account if the email matches; the provider's password is never stored in the system.
+- [ ] **FR-AUTH-03** `Could`: Two-factor authentication (2FA) — supports TOTP (authenticator apps such as Google Authenticator) and SMS OTP (6 digits, expires after 5 minutes); users enable/disable 2FA in security settings; after 5 consecutive incorrect OTP entries, login is locked for 15 minutes and an email notification is sent.
+- [ ] **FR-AUTH-04** `Must`: Session management — issues an Access Token (short-lived, configurable TTL) and a Refresh Token (long-lived, stored in an HTTP-only Secure cookie); supports a "logout from all devices" feature that revokes all Refresh Tokens; users can view a list of active sessions (device, IP, last login time) and revoke individual sessions.
+- [ ] **FR-AUTH-05** `Should`: Forgot password and reset — the user enters their email, the system sends a reset link containing a one-time token that expires after 1 hour; after the password is successfully changed, the token is immediately invalidated and all current Refresh Tokens are revoked; a success message is displayed regardless of whether the email exists (prevents email enumeration).
+- [ ] **FR-AUTH-06** `Should`: Personal profile management — users can edit their display name, phone number (validate Vietnamese format), and avatar (upload image file; the system resizes and crops to a standard size server-side); manage up to 5 delivery addresses (province/city, district, ward, specific address, recipient name, recipient phone); one address can be set as the default.
+- [ ] **FR-AUTH-07** `Could`: Loyalty Points system — every completed order (COMPLETED status) earns points at a configurable rate (e.g., 1 point per 10,000 VND); points can be redeemed for discount vouchers (e.g., 100 points = 10,000 VND); users view a full points history with timestamp, reason for earning/spending, points changed, and balance after each transaction; points do not expire in Phase 1.
+- [ ] **FR-AUTH-08** `Should`: Wishlist — logged-in users can add/remove products (by product ID, regardless of variant), view the full wishlist with current price and stock status, and move all in-stock wishlist items to the cart in a single action; the wishlist is stored persistently tied to the account.
 
 ---
 
-### 2.3 FR-CART — Module Giỏ Hàng, Checkout & Thanh Toán
+### 2.2 FR-CATALOG — Catalog & Search Module
 
-- [ ] **FR-CART-01** `Must`: Quản lý giỏ hàng — thêm sản phẩm vào giỏ kèm variant đã chọn và số lượng, cập nhật số lượng từng item, xóa từng item hoặc xóa toàn bộ; giỏ hàng của user đã đăng nhập được lưu persistent trên server; khi user đăng nhập sau khi đã có giỏ hàng ẩn danh, hệ thống merge (ưu tiên giữ item của cả hai, cộng số lượng nếu trùng sản phẩm); tổng tiền cập nhật realtime khi thay đổi số lượng.
-- [ ] **FR-CART-02** `Should`: Áp mã giảm giá (Coupon/Voucher) — user nhập mã, hệ thống validate đồng thời: mã tồn tại, còn trong thời hạn, đúng điều kiện áp dụng (tổng giỏ hàng >= giá trị tối thiểu, sản phẩm/category áp dụng, user chưa dùng quá giới hạn lượt/user); hiển thị rõ số tiền được giảm; nếu không hợp lệ, hiển thị thông báo lý do cụ thể (hết hạn / đã dùng / không đủ điều kiện).
-- [ ] **FR-CART-03** `Should`: Tính phí vận chuyển — khi user nhập địa chỉ giao hàng (hoặc chọn từ địa chỉ đã lưu), hệ thống tính phí vận chuyển dựa trên tỉnh/thành phố đích và tổng trọng lượng đơn hàng; hiển thị nhiều phương thức vận chuyển với giá và thời gian giao hàng dự kiến khác nhau (ví dụ: Giao hàng tiêu chuẩn 3–5 ngày / Giao hàng nhanh 1–2 ngày); hiển thị ngưỡng miễn phí vận chuyển và số tiền còn thiếu để đạt ngưỡng.
-- [ ] **FR-CART-04** `Must`: Quy trình Checkout nhiều bước — flow: (1) Địa chỉ giao hàng, (2) Phương thức vận chuyển, (3) Phương thức thanh toán, (4) Xác nhận đơn hàng; user có thể quay lại bước trước mà không mất dữ liệu đã nhập; bước xác nhận hiển thị đầy đủ: danh sách sản phẩm, địa chỉ, phương thức vận chuyển, phí, giảm giá, tổng thanh toán; tiến trình được hiển thị qua step indicator.
-- [ ] **FR-CART-05** `Must`: Thanh toán đa phương thức — hỗ trợ: (1) COD (Cash on Delivery): tạo đơn hàng ngay, thanh toán khi nhận; (2) QR Pay qua cổng nội địa (tích hợp adapter cho Momo, VNPay): hiển thị QR code, hệ thống poll hoặc nhận webhook để xác nhận; (3) Thẻ quốc tế (Visa/Mastercard) qua payment gateway: redirect sang trang payment gateway, nhận kết quả qua callback URL; trạng thái thanh toán được cập nhật tự động qua webhook, không yêu cầu user tải lại trang.
-- [ ] **FR-CART-06** `Must`: Xác nhận đơn hàng tức thì — ngay sau khi tạo đơn hàng thành công, hệ thống gửi email xác nhận chứa: order ID, danh sách sản phẩm kèm ảnh và giá, địa chỉ giao hàng, phương thức thanh toán, tổng tiền, thời gian giao hàng dự kiến, link theo dõi đơn hàng; nếu user cung cấp số điện thoại, gửi thêm SMS với nội dung tóm tắt.
-- [ ] **FR-CART-07** `Could`: Lưu phương thức thanh toán (Saved Payment) — user có thể chọn lưu phương thức thanh toán sau khi giao dịch thành công; số thẻ/tài khoản được tokenize qua payment gateway, hệ thống chỉ lưu token và 4 chữ số cuối (không lưu raw data); lần sau user chọn phương thức đã lưu và chỉ cần xác nhận (không nhập lại); user có thể xóa phương thức đã lưu bất kỳ lúc nào.
-- [ ] **FR-CART-08** `Should`: Xử lý lỗi thanh toán — nếu payment gateway trả về lỗi hoặc timeout, đơn hàng giữ trạng thái PENDING_PAYMENT, stock không bị deduct; hiển thị thông báo lỗi rõ ràng và lý do (nếu có từ gateway); user có thể thử lại với cùng phương thức hoặc chọn phương thức khác mà không cần nhập lại thông tin đơn hàng; sau 30 phút không thanh toán, đơn hàng tự động hủy và giỏ hàng được khôi phục.
-
----
-
-### 2.4 FR-ORDER — Module Quản Lý Đơn Hàng
-
-- [ ] **FR-ORDER-01** `Must`: Vòng đời đơn hàng (Order Lifecycle) — 6 trạng thái: `PENDING_PAYMENT` → `CONFIRMED` → `PROCESSING` → `SHIPPED` → `DELIVERED` → `COMPLETED`; ngoài ra có trạng thái ngoài luồng: `CANCELLED` và `REFUNDED`; mỗi transition ghi lại: trạng thái mới, thời gian, actor (user / admin / system), ghi chú tùy chọn; stock bị deduct khi chuyển sang CONFIRMED; stock được hoàn khi CANCELLED hoặc khi return được approve.
-- [ ] **FR-ORDER-02** `Should`: Theo dõi đơn hàng (Order Tracking) — user xem trang theo dõi từ link trong email hoặc từ trang "Đơn hàng của tôi"; hiển thị: timeline trực quan các bước đã qua và bước tiếp theo, trạng thái hiện tại, mã vận đơn (tracking number) và tên đơn vị vận chuyển, link deep-link đến trang tracking của đơn vị vận chuyển (nếu có tích hợp); cập nhật trạng thái realtime qua webhook từ đối tác logistics khi có.
-- [ ] **FR-ORDER-03** `Should`: Thông báo thay đổi trạng thái — hệ thống tự động gửi thông báo khi đơn hàng chuyển sang các trạng thái quan trọng: CONFIRMED (đã xác nhận), SHIPPED (đang giao kèm mã vận đơn), DELIVERED (đã giao), CANCELLED (đã hủy); kênh thông báo: email (bắt buộc) + SMS (nếu có số điện thoại); nội dung email sử dụng template có thể tùy chỉnh, tự động điền thông tin đơn hàng; admin có thể gửi thông báo thủ công kèm ghi chú tùy chỉnh.
-- [ ] **FR-ORDER-04** `Should`: Hủy đơn hàng — user có thể hủy khi đơn hàng ở trạng thái PENDING_PAYMENT hoặc CONFIRMED; admin có thể hủy bất kỳ đơn nào trước khi trạng thái đạt SHIPPED; khi hủy: stock được hoàn về ngay lập tức, nếu đã thanh toán thì tạo refund request tự động; lý do hủy là bắt buộc (dropdown + ghi chú tự do); user nhận email xác nhận hủy.
-- [ ] **FR-ORDER-05** `Should`: Hoàn tiền (Refund) — refund được tạo tự động khi hủy đơn đã thanh toán, hoặc tạo thủ công bởi admin sau khi approve return request; hỗ trợ hoàn tiền toàn bộ hoặc một phần (nhập số tiền cụ thể); phương thức hoàn: về phương thức thanh toán gốc (xử lý qua payment gateway) hoặc về tài khoản điểm thưởng (cộng ngay); trạng thái refund: PENDING → PROCESSING → COMPLETED / FAILED; user nhận email thông báo kết quả refund.
-- [ ] **FR-ORDER-06** `Could`: Trả hàng & Hoàn đổi (Return/Exchange) — user tạo return request trong vòng N ngày (configurable, mặc định 7 ngày) sau khi trạng thái DELIVERED; bắt buộc chọn lý do (hàng lỗi / sai sản phẩm / không đúng mô tả / đổi ý) và upload ít nhất 1 ảnh minh chứng; admin review và approve/reject với ghi chú lý do; nếu approve: tạo return shipping label, cập nhật trạng thái về REFUNDED, stock được cộng lại sau khi ghi nhận nhận hàng.
-- [ ] **FR-ORDER-07** `Must`: Quản lý đơn hàng (Admin) — admin xem danh sách đơn hàng với filter theo: trạng thái, ngày đặt (range picker), giá trị đơn hàng, phương thức thanh toán, kênh bán; sort theo ngày, giá trị; xem chi tiết từng đơn; cập nhật trạng thái thủ công kèm ghi chú; in phiếu xuất kho (packing slip) bao gồm: order ID, danh sách sản phẩm, địa chỉ giao hàng, barcode; thêm ghi chú nội bộ (không hiển thị cho user).
-- [ ] **FR-ORDER-08** `Should`: Lịch sử đơn hàng (User Side) — user xem danh sách tất cả đơn hàng đã đặt, filter theo trạng thái, tìm kiếm theo order ID hoặc tên sản phẩm; xem chi tiết đơn: toàn bộ sản phẩm, giá tại thời điểm mua, địa chỉ giao hàng, phương thức thanh toán, timeline trạng thái; tính năng "Mua lại" (Reorder): thêm tất cả sản phẩm từ đơn hàng cũ vào giỏ hàng mới với 1 thao tác (sản phẩm không còn hàng được bỏ qua và thông báo cho user).
+- [ ] **FR-CATALOG-01** `Must`: Full product CRUD — required fields: product name, short description (plain text), long description (rich text supporting heading/bold/list/image), list price, SKU, status (draft / active / inactive); optional fields: sale price, barcode, brand, tags (max 20 tags), images (max 10 images per product, supporting bulk upload with automatic resizing to standard dimensions); admin can preview the product page before publishing.
+- [ ] **FR-CATALOG-02** `Must`: Multi-level category management (Category Tree) — tree structure up to 3 levels deep (e.g., Fashion > Men > Shirts); CRUD category with name, slug (auto-generated from name, customizable), description, cover image, display order; products can belong to multiple categories; categories have meta title and meta description for SEO.
+- [ ] **FR-CATALOG-03** `Should`: Product variant management — admin defines attribute groups (e.g., Size with values S/M/L/XL; Color with Red/Blue/White); the system automatically generates a matrix of all combinations as individual SKUs; each SKU has its own price, inventory, and image; the matrix editor UI allows bulk price/stock setting by row/column.
+- [ ] **FR-CATALOG-04** `Must`: Full-text search with Vietnamese language support — search by product name, description, SKU, tags, and brand name; handles Vietnamese diacritics (searching "ao so mi" matches "áo sơ mi"); supports fuzzy search for common typos; results are ranked by a relevance score combined with popularity; p95 response time < 300ms.
+- [ ] **FR-CATALOG-05** `Should`: Advanced filters — available filters: category (multi-select), price range (range slider with min/max), rating (>= X stars), brand (multi-select), in-stock status (toggle), custom attributes per category (e.g., Size only shown when filtering Fashion); multiple filters combined using AND logic; filter state is reflected in URL query parameters for bookmarking and sharing.
+- [ ] **FR-CATALOG-06** `Should`: Result sorting — sorting options: price ascending, price descending, newest, best-selling, highest rated, AI relevance (for logged-in users only); default: AI relevance for logged-in users, best-selling for guests; sort order is preserved when filters are changed.
+- [ ] **FR-CATALOG-07** `Must`: Product detail page — displays: image gallery with thumbnails and hover zoom, variant selector that updates price/stock/image in real time when selected, "Out of Stock" badge when stock = 0, countdown timer if a flash sale is active, breadcrumb navigation reflecting the category path, structured data markup (JSON-LD Schema.org/Product) for SEO.
+- [ ] **FR-CATALOG-08** `Should`: Reviews and ratings — only users who have successfully purchased the product (order in COMPLETED status) may write a review; rating 1–5 stars, optional short title, optional body text, up to 5 attached images; the product page displays average rating, total review count, and a star distribution histogram; admin can hide/delete policy-violating reviews with a reason note; reviews are sorted by newest and most helpful (based on upvotes).
+- [ ] **FR-CATALOG-09** `Should`: Inventory management — admin updates stock per variant; automatic alerts (email/dashboard notification) when any variant's stock falls below a configurable threshold (default: 10); "Out of Stock" status is set automatically when stock = 0, and automatically reverts to "In Stock" when stock > 0; stock movement history with timestamp, reason for change, and actor.
+- [ ] **FR-CATALOG-10** `Could`: Flash Sales & Time-limited Promotions — admin creates a promotion with: name, discount type (percentage or fixed amount), start and end time (accurate to the second), applicable to specific products or an entire category; the product page shows the original price crossed out, the discounted price, and a countdown timer to the end; the promotional price automatically takes effect and expires at the configured time without manual intervention.
 
 ---
 
-### 2.5 FR-REC — Module AI Recommendation Engine
+### 2.3 FR-CART — Cart, Checkout & Payment Module
 
-> Pipeline đầy đủ: Data Collection → Feature Store → Model Training → Inference Serving → Cold-Start → A/B Testing → Feedback Loop → Monitoring
-
-- [ ] **FR-REC-01** `Must` [Data Collection]: Thu thập behavioral events — hệ thống ghi lại tất cả sự kiện tương tác: `page_view`, `product_view`, `search_query`, `add_to_cart`, `remove_from_cart`, `purchase`, `review_submit`, `wishlist_add`, `recommendation_impression`, `recommendation_click`; mỗi event chứa: `user_id` (hoặc `session_id` cho guest), `item_id`, `event_type`, `timestamp` (UTC), `context` (trang hiện tại, device type, source placement); events được gửi bất đồng bộ từ frontend — không chờ response, không làm chậm UI; client retry tự động nếu request thất bại.
-- [ ] **FR-REC-02** `Must` [Feature Store]: Feature engineering và lưu trữ — hệ thống batch job định kỳ (mặc định mỗi 1 giờ) tính toán từ raw events: (a) User features: vector lịch sử mua hàng, category affinity scores (tần suất tương tác theo category), price sensitivity (khoảng giá thường mua), recency (ngày tương tác gần nhất), frequency (số lần tương tác trong 30 ngày), monetary (tổng chi tiêu); (b) Item features: category embedding, popularity score (view và purchase trong 7 ngày), average rating, price tier; (c) Interaction matrix thưa (sparse user-item matrix); features được lưu vào feature store với phiên bản (versioning) để reproducible training.
-- [ ] **FR-REC-03** `Must` [Model Training — CF]: Huấn luyện Collaborative Filtering — sử dụng thư viện ML có sẵn (Surprise, LightFM, implicit hoặc tương đương) để train model Matrix Factorization trên user-item interaction matrix từ feature store; lịch training: mặc định 1 lần/ngày vào giờ thấp điểm (cấu hình được); sau mỗi lần train, tự động đánh giá model mới trên offline test set với metrics: precision@10, recall@10, NDCG@10; chỉ promote model mới thành model production nếu tất cả metrics >= model hiện tại (không thụt lùi); lưu model artifact và metadata (training date, dataset version, metrics) vào model registry.
-- [ ] **FR-REC-04** `Should` [Model Training — CBF]: Huấn luyện Content-Based Filtering — sử dụng thư viện tính toán embedding và similarity có sẵn (scikit-learn, sentence-transformers hoặc tương đương) để tính toán item similarity matrix dựa trên product attributes: category embedding (one-hot encoded category path), text embedding của description, tag overlap, price range similarity; similarity matrix được rebuild khi có sản phẩm mới được thêm (trigger-based) hoặc theo lịch hàng ngày; lưu similarity scores vào cache để phục vụ inference nhanh.
-- [ ] **FR-REC-05** `Must` [Inference Serving — Hybrid API]: Hybrid Recommendation API — endpoint nhận input: `user_id` (hoặc `session_id`), `context` (trang hiện tại, `item_id` nếu đang xem sản phẩm cụ thể), `n` (số lượng recommendations muốn trả về), `exclude_item_ids` (danh sách loại trừ); trả về: danh sách item_id theo thứ tự ưu tiên với explanation score; final score = alpha × CF_score + (1-alpha) × CBF_score (alpha configurable); kết quả được cache theo user_id với TTL configurable (mặc định 10 phút); response time p95 < 200ms (cache hit), p99 < 500ms (cache miss).
-- [ ] **FR-REC-06** `Must` [Inference Serving — Placements]: Các vị trí hiển thị gợi ý — hệ thống hỗ trợ 5 placement độc lập, mỗi placement gọi FR-REC-05 với context khác nhau: (1) **Homepage Feed**: N sản phẩm cá nhân hóa cho user đăng nhập; (2) **Sản phẩm tương tự** trên Product Detail Page: CBF-heavy, loại trừ sản phẩm đang xem; (3) **Thường mua kèm** trong Cart: dựa trên co-purchase patterns, hiển thị sản phẩm hay được mua cùng với items trong giỏ; (4) **Search personalization**: rerank kết quả search theo user preference; (5) **Email recommendation block**: batch inference hàng ngày, không yêu cầu realtime; mỗi placement cấu hình được số lượng items và business rules override (ưu tiên sản phẩm cần đẩy hàng, loại trừ sản phẩm hết hàng).
-- [ ] **FR-REC-07** `Must` [Cold-Start]: Xử lý người dùng mới — khi user có ít hơn 3 interactions (tính từ lúc tạo tài khoản hoặc session mới của guest): fallback strategy theo thứ tự ưu tiên: (1) Category preference từ onboarding survey (nếu user hoàn thành khi đăng ký), (2) Trending products trong 7 ngày gần nhất (toàn site), (3) Top-rated products trong category đang duyệt; sau khi user tích lũy đủ 3 interactions, hệ thống tự động chuyển sang hybrid model ở lần request tiếp theo mà không cần user thao tác gì.
-- [ ] **FR-REC-08** `Could` [A/B Testing]: A/B test chiến lược gợi ý — hệ thống hỗ trợ chạy tối đa 3 strategy song song; user được phân bổ vào group ngẫu nhiên và nhất quán (cùng user luôn vào cùng group trong suốt thời gian test); phân bổ traffic cấu hình được theo % (ví dụ: 20%/80%); ghi lại per-group metrics: impression count, CTR, conversion rate, revenue per user; admin xem kết quả realtime, khai báo winner thủ công hoặc set ngưỡng auto-promote; thay đổi traffic allocation không yêu cầu redeploy service.
-- [ ] **FR-REC-09** `Should` [Feedback Loop]: Thu thập và xử lý phản hồi — explicit negative feedback: user nhấn "Không muốn xem loại này" hoặc report gợi ý không phù hợp; hệ thống loại bỏ item đó khỏi danh sách gợi ý của user đó ngay lập tức (realtime blocklist, không chờ model retrain); đồng thời ghi negative signal vào training data cho lần retrain tiếp theo; implicit feedback (không click recommendation sau nhiều impression) cũng được ghi nhận với trọng số thấp hơn.
-- [ ] **FR-REC-10** `Should` [Monitoring]: Giám sát hiệu suất recommendation — dashboard hiển thị: (a) Online metrics (cập nhật hàng giờ): CTR theo placement, conversion rate từ recommendation, revenue attributed to recommendation (last-click), impression count; (b) Offline metrics (cập nhật sau mỗi training run): precision@10, recall@10, NDCG@10 theo thời gian; (c) System metrics: inference latency p50/p95/p99, cache hit rate, feature store freshness (lag giữa event và feature update); alert tự động khi: CTR giảm > 20% so với baseline 7 ngày, inference latency p95 > 500ms, feature freshness > 3 giờ.
+- [ ] **FR-CART-01** `Must`: Cart management — add products to the cart with the selected variant and quantity, update the quantity of individual items, remove individual items or clear the entire cart; the cart of a logged-in user is stored persistently on the server; when a user logs in after having an anonymous cart, the system merges them (preserves items from both, adds quantities if the same product appears in both); the total updates in real time when quantities change.
+- [ ] **FR-CART-02** `Should`: Coupon/Voucher application — the user enters a code, the system simultaneously validates: code exists, is within the valid period, meets all conditions (cart total >= minimum value, applicable products/categories, user has not exceeded the per-user usage limit); displays the discount amount clearly; if invalid, displays a specific reason (expired / already used / conditions not met).
+- [ ] **FR-CART-03** `Should`: Shipping fee calculation — when the user enters a delivery address (or selects a saved address), the system calculates the shipping fee based on the destination province/city and the total order weight; displays multiple shipping methods with different prices and estimated delivery times (e.g., Standard 3–5 days / Express 1–2 days); displays the free shipping threshold and the amount still needed to qualify.
+- [ ] **FR-CART-04** `Must`: Multi-step checkout flow — steps: (1) Delivery address, (2) Shipping method, (3) Payment method, (4) Order confirmation; the user can go back to a previous step without losing data already entered; the confirmation step displays in full: item list, address, shipping method, fees, discounts, and total; progress is shown via a step indicator.
+- [ ] **FR-CART-05** `Must`: Multi-method payment — supports: (1) COD (Cash on Delivery): order is created immediately, payment on delivery; (2) QR Pay via domestic gateway (adapter for Momo, VNPay): displays a QR code, the system polls or receives a webhook to confirm; (3) International cards (Visa/Mastercard) via payment gateway: redirect to the payment gateway page, receive result via callback URL; payment status is updated automatically via webhook, no page reload required from the user.
+- [ ] **FR-CART-06** `Must`: Instant order confirmation — immediately after an order is successfully created, the system sends a confirmation email containing: order ID, product list with images and prices, delivery address, payment method, total amount, estimated delivery time, and an order tracking link; if the user provided a phone number, also send a summary SMS.
+- [ ] **FR-CART-07** `Could`: Saved Payment Methods — the user can choose to save a payment method after a successful transaction; the card/account number is tokenized through the payment gateway, and the system only stores the token and last 4 digits (no raw data stored); next time the user selects a saved method and only needs to confirm (no re-entry required); the user can delete any saved method at any time.
+- [ ] **FR-CART-08** `Should`: Payment error handling — if the payment gateway returns an error or times out, the order stays in PENDING_PAYMENT status and stock is not deducted; a clear error message and reason (if provided by the gateway) is displayed; the user can retry with the same method or choose a different method without re-entering order information; after 30 minutes with no payment, the order is automatically cancelled and the cart is restored.
 
 ---
 
-### 2.6 FR-MKTG — Module Marketing
+### 2.4 FR-ORDER — Order Management Module
 
-- [ ] **FR-MKTG-01** `Should` [RFM Segmentation]: Phân đoạn khách hàng theo RFM — Marketing Manager bấm nút "Tính toán lại RFM" để trigger tính toán theo yêu cầu (không tự động theo lịch); hệ thống phân tích customer base theo Recency (ngày kể từ lần mua cuối), Frequency (số lần mua trong 12 tháng), Monetary (tổng chi tiêu trong 12 tháng) và gán mỗi user vào 1 trong 7 segment chuẩn (Champions / Loyal Customers / Potential Loyalists / At Risk / Cant Lose Them / Hibernating / Lost); admin xem phân phối user theo segment dưới dạng chart và bảng; click vào segment để xem danh sách user.
-- [ ] **FR-MKTG-02** `Should` [Custom Segmentation]: Tạo segment tùy chỉnh bằng Rule Builder — giao diện drag-and-drop cho phép Marketing Manager tạo custom segment bằng cách kết hợp các conditions: hành vi (xem sản phẩm trong category X trong N ngày gần nhất, đã mua / chưa mua sản phẩm trong category Y, có items trong wishlist, có đơn hàng đang xử lý), thuộc tính (tổng chi tiêu >= X, số lần mua >= Y, đăng ký trong Z ngày gần nhất, địa chỉ thuộc tỉnh/thành); kết hợp conditions bằng AND/OR; preview số lượng user khớp realtime trước khi lưu; segment được tính toán lại theo lịch hoặc on-demand.
-- [ ] **FR-MKTG-03** `Must` [Campaign Builder]: Tạo và quản lý chiến dịch — campaign gồm: tên, mô tả, target segment (chọn từ RFM hoặc custom segment), channel (email), thời gian chạy (start date / end date); trạng thái campaign: Draft → Scheduled → Running → Paused → Completed; admin có thể pause/resume campaign đang chạy; duplicate campaign để tái sử dụng cấu hình; lịch sử tất cả campaigns với metrics tóm tắt.
-- [ ] **FR-MKTG-06** `Could` [Basic Personalization]: Template email hỗ trợ dynamic variables cơ bản: `{{name}}`, `{{email}}`, `{{segment}}`; Marketing Manager preview email render với dữ liệu của 1 user cụ thể trước khi gửi.
-- [ ] **FR-MKTG-09** `Should` [Email Delivery]: Gửi email HTML campaign — gửi HTML email với plain-text fallback, tracking pixel cho open rate, UTM parameters cho click tracking; unsubscribe 1-click trong email footer theo chuẩn CAN-SPAM; bounce và complaint tự động đưa địa chỉ vào suppression list, không gửi lại. (Push notification và SMS không nằm trong scope Phase 1)
-- [ ] **FR-MKTG-10** `Should` [Campaign Analytics]: Báo cáo hiệu quả chiến dịch — dashboard per campaign: sent count, delivery rate (%), open rate (%), CTR (%), conversion rate (%), revenue attributed (last-click model), unsubscribe rate (%); chart timeline: metrics theo ngày trong suốt thời gian campaign chạy; so sánh metrics giữa các campaigns trong cùng khoảng thời gian; so sánh metrics giữa các segments nhận campaign; export báo cáo định dạng CSV; retention tracking: user nhận campaign có quay lại mua hàng trong 30 ngày hay không.
-
----
-
-### 2.7 FR-ANALYTICS — Module Analytics & Dashboard
-
-- [ ] **FR-ANALYTICS-01** `Must`: Real-time Business Dashboard — admin/manager xem dashboard với các widget cập nhật realtime (polling mỗi 60 giây hoặc server-sent events): doanh thu ngày hôm nay (số tiền và so sánh % với hôm qua), số đơn hàng mới, số user mới đăng ký, GMV (Gross Merchandise Value), số user đang online; mỗi metric có sparkline 24 giờ gần nhất; alert nổi bật khi có chỉ số bất thường (doanh thu giảm > 30% so với trung bình 7 ngày).
-- [ ] **FR-ANALYTICS-02** `Should`: Báo cáo Doanh Thu — phân tích doanh thu với các dimension: (a) Thời gian: ngày, tuần, tháng, năm, custom date range; (b) Category sản phẩm; (c) Sản phẩm cụ thể (top N); (d) Phương thức thanh toán; chart line/bar có thể drill-down (click vào tháng để xem chi tiết ngày); hiển thị: gross revenue, discounts, net revenue, số đơn, AOV, số khách mua mới vs. quay lại; export Excel/CSV với tất cả data.
-- [ ] **FR-ANALYTICS-03** `Should`: Phân Tích Hành Vi Người Dùng — funnel visualization: Visitors → Product Viewed → Add to Cart → Checkout Started → Order Placed; hiển thị số lượng và tỷ lệ drop-off tại mỗi bước; phân tích theo device type (mobile/desktop/tablet); top 20 sản phẩm được xem nhiều nhất và tỷ lệ conversion của từng sản phẩm; top search queries và kết quả click-through rate; heatmap session duration.
-- [ ] **FR-ANALYTICS-04** `Could`: Analytics Tìm Kiếm — danh sách top queries theo volume trong khoảng thời gian chọn; queries không có kết quả (no-result queries) với số lượt tìm — dùng để bổ sung tag/sản phẩm; queries dẫn đến mua hàng (high-converting queries); click-through rate từ search result; admin dùng data này để cải thiện search index và product tagging; export danh sách no-result queries để team catalog xử lý.
-- [ ] **FR-ANALYTICS-05** `Should`: Dashboard Hiệu Suất AI Recommendation — metrics hiển thị: CTR tổng và theo từng placement (Homepage Feed, PDP Similar, Cart FBT, Search), conversion rate từ recommendation, revenue attributed to recommendation, coverage (% catalog items được gợi ý ít nhất 1 lần trong 7 ngày — chỉ số đo popularity bias), diversity score (average pairwise distance giữa recommended items); offline metrics sau mỗi training run: precision@10, recall@10; chart theo thời gian; so sánh metrics giữa các A/B test groups.
-- [ ] **FR-ANALYTICS-06** `Must`: Quản Lý Người Dùng & Phân Quyền (RBAC) — 5 roles hệ thống: Super Admin (full access), Product Manager (catalog + inventory), Marketing Manager (marketing + analytics), Data Analyst (read-only analytics + recommendation metrics), Customer Support (view orders + user profiles, no edit); Super Admin tạo tài khoản staff, gán role, vô hiệu hóa tài khoản; mỗi permission được kiểm tra server-side; UI tự ẩn/hiện menu và action buttons theo role.
-- [ ] **FR-ANALYTICS-07** `Should`: Audit Log — ghi lại tất cả thao tác quan trọng của admin/staff vào immutable log: ai (user ID + email), làm gì (action type), trên đối tượng nào (resource type + resource ID), thay đổi gì (before/after JSON diff cho update operations), lúc nào (timestamp UTC), từ đâu (IP address, user agent); log không thể xóa hoặc sửa (append-only); giao diện search và filter theo user, action type, resource type, khoảng thời gian; export CSV; lưu tối thiểu 90 ngày.
-- [ ] **FR-ANALYTICS-08** `Could`: Báo Cáo Sản Phẩm — top selling products (theo doanh thu và theo số lượng) trong khoảng thời gian chọn; slow-moving inventory (sản phẩm có stock > 0 nhưng không bán được trong X ngày); out-of-stock frequency (số lần và tổng thời gian hết hàng trong 30 ngày); return rate theo sản phẩm (% đơn hàng bị trả / tổng đơn); admin xem và xuất báo cáo; alert tự động cho sản phẩm sắp hết hàng (< ngưỡng) hiển thị trong dashboard.
+- [ ] **FR-ORDER-01** `Must`: Order lifecycle — 6 statuses: `PENDING_PAYMENT` → `CONFIRMED` → `PROCESSING` → `SHIPPED` → `DELIVERED` → `COMPLETED`; additionally, two off-flow statuses: `CANCELLED` and `REFUNDED`; each transition records: new status, time, actor (user / admin / system), optional notes; stock is deducted when transitioning to CONFIRMED; stock is restored when CANCELLED or when a return is approved.
+- [ ] **FR-ORDER-02** `Should`: Order tracking — user views the tracking page from the link in the email or from "My Orders"; displays: a visual timeline of completed and upcoming steps, current status, tracking number and carrier name, a deep-link to the carrier's tracking page (if integrated); status updates in real time via webhook from the logistics partner when available.
+- [ ] **FR-ORDER-03** `Should`: Status change notifications — the system automatically sends notifications when an order transitions to key statuses: CONFIRMED (order confirmed), SHIPPED (out for delivery with tracking number), DELIVERED (delivered), CANCELLED (cancelled); notification channels: email (mandatory) + SMS (if phone number is available); email content uses a customizable template that auto-fills order information; admin can send manual notifications with custom notes.
+- [ ] **FR-ORDER-04** `Should`: Order cancellation — users can cancel when the order is in PENDING_PAYMENT or CONFIRMED status; admin can cancel any order before it reaches SHIPPED status; on cancellation: stock is restored immediately; if already paid, a refund request is created automatically; a cancellation reason is required (dropdown + free-text note); the user receives a cancellation confirmation email.
+- [ ] **FR-ORDER-05** `Should`: Refunds — a refund is created automatically when a paid order is cancelled, or manually by admin after approving a return request; supports full or partial refunds (enter a specific amount); refund methods: back to the original payment method (processed via payment gateway) or to the loyalty points balance (credited immediately); refund status: PENDING → PROCESSING → COMPLETED / FAILED; the user receives an email notification of the refund result.
+- [ ] **FR-ORDER-06** `Could`: Returns & Exchanges — users create a return request within N days (configurable, default 7 days) after the order reaches DELIVERED status; must select a reason (defective item / wrong product / not as described / changed mind) and upload at least 1 proof image; admin reviews and approves/rejects with a reason note; if approved: a return shipping label is created, status is updated to REFUNDED, and stock is incremented after the return is received.
+- [ ] **FR-ORDER-07** `Must`: Order management (Admin) — admin views an order list with filters by: status, order date (range picker), order value, payment method, and sales channel; sort by date and value; view individual order details; manually update status with a note; print packing slips containing: order ID, product list, delivery address, and barcode; add internal notes (not visible to users).
+- [ ] **FR-ORDER-08** `Should`: Order history (User side) — user views all placed orders, filter by status, search by order ID or product name; view order details: all products, price at time of purchase, delivery address, payment method, status timeline; "Reorder" feature: add all products from a previous order to a new cart in one action (out-of-stock products are skipped and the user is notified).
 
 ---
 
-## 3. Yêu Cầu Phi Chức Năng
+### 2.5 FR-REC — AI Recommendation Engine Module
 
-### 3.1 Performance (Hiệu Năng)
+> Full pipeline: Data Collection → Feature Store → Model Training → Inference Serving → Cold-Start → A/B Testing → Feedback Loop → Monitoring
+
+- [ ] **FR-REC-01** `Must` [Data Collection]: Behavioral event collection — the system records all interaction events: `page_view`, `product_view`, `search_query`, `add_to_cart`, `remove_from_cart`, `purchase`, `review_submit`, `wishlist_add`, `recommendation_impression`, `recommendation_click`; each event contains: `user_id` (or `session_id` for guests), `item_id`, `event_type`, `timestamp` (UTC), `context` (current page, device type, source placement); events are sent asynchronously from the frontend — no waiting for a response, no UI slowdown; the client automatically retries if the request fails.
+- [ ] **FR-REC-02** `Must` [Feature Store]: Feature engineering and storage — a periodic batch job (default every 1 hour) computes from raw events: (a) User features: purchase history vector, category affinity scores (interaction frequency by category), price sensitivity (typical price range purchased), recency (date of last interaction), frequency (number of interactions in the last 30 days), monetary (total spending); (b) Item features: category embedding, popularity score (views and purchases in the last 7 days), average rating, price tier; (c) Sparse user-item interaction matrix; features are stored in the feature store with versioning to ensure reproducible training.
+- [ ] **FR-REC-03** `Must` [Model Training — CF]: Collaborative Filtering training — uses an available ML library (Surprise, LightFM, implicit or equivalent) to train a Matrix Factorization model on the user-item interaction matrix from the feature store; training schedule: default once per day during off-peak hours (configurable); after each training run, the new model is automatically evaluated on an offline test set with metrics: precision@10, recall@10, NDCG@10; the new model is only promoted to production if all metrics are >= the current model's (no regression); model artifacts and metadata (training date, dataset version, metrics) are saved in a model registry.
+- [ ] **FR-REC-04** `Should` [Model Training — CBF]: Content-Based Filtering training — uses available embedding and similarity computation libraries (scikit-learn, sentence-transformers or equivalent) to compute an item similarity matrix based on product attributes: category embedding (one-hot encoded category path), text embedding of the description, tag overlap, price range similarity; the similarity matrix is rebuilt when new products are added (trigger-based) or on a daily schedule; similarity scores are stored in a cache for fast inference.
+- [ ] **FR-REC-05** `Must` [Inference Serving — Hybrid API]: Hybrid Recommendation API — endpoint accepts: `user_id` (or `session_id`), `context` (current page, `item_id` if viewing a specific product), `n` (number of recommendations to return), `exclude_item_ids` (list to exclude); returns: a prioritized list of item_ids with explanation scores; final score = alpha × CF_score + (1-alpha) × CBF_score (alpha is configurable); results are cached per user_id with a configurable TTL (default 10 minutes); response time p95 < 200ms (cache hit), p99 < 500ms (cache miss).
+- [ ] **FR-REC-06** `Must` [Inference Serving — Placements]: Recommendation display placements — the system supports 5 independent placements, each calling FR-REC-05 with different context: (1) **Homepage Feed**: N personalized products for logged-in users; (2) **Similar products** on the Product Detail Page: CBF-heavy, excludes the current product; (3) **Frequently bought together** in Cart: based on co-purchase patterns, shows products commonly bought with cart items; (4) **Search personalization**: reranks search results according to user preference; (5) **Email recommendation block**: daily batch inference, no real-time requirement; each placement has configurable item counts and business rule overrides (prioritize products needing a sales push, exclude out-of-stock products).
+- [ ] **FR-REC-07** `Must` [Cold-Start]: New user handling — when a user has fewer than 3 interactions (since account creation or a new guest session): fallback strategy in priority order: (1) Category preferences from an onboarding survey (if the user completed it at registration), (2) Trending products in the last 7 days (site-wide), (3) Top-rated products in the category being browsed; after the user accumulates at least 3 interactions, the system automatically switches to the hybrid model on the next request without any user action.
+- [ ] **FR-REC-08** `Could` [A/B Testing]: A/B testing recommendation strategies — the system supports running up to 3 strategies in parallel; users are assigned to groups randomly and consistently (the same user always falls into the same group throughout the test duration); traffic allocation is configurable by percentage (e.g., 20%/80%); per-group metrics are recorded: impression count, CTR, conversion rate, revenue per user; admin views results in real time, manually declares a winner or sets an auto-promote threshold; changing traffic allocation does not require a service redeploy.
+- [ ] **FR-REC-09** `Should` [Feedback Loop]: Feedback collection and processing — explicit negative feedback: user clicks "Don't show me this type" or reports an inappropriate recommendation; the system removes that item from the user's recommendation list immediately (real-time blocklist, no waiting for model retraining); simultaneously records the negative signal in training data for the next retraining run; implicit feedback (no clicks on a recommendation after many impressions) is also recorded with a lower weight.
+- [ ] **FR-REC-10** `Should` [Monitoring]: Recommendation performance monitoring — dashboard displays: (a) Online metrics (updated hourly): CTR by placement, conversion rate from recommendations, revenue attributed to recommendations (last-click), impression count; (b) Offline metrics (updated after each training run): precision@10, recall@10, NDCG@10 over time; (c) System metrics: inference latency p50/p95/p99, cache hit rate, feature store freshness (lag between event occurrence and feature update); automatic alerts when: CTR drops > 20% vs. 7-day baseline, inference latency p95 > 500ms, feature freshness > 3 hours.
+
+---
+
+### 2.6 FR-MKTG — Marketing Module
+
+- [ ] **FR-MKTG-01** `Should` [RFM Segmentation]: Customer segmentation using RFM — the Marketing Manager clicks "Recalculate RFM" to trigger an on-demand calculation (not automated on a schedule); the system analyzes the customer base by Recency (days since last purchase), Frequency (number of purchases in the last 12 months), Monetary (total spending in the last 12 months) and assigns each user to one of 7 standard segments (Champions / Loyal Customers / Potential Loyalists / At Risk / Can't Lose Them / Hibernating / Lost); admin views the user distribution by segment as charts and tables; click a segment to view the list of users.
+- [ ] **FR-MKTG-02** `Should` [Custom Segmentation]: Create custom segments with a Rule Builder — a drag-and-drop interface lets the Marketing Manager build custom segments by combining conditions: behavioral (viewed products in category X in the last N days, has/has not purchased from category Y, has items in wishlist, has an order in progress), attribute-based (total spending >= X, purchase count >= Y, registered within Z days, address in a specific province/city); conditions can be combined with AND/OR; a real-time preview of matching user count is shown before saving; segments are recalculated on a schedule or on-demand.
+- [ ] **FR-MKTG-03** `Must` [Campaign Builder]: Create and manage campaigns — a campaign includes: name, description, target segment (selected from RFM or custom segments), channel (email), run schedule (start date / end date); campaign statuses: Draft → Scheduled → Running → Paused → Completed; admin can pause/resume a running campaign; duplicate a campaign to reuse its configuration; history of all campaigns with summary metrics.
+- [ ] **FR-MKTG-06** `Could` [Basic Personalization]: Email templates support basic dynamic variables: `{{name}}`, `{{email}}`, `{{segment}}`; the Marketing Manager can preview the rendered email with a specific user's data before sending.
+- [ ] **FR-MKTG-09** `Should` [Email Delivery]: HTML campaign email delivery — send HTML emails with a plain-text fallback, a tracking pixel for open rate, and UTM parameters for click tracking; one-click unsubscribe in the email footer per CAN-SPAM standard; bounces and complaints automatically add addresses to a suppression list and no further emails are sent. (Push notifications and SMS are not in scope for Phase 1.)
+- [ ] **FR-MKTG-10** `Should` [Campaign Analytics]: Campaign performance reporting — per-campaign dashboard: sent count, delivery rate (%), open rate (%), CTR (%), conversion rate (%), revenue attributed (last-click model), unsubscribe rate (%); timeline chart: metrics per day throughout the campaign run; compare metrics across campaigns in the same time period; compare metrics across segments receiving the campaign; export report as CSV; retention tracking: did users who received the campaign return to make a purchase within 30 days.
+
+---
+
+### 2.7 FR-ANALYTICS — Analytics & Dashboard Module
+
+- [ ] **FR-ANALYTICS-01** `Must`: Real-time Business Dashboard — admin/manager views a dashboard with widgets updated in real time (polling every 60 seconds or via server-sent events): today's revenue (amount and % comparison with yesterday), new orders, new user registrations, GMV (Gross Merchandise Value), users currently online; each metric has a 24-hour sparkline; prominent alerts for anomalous metrics (revenue drops > 30% vs. 7-day average).
+- [ ] **FR-ANALYTICS-02** `Should`: Revenue Reporting — revenue analysis by dimensions: (a) Time: day, week, month, year, custom date range; (b) Product category; (c) Specific products (top N); (d) Payment method; line/bar charts with drill-down capability (click a month to see daily detail); displays: gross revenue, discounts, net revenue, order count, AOV, new vs. returning customers; export Excel/CSV with all data.
+- [ ] **FR-ANALYTICS-03** `Should`: User Behavior Analysis — funnel visualization: Visitors → Product Viewed → Add to Cart → Checkout Started → Order Placed; shows count and drop-off rate at each step; breakdown by device type (mobile/desktop/tablet); top 20 most-viewed products and conversion rate per product; top search queries and their click-through rate; session duration heatmap.
+- [ ] **FR-ANALYTICS-04** `Could`: Search Analytics — list of top queries by volume in the selected time range; no-result queries with their occurrence count — used to add tags/products; queries that lead to purchases (high-converting queries); click-through rate from search results; admin uses this data to improve the search index and product tagging; export the no-result queries list for the catalog team to action.
+- [ ] **FR-ANALYTICS-05** `Should`: AI Recommendation Performance Dashboard — displayed metrics: total CTR and CTR per placement (Homepage Feed, PDP Similar, Cart FBT, Search), conversion rate from recommendations, revenue attributed to recommendations, coverage (% of catalog items recommended at least once in 7 days — a measure of popularity bias), diversity score (average pairwise distance between recommended items); offline metrics after each training run: precision@10, recall@10; charts over time; compare metrics across A/B test groups.
+- [ ] **FR-ANALYTICS-06** `Must`: User Management & RBAC — 5 system roles: Super Admin (full access), Product Manager (catalog + inventory), Marketing Manager (marketing + analytics), Data Analyst (read-only analytics + recommendation metrics), Customer Support (view orders + user profiles, no editing); Super Admin creates staff accounts, assigns roles, and disables accounts; every permission is enforced server-side; the UI automatically shows/hides menus and action buttons based on role.
+- [ ] **FR-ANALYTICS-07** `Should`: Audit Log — records all significant admin/staff actions in an immutable log: who (user ID + email), what (action type), on which resource (resource type + resource ID), what changed (before/after JSON diff for update operations), when (UTC timestamp), from where (IP address, user agent); the log cannot be deleted or modified (append-only); search and filter UI by user, action type, resource type, and time range; CSV export; stored for at least 90 days.
+- [ ] **FR-ANALYTICS-08** `Could`: Product Reports — top-selling products (by revenue and by quantity) in the selected time range; slow-moving inventory (products with stock > 0 but no sales in X days); out-of-stock frequency (number of occurrences and total time out of stock in 30 days); return rate per product (% of orders returned / total orders); admin views and exports reports; automatic alerts for products approaching the low-stock threshold displayed in the dashboard.
+
+---
+
+## 3. Non-Functional Requirements
+
+### 3.1 Performance
 
 | Metric | Target | Notes |
 |---|---|---|
-| Page load time | p95 < 2 giây | Đo Time to Interactive trên kết nối 4G |
-| API response latency — standard endpoints | p95 < 200ms | CRUD thông thường (product, cart, user) |
-| API response latency — complex queries | p99 < 500ms | Filter + sort + pagination phức tạp |
-| AI Recommendation inference | p95 < 200ms | Cache hit — kết quả đã được cache |
-| AI Recommendation inference | p99 < 500ms | Cache miss — tính toán realtime |
-| Search latency | p95 < 300ms | Full-text search với bộ lọc kết hợp |
-| Throughput tổng thể | >= 500 req/s | Sustained load, không có performance degradation |
-| Concurrent users | >= 1,000 users | Simultaneous active sessions không ảnh hưởng latency |
-| Background job (batch inference) | Hoàn thành trong < 2 giờ | Batch recommendation cho email campaign 100k user |
+| Page load time | p95 < 2 seconds | Measured as Time to Interactive on a 4G connection |
+| API response latency — standard endpoints | p95 < 200ms | Typical CRUD operations (product, cart, user) |
+| API response latency — complex queries | p99 < 500ms | Complex filter + sort + pagination |
+| AI Recommendation inference | p95 < 200ms | Cache hit — result already cached |
+| AI Recommendation inference | p99 < 500ms | Cache miss — real-time computation |
+| Search latency | p95 < 300ms | Full-text search with combined filters |
+| Overall throughput | >= 500 req/s | Sustained load, no performance degradation |
+| Concurrent users | >= 1,000 users | Simultaneous active sessions with no latency impact |
+| Background job (batch inference) | Completes within < 2 hours | Batch recommendations for email campaign with 100k users |
 
-### 3.2 Scalability (Khả Năng Mở Rộng)
-
-| Metric | Target | Notes |
-|---|---|---|
-| Web tier scaling strategy | Horizontal scale-out stateless instances | Session state không lưu in-process, dùng distributed cache |
-| AI service scaling | Scale-out độc lập với web tier | AI inference service tách biệt hoàn toàn |
-| Database strategy | Read replica sẵn sàng khi cần | Schema không có blocker cho sharding trong tương lai |
-| Cache hit rate — recommendation | >= 80% | Per-user cache với TTL 10 phút |
-| Cache hit rate — product catalog | >= 90% | Product data cache với TTL 1 giờ |
-| Event ingestion throughput | >= 10,000 behavioral events/phút | Pipeline async, không block web request |
-| Data volume resilience | Hệ thống vận hành ổn định khi data tăng 10x | Không cần migration lớn khi scale |
-| Message queue backpressure | Queue không tràn khi spike traffic | Consumer auto-scale hoặc queue buffer đủ lớn |
-
-### 3.3 Security (Bảo Mật)
+### 3.2 Scalability
 
 | Metric | Target | Notes |
 |---|---|---|
-| Authentication mechanism | Token-based: access token TTL ngắn + refresh token TTL dài | Refresh token lưu HTTP-only Secure cookie |
-| Password storage | One-way hash với salt, adaptive cost factor | Không lưu plaintext; không dùng MD5 hoặc SHA1 |
-| Data encryption in transit | TLS 1.2 minimum, TLS 1.3 preferred | Tất cả endpoints và internal service communication |
-| Sensitive data at rest | Encryption tương đương AES-256 | Payment tokens, PII fields (SĐT, địa chỉ) |
-| Rate limiting — authentication | Max 10 attempts/phút per IP | Hard lockout 15 phút sau 5 failed attempts liên tiếp |
-| Rate limiting — API chung | Max 100 requests/phút per authenticated user | Configurable per endpoint group |
-| Input validation | 100% user inputs được sanitize | Ngăn SQL Injection, XSS, Command Injection, Path Traversal |
-| CORS policy | Whitelist explicit origins | Không dùng wildcard `*` trên production |
-| Security compliance | Không có Critical hoặc High vulnerability | Scan OWASP Top 10 trước mỗi release |
-| Audit logging completeness | 100% admin actions được log | Immutable, bao gồm user ID, timestamp, IP |
+| Web tier scaling strategy | Horizontal scale-out with stateless instances | Session state not stored in-process; uses distributed cache |
+| AI service scaling | Scale out independently from the web tier | AI inference service is fully decoupled |
+| Database strategy | Read replica ready when needed | Schema has no blockers for future sharding |
+| Cache hit rate — recommendation | >= 80% | Per-user cache with 10-minute TTL |
+| Cache hit rate — product catalog | >= 90% | Product data cache with 1-hour TTL |
+| Event ingestion throughput | >= 10,000 behavioral events/minute | Async pipeline, does not block web requests |
+| Data volume resilience | System operates stably with 10x data growth | No major migration required when scaling |
+| Message queue backpressure | Queue does not overflow during traffic spikes | Consumer auto-scales or queue buffer is sufficiently large |
 
-### 3.4 Availability & Reliability (Khả Dụng & Tin Cậy)
+### 3.3 Security
 
 | Metric | Target | Notes |
 |---|---|---|
-| Uptime SLA | >= 99.5% | Tương đương ~3.6 giờ downtime cho phép/tháng |
-| Recovery Time Objective (RTO) | <= 30 phút | Thời gian khôi phục hoạt động sau sự cố |
-| Recovery Point Objective (RPO) | <= 1 giờ | Tối đa 1 giờ dữ liệu có thể mất trong worst case |
-| Graceful degradation — AI service | Fallback sang best-seller list trong <= 100ms | Khi AI service down, toàn site không bị ảnh hưởng |
-| Graceful degradation — payment gateway | Hiển thị thông báo rõ ràng, giữ nguyên giỏ hàng | Không mất cart data khi payment timeout |
-| Automated backup | Daily full backup + hourly incremental | Backup lưu ở storage location độc lập với production |
-| Deployment rollback | <= 5 phút | Blue-green hoặc canary deployment strategy |
-| Health check | Mỗi service expose `/health` endpoint | Dùng cho load balancer routing và monitoring alerting |
+| Authentication mechanism | Token-based: short-lived access token + long-lived refresh token | Refresh token stored in HTTP-only Secure cookie |
+| Password storage | One-way hash with salt, adaptive cost factor | No plaintext stored; MD5 and SHA1 are not permitted |
+| Data encryption in transit | TLS 1.2 minimum, TLS 1.3 preferred | All endpoints and internal service communication |
+| Sensitive data at rest | Encryption equivalent to AES-256 | Payment tokens, PII fields (phone number, address) |
+| Rate limiting — authentication | Max 10 attempts/minute per IP | Hard lockout 15 minutes after 5 consecutive failed attempts |
+| Rate limiting — general API | Max 100 requests/minute per authenticated user | Configurable per endpoint group |
+| Input validation | 100% of user inputs are sanitized | Prevents SQL Injection, XSS, Command Injection, Path Traversal |
+| CORS policy | Explicit origin whitelist | No wildcard `*` in production |
+| Security compliance | No Critical or High vulnerabilities | OWASP Top 10 scan before each release |
+| Audit logging completeness | 100% of admin actions are logged | Immutable, includes user ID, timestamp, and IP |
+
+### 3.4 Availability & Reliability
+
+| Metric | Target | Notes |
+|---|---|---|
+| Uptime SLA | >= 99.5% | Equivalent to ~3.6 hours of permitted downtime per month |
+| Recovery Time Objective (RTO) | <= 30 minutes | Time to restore operations after an incident |
+| Recovery Point Objective (RPO) | <= 1 hour | Maximum 1 hour of data loss in the worst case |
+| Graceful degradation — AI service | Fallback to best-seller list within <= 100ms | The entire site is unaffected when the AI service is down |
+| Graceful degradation — payment gateway | Clear message displayed, cart preserved | No cart data lost on payment timeout |
+| Automated backup | Daily full backup + hourly incremental | Backups stored at a storage location independent of production |
+| Deployment rollback | <= 5 minutes | Blue-green or canary deployment strategy |
+| Health check | Each service exposes a `/health` endpoint | Used for load balancer routing and monitoring alerts |
 
 ### 3.5 AI/ML Specific Requirements
 
 | Metric | Target | Notes |
 |---|---|---|
-| Recommendation inference latency | p95 < 200ms end-to-end | Bao gồm feature lookup, scoring, và response serialization |
-| Click-Through Rate (CTR) | >= 5% | Đo trên tổng số recommendation impressions |
-| Precision@10 | >= 0.30 | Offline evaluation — đo trên held-out test set |
-| Recall@10 | >= 0.20 | Offline evaluation — đo trên held-out test set |
-| Cold-start response time | Trending list trả về trong <= 100ms | Precomputed, không cần model inference |
-| Model retraining cadence | Tối thiểu 1 lần/ngày | Batch retraining vào giờ thấp điểm |
-| Feature store freshness | Lag tối đa 1 giờ | Khoảng cách giữa event xảy ra và feature được cập nhật |
-| A/B test minimum sample | >= 1,000 users/group | Trước khi kết luận statistical significance |
-| Model promotion gate | Offline metrics >= model hiện tại | Không deploy model mới nếu precision hoặc recall thấp hơn |
-| Catalog coverage | >= 60% items được gợi ý ít nhất 1 lần/tuần | Đo diversity, tránh popularity bias quá mức |
+| Recommendation inference latency | p95 < 200ms end-to-end | Includes feature lookup, scoring, and response serialization |
+| Click-Through Rate (CTR) | >= 5% | Measured over total recommendation impressions |
+| Precision@10 | >= 0.30 | Offline evaluation — measured on a held-out test set |
+| Recall@10 | >= 0.20 | Offline evaluation — measured on a held-out test set |
+| Cold-start response time | Trending list returned within <= 100ms | Precomputed, no model inference required |
+| Model retraining cadence | At least once per day | Batch retraining during off-peak hours |
+| Feature store freshness | Maximum 1-hour lag | Time between an event occurring and the feature being updated |
+| A/B test minimum sample | >= 1,000 users/group | Before drawing statistical significance conclusions |
+| Model promotion gate | Offline metrics >= current model | Do not deploy a new model if precision or recall is lower |
+| Catalog coverage | >= 60% of items recommended at least once per week | Measures diversity, avoids excessive popularity bias |
 
 ---
 
@@ -315,7 +315,7 @@ Các nền tảng thương mại điện tử truyền thống đang thất bạ
 
 > **Format:** `**US-[PERSONA]-[ID]:** As a [persona], I want [action], so that [benefit].`
 
-### 4.1 User Stories — Buyer (Người Mua Hàng)
+### 4.1 User Stories — Buyer
 
 **US-BUY-01:** As a buyer, I want to see personalized product recommendations on the homepage based on my browsing and purchase history, so that I can discover products relevant to my taste without spending time manually searching.
 
@@ -355,93 +355,93 @@ Các nền tảng thương mại điện tử truyền thống đang thất bạ
 
 ---
 
-## 5. Ràng Buộc & Giả Định
+## 5. Constraints & Assumptions
 
-### 5.1 Ràng Buộc Kỹ Thuật (Technical Constraints)
+### 5.1 Technical Constraints
 
-- Kiến trúc phải là **modular** — dù monolith hay microservices, các module phải có ranh giới rõ ràng (clear domain boundaries), có thể test độc lập, và có thể tách ra thành service riêng trong tương lai mà không phải rewrite.
-- **AI services phải decoupled** khỏi web application layer — giao tiếp qua API contract thuần túy; web app không được import AI model code trực tiếp.
-- Mọi **external service** (payment gateway, email provider, LLM API, SMS provider) phải được truy cập qua adapter/interface layer — cho phép swap provider mà không thay đổi business logic.
-- **Database schema** phải backward-compatible khi upgrade — không có destructive migrations (drop column, rename column) sau khi production data tồn tại; chỉ additive changes.
-- **Behavioral event pipeline** phải bất đồng bộ (async, fire-and-forget từ phía web app) — web request không được chờ event được lưu xong mới trả về response.
-- Hệ thống phải vận hành đúng khi **AI service không khả dụng** — graceful degradation là bắt buộc, không phải optional.
-- Tất cả **API endpoints** phải được document theo chuẩn (OpenAPI 3.0) và phải validate input trước khi xử lý.
+- The architecture must be **modular** — whether monolith or microservices, modules must have clear domain boundaries, be independently testable, and be extractable into separate services in the future without a full rewrite.
+- **AI services must be decoupled** from the web application layer — communication is through a pure API contract; the web app must never import AI model code directly.
+- Every **external service** (payment gateway, email provider, LLM API, SMS provider) must be accessed through an adapter/interface layer — enabling provider swaps without changing business logic.
+- **Database schema** must be backward-compatible when upgraded — no destructive migrations (drop column, rename column) once production data exists; only additive changes.
+- The **behavioral event pipeline** must be asynchronous (async, fire-and-forget from the web app side) — the web request must not wait for the event to be persisted before returning a response.
+- The system must operate correctly when the **AI service is unavailable** — graceful degradation is mandatory, not optional.
+- All **API endpoints** must be documented to a standard (OpenAPI 3.0) and must validate input before processing.
 
-### 5.2 Ràng Buộc Ngân Sách & Timeline
+### 5.2 Budget & Timeline Constraints
 
-| Ràng Buộc | Giá Trị | Ghi Chú |
+| Constraint | Value | Notes |
 |---|---|---|
-| Timeline | 16 tuần (1 học kỳ) | Chia thành 4 sprint × 4 tuần |
-| Team size | 5–8 developers | Phân công theo module, mỗi người có thể phụ trách 1–2 modules |
-| Infrastructure budget | Ưu tiên free tier / low-cost cloud | Target: không vượt ngưỡng miễn phí của các cloud providers |
-| Payment integration | Sandbox / test mode only | Không xử lý tiền thật trong Phase 1 |
-| AI training dataset | Synthetic data hoặc public e-commerce dataset | Không có real user data tại thời điểm khởi đầu |
+| Timeline | 16 weeks (1 semester) | Divided into 4 sprints × 4 weeks |
+| Team size | 5–8 developers | Assigned by module; each person may own 1–2 modules |
+| Infrastructure budget | Prioritize free tier / low-cost cloud | Target: stay within the free tier of cloud providers |
+| Payment integration | Sandbox / test mode only | No real money processed in Phase 1 |
+| AI training dataset | Synthetic data or a public e-commerce dataset | No real user data available at the start |
 
-**Phân bổ sprint đề xuất:**
+**Suggested sprint allocation:**
 
-| Sprint | Tuần | Modules |
+| Sprint | Weeks | Modules |
 |---|---|---|
 | Sprint 1 | 1–4 | FR-AUTH, FR-CATALOG, FR-CART |
-| Sprint 2 | 5–8 | FR-ORDER, FR-ANALYTICS (MVP), Admin Dashboard cơ bản |
+| Sprint 2 | 5–8 | FR-ORDER, FR-ANALYTICS (MVP), Basic Admin Dashboard |
 | Sprint 3 | 9–12 | FR-REC (full AI pipeline), FR-MKTG (segmentation + campaign builder) |
 | Sprint 4 | 13–16 | FR-MKTG (email delivery + basic analytics), NFR testing, polish, demo prep |
 
 ### 5.3 Third-Party Dependencies
 
-| Dependency | Mục Đích | Ràng Buộc |
+| Dependency | Purpose | Constraint |
 |---|---|---|
-| Payment Gateway (sandbox) | Xử lý thanh toán test (FR-CART-05) | Chỉ sandbox credentials, không live |
-| Transactional Email Service | Gửi email xác nhận, notification (FR-CART-06, FR-ORDER-03, FR-MKTG-09) | Free tier đủ cho môi trường demo |
-| SMS Provider | OTP 2FA + order notification SMS (FR-AUTH-03, FR-ORDER-03) | Optional — có thể mock trong Phase 1 |
-| Object Storage | Lưu ảnh sản phẩm, ảnh review, packing slips | Free tier storage hoặc self-hosted |
+| Payment Gateway (sandbox) | Test payment processing (FR-CART-05) | Sandbox credentials only, no live |
+| Transactional Email Service | Send confirmation and notification emails (FR-CART-06, FR-ORDER-03, FR-MKTG-09) | Free tier sufficient for demo environment |
+| SMS Provider | 2FA OTP + order notification SMS (FR-AUTH-03, FR-ORDER-03) | Optional — can be mocked in Phase 1 |
+| Object Storage | Store product images, review images, packing slips | Free tier storage or self-hosted |
 
-### 5.4 Phạm Vi Demo & Đối Tượng Đánh Giá
+### 5.4 Demo Scope & Evaluators
 
-**Đối tượng đánh giá:** Giảng viên có kinh nghiệm sâu trong lĩnh vực CNTT và thương mại điện tử.
+**Evaluators:** Professors with deep experience in IT and e-commerce.
 
-**Tiêu chí đánh giá ưu tiên:**
-1. **Chất lượng AI Recommendation** — LightFM Collaborative Filtering + TF-IDF CBF phải hoạt động thực sự, không chỉ là fallback. Precision@10 và Recall@10 phải đạt ngưỡng (>= 0.30 và >= 0.20).
-2. **Luồng e-commerce hoàn chỉnh** — Register → Browse → Search → Product Detail → Add to Cart → Checkout → VNPay payment → Order confirmation email.
-3. **AnalyticsModule** — Dashboard phải hiển thị dữ liệu thực từ behavioral_events, không dùng mock data.
-4. **MarketingModule** — RFM segmentation và campaign email delivery phải chạy được (sử dụng Gmail SMTP nodemailer).
+**Priority evaluation criteria:**
+1. **AI Recommendation quality** — LightFM Collaborative Filtering + TF-IDF CBF must work for real, not just fallback. Precision@10 and Recall@10 must meet the threshold (>= 0.30 and >= 0.20).
+2. **Complete e-commerce flow** — Register → Browse → Search → Product Detail → Add to Cart → Checkout → VNPay payment → Order confirmation email.
+3. **AnalyticsModule** — Dashboard must display real data from behavioral_events, no mock data.
+4. **MarketingModule** — RFM segmentation and campaign email delivery must be functional (using Gmail SMTP nodemailer).
 
-**Scale thực tế trong demo:** ~10-50 concurrent users, ~50-100 emails/ngày, ~1,000-5,000 behavioral events/ngày — toàn bộ infrastructure free tier đủ xử lý.
+**Actual scale in demo:** ~10–50 concurrent users, ~50–100 emails/day, ~1,000–5,000 behavioral events/day — all within the capacity of the free-tier infrastructure.
 
-**Không yêu cầu trong bối cảnh demo:**
-- SEO traffic (không có real search engine indexing)
-- 99.5% SLA (shared free tier không có SLA cam kết)
-- Horizontal scaling (1 Render instance mỗi service là đủ)
-- Real payment (VNPay sandbox only — không có giao dịch thật)
+**Not required in the demo context:**
+- SEO traffic (no real search engine indexing)
+- 99.5% SLA (shared free tier has no committed SLA)
+- Horizontal scaling (1 Render instance per service is sufficient)
+- Real payments (VNPay sandbox only — no real transactions)
 
 ---
 
-## 6. Ngoài Phạm Vi Phase 1 (Out of Scope)
+## 6. Out of Scope — Phase 1
 
-Các tính năng sau đây **KHÔNG** được triển khai trong Phase 1:
+The following features are **NOT** implemented in Phase 1:
 
-- **Live payment processing** — tích hợp payment gateway thực sự xử lý giao dịch tiền thật; Phase 1 chỉ dùng sandbox/test mode
-- **Mobile native application** (iOS/Android) — chỉ xây dựng responsive web; mobile app sẽ là Phase 2 nếu có
-- **Multi-vendor marketplace** — nhiều seller độc lập với seller dashboard riêng, commission management, payout system
-- **Logistics integration thực tế** — tự động đặt đơn vận chuyển qua API (Giao Hàng Nhanh, GHTK v.v.), in vận đơn tự động
-- **Real-time customer support chatbot** — chatbot tích hợp trong site với live messaging
-- **Blockchain / NFT / Web3 features** — bất kỳ tính năng nào liên quan đến blockchain
-- **Multi-currency** — chỉ hỗ trợ VND; multi-currency là Phase 2
-- **Multi-language ngoài Tiếng Việt và Tiếng Anh** — i18n framework sẽ chuẩn bị nhưng chỉ 2 ngôn ngữ được hỗ trợ
-- **Subscription / Recurring billing** — mô hình thanh toán định kỳ
-- **Affiliate / Referral program** — theo dõi hoa hồng affiliate và link referral
-- **Social commerce features** — mua sắm trực tiếp qua social media posts (Instagram shopping, TikTok shop)
-- **Real-time fraud detection** — ML model chấm điểm giao dịch realtime để phát hiện gian lận
-- **Loyalty tier membership** (Gold/Silver/Platinum với perks khác nhau) — Phase 1 chỉ có hệ thống điểm cơ bản (FR-AUTH-07)
-- **International shipping** — chỉ giao hàng trong nước (Việt Nam)
-- Cloudflare CDN proxy (removed — Vercel Edge CDN đã đủ cho demo scale)
+- **Live payment processing** — integrating a payment gateway to process real transactions; Phase 1 uses sandbox/test mode only
+- **Native mobile application** (iOS/Android) — only a responsive web is built; mobile app will be Phase 2 if applicable
+- **Multi-vendor marketplace** — multiple independent sellers with separate seller dashboards, commission management, and payout systems
+- **Real logistics integration** — automatic order placement via carrier APIs (Giao Hàng Nhanh, GHTK, etc.), automatic label printing
+- **Real-time customer support chatbot** — in-site chatbot with live messaging
+- **Blockchain / NFT / Web3 features** — any feature related to blockchain
+- **Multi-currency** — only VND is supported; multi-currency is Phase 2
+- **Languages beyond Vietnamese and English** — the i18n framework will be prepared, but only 2 languages are supported
+- **Subscription / Recurring billing** — periodic payment model
+- **Affiliate / Referral program** — affiliate commission tracking and referral links
+- **Social commerce features** — shopping directly through social media posts (Instagram Shopping, TikTok Shop)
+- **Real-time fraud detection** — ML model scoring transactions in real time to detect fraud
+- **Loyalty tier membership** (Gold/Silver/Platinum with different perks) — Phase 1 only has a basic points system (FR-AUTH-07)
+- **International shipping** — domestic delivery only (Vietnam)
+- Cloudflare CDN proxy (removed — Vercel Edge CDN is sufficient for demo scale)
 - Third-party error tracking (Sentry) — replaced by MongoDB error_logs collection
 - Resend/SendGrid email API — replaced by Gmail SMTP (nodemailer) for demo scale
 
 ---
 
-## 7. Bảng Tóm Tắt (Summary)
+## 7. Summary
 
-| Danh Mục | Module / Nhóm | Số Lượng |
+| Category | Module / Group | Count |
 |---|---|---|
 | Business Goals | — | 7 |
 | User Personas | — | 4 |
@@ -452,21 +452,21 @@ Các tính năng sau đây **KHÔNG** được triển khai trong Phase 1:
 | | FR-REC | 10 |
 | | FR-MKTG | 6 |
 | | FR-ANALYTICS | 8 |
-| **Tổng Functional Requirements** | | **58** (Must: 21 / Should: 27 / Could: 10) |
+| **Total Functional Requirements** | | **58** (Must: 21 / Should: 27 / Could: 10) |
 | **Non-Functional Requirements** | Performance | 9 |
 | | Scalability | 8 |
 | | Security | 10 |
 | | Availability | 8 |
 | | AI/ML Specific | 10 |
-| **Tổng Non-Functional Requirements** | | **45** |
+| **Total Non-Functional Requirements** | | **45** |
 | **User Stories** | Buyer | 4 |
 | | Seller / Product Manager | 3 |
 | | Marketing Manager | 4 |
 | | Admin | 4 |
-| **Tổng User Stories** | | **15** |
+| **Total User Stories** | | **15** |
 | Out of Scope Items | — | 14 |
 
 ---
 
-*Tài liệu này là nền tảng cho toàn bộ quá trình thiết kế và phát triển. Mọi thay đổi phải được review bởi toàn team và cập nhật version number.*
-*Xem tiếp: [`TECH_STACK.md`](./TECH_STACK.md) → [`ARCHITECTURE.md`](./ARCHITECTURE.md) → [`MODULE_STRUCTURE.md`](./MODULE_STRUCTURE.md) → [`DATABASE_DESIGN.md`](./DATABASE_DESIGN.md)*
+*This document is the foundation for the entire design and development process. All changes must be reviewed by the full team and the version number must be updated.*
+*Continue reading: [`TECH_STACK.md`](./TECH_STACK.md) → [`ARCHITECTURE.md`](./ARCHITECTURE.md) → [`MODULE_STRUCTURE.md`](./MODULE_STRUCTURE.md) → [`DATABASE_DESIGN.md`](./DATABASE_DESIGN.md)*

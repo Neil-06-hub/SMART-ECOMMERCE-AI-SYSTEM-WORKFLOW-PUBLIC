@@ -7,7 +7,7 @@
 ## Table of Contents
 
 0. [Design Philosophy](#0-design-philosophy)
-1. [ERD Tổng Quan](#1-erd-tổng-quan)
+1. [Overall ERD](#1-overall-erd)
 2. [Embedding vs Referencing Decisions](#2-embedding-vs-referencing-decisions)
 3. [Collection Designs (Mongoose Schemas)](#3-collection-designs-mongoose-schemas)
    - 3.1 [users](#31-users)
@@ -36,37 +36,37 @@
 
 ## 0. Design Philosophy
 
-### Tại Sao MongoDB Cho E-Commerce?
+### Why MongoDB for E-Commerce?
 
-| Vấn Đề | SQL Approach | MongoDB Document Approach |
+| Problem | SQL Approach | MongoDB Document Approach |
 |---|---|---|
-| Product attributes | Riêng bảng `product_attributes` + JOINs | `attributes: {}` embedded — 1 query |
-| Order snapshot | JOIN 4 bảng (order + items + products + variants) | Embedded + snapshot — 1 document |
-| Flexible schema | ALTER TABLE mỗi category type | `attributes: Mixed` — schema-less per doc |
+| Product attributes | Separate `product_attributes` table + JOINs | `attributes: {}` embedded — 1 query |
+| Order snapshot | JOIN 4 tables (order + items + products + variants) | Embedded + snapshot — 1 document |
+| Flexible schema | ALTER TABLE for each category type | `attributes: Mixed` — schema-less per doc |
 | Cart updates | UPDATE + transaction | `$set` + `$push` atomic operations |
 | User address list | Separate `addresses` table + JOIN | Embedded array — 1 query |
 
 ### 3 Design Axioms
 
-1. **Embed khi đọc cùng nhau** — nếu 2 entities luôn được load trong cùng request, embed sub-document để tránh JOIN
-2. **Reference khi cập nhật độc lập** — nếu entity A có thể thay đổi mà không cần load entity B, dùng ObjectId reference
-3. **Denormalize order snapshots để bất biến** — items, prices, địa chỉ giao hàng trong `orders` là snapshot tại thời điểm đặt hàng; product price thay đổi sau đó không ảnh hưởng đến lịch sử đơn hàng
+1. **Embed when read together** — if 2 entities are always loaded in the same request, embed the sub-document to avoid JOINs
+2. **Reference when updated independently** — if entity A can change without needing to load entity B, use an ObjectId reference
+3. **Denormalize order snapshots for immutability** — items, prices, and shipping addresses in `orders` are snapshots at the time of order placement; product price changes afterward do not affect order history
 
-### Quy Ước Kỹ Thuật
+### Technical Conventions
 
-| Quy Ước | Quyết Định | Lý Do |
+| Convention | Decision | Reason |
 |---|---|---|
 | Primary Key | MongoDB ObjectId (auto `_id`) | Built-in, 12-byte, time-sortable, unique across cluster |
-| API ID | Serialize ObjectId → string trong ResponseDto | REST API không expose ObjectId trực tiếp |
-| Timestamps | `{ timestamps: true }` → Mongoose tự gen `createdAt`, `updatedAt` | DRY, consistent across all collections |
+| API ID | Serialize ObjectId → string in ResponseDto | REST API does not expose ObjectId directly |
+| Timestamps | `{ timestamps: true }` → Mongoose auto-generates `createdAt`, `updatedAt` | DRY, consistent across all collections |
 | Soft Delete | Field `deletedAt: Date \| null`, default filter `{ deletedAt: null }` | Preserve data for audits; never hard-delete user/product data |
-| Money (VND) | `Number` (integer, đơn vị đồng) | VND không có phần thập phân — không cần `Decimal128` |
+| Money (VND) | `Number` (integer, in VND units) | VND has no decimal part — `Decimal128` is not needed |
 | Text Search | MongoDB Atlas Search (included in M0 free tier) | Native Vietnamese collation + typo tolerance, no extra service needed |
 | Vector Search | MongoDB Atlas Vector Search (included in M0) | Free, no extra service needed for CBF embeddings |
 
 ---
 
-## 1. ERD Tổng Quan
+## 1. Overall ERD
 
 > **Notation:** `||--o{` = one-to-many, `}|--|{` = many-to-many, `||--||` = one-to-one
 > **REF** = ObjectId reference (cross-collection), **EMBED** = embedded sub-document
@@ -214,20 +214,20 @@ erDiagram
 
 ## 2. Embedding vs Referencing Decisions
 
-| Data | Strategy | Lý Do |
+| Data | Strategy | Reason |
 |---|---|---|
-| `users.addresses[]` | **EMBED** | 2–5 địa chỉ/user, luôn load cùng user profile |
-| `users.roles[]` | **EMBED** | String array nhỏ (<5 items), đọc mỗi request qua JWT guard |
-| `products.variants[]` | **EMBED** | 1–50 variants/product, luôn load cùng product detail page |
-| `products.images[]` | **EMBED** | URL strings nhỏ, không có lifecycle độc lập |
-| `products.attributes{}` | **EMBED** | Flexible schema theo category, đọc cùng product — không query riêng |
-| `orders.items[]` | **EMBED + SNAPSHOT** | Immutable sau khi đặt hàng — giá/tên product có thể thay đổi sau đó |
-| `orders.payment{}` | **EMBED** | 1 payment per order, không cần query payment độc lập |
+| `users.addresses[]` | **EMBED** | 2–5 addresses/user, always loaded together with the user profile |
+| `users.roles[]` | **EMBED** | Small string array (<5 items), read on every request via JWT guard |
+| `products.variants[]` | **EMBED** | 1–50 variants/product, always loaded together with the product detail page |
+| `products.images[]` | **EMBED** | Small URL strings, no independent lifecycle |
+| `products.attributes{}` | **EMBED** | Flexible schema per category, read together with the product — not queried separately |
+| `orders.items[]` | **EMBED + SNAPSHOT** | Immutable after order placement — product price/name may change afterward |
+| `orders.payment{}` | **EMBED** | 1 payment per order, no need to query payment independently |
 | `orders.timeline[]` | **EMBED** | Append-only status history, max 10 entries/order |
-| `orders.shippingAddress{}` | **EMBED** | Snapshot tại thời điểm đặt hàng — địa chỉ user có thể thay đổi |
-| `carts.items[]` | **EMBED** | Cart luôn load toàn bộ items trong 1 request |
-| `campaigns.metrics{}` | **EMBED** | Updated in-place với MongoDB `$inc` — không cần join |
-| `categories` | **SEPARATE COLLECTION** | Tree structure lớn, queried independently khi browse nav |
+| `orders.shippingAddress{}` | **EMBED** | Snapshot at the time of order placement — user address may change later |
+| `carts.items[]` | **EMBED** | Cart always loads all items in 1 request |
+| `campaigns.metrics{}` | **EMBED** | Updated in-place via MongoDB `$inc` — no join needed |
+| `categories` | **SEPARATE COLLECTION** | Large tree structure, queried independently when browsing navigation |
 | `reviews` | **SEPARATE COLLECTION** | Many-per-product, paginated queries, independent write path |
 | `behavioral_events` | **SEPARATE COLLECTION** | Time-series, write-heavy (167 events/sec), append-only |
 | `feature_snapshots` | **SEPARATE COLLECTION** | ML training data, large, append-only |
@@ -249,8 +249,8 @@ erDiagram
 
 ### 3.1 `users`
 
-**Mục đích:** Lưu trữ thông tin tài khoản người dùng, địa chỉ giao hàng, trạng thái.
-**Access patterns chính:**
+**Purpose:** Stores user account information, shipping addresses, and status.
+**Main access patterns:**
 - Login: lookup by `email` (indexed unique)
 - Auth guard: `findById` + check `roles`
 - Admin listing: filter by `status` + `deletedAt`
@@ -353,7 +353,7 @@ export class User extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `email` | Unique | Login lookup |
 | `{ status, deletedAt }` | Compound | Filter active users, admin listing |
@@ -363,11 +363,11 @@ export class User extends Document {
 
 ### 3.2 `products`
 
-**Mục đích:** Catalog sản phẩm, variants với stock tracking, sync với Meilisearch.
-**Access patterns chính:**
+**Purpose:** Product catalog, variants with stock tracking, sync with Meilisearch.
+**Main access patterns:**
 - Catalog listing: filter `categoryId + status + deletedAt`, sort `avgRating`
 - Product detail: `findById` — load variants, attributes in 1 query
-- Search sync job: find `{ lastIndexedAt: null }` hoặc `lastIndexedAt < updatedAt`
+- Search sync job: find `{ lastIndexedAt: null }` or `lastIndexedAt < updatedAt`
 
 ```typescript
 // ── Embedded sub-schema ──────────────────────────────────────────
@@ -377,7 +377,7 @@ export class ProductVariant {
   sku: string;                 // variant-specific SKU
 
   @Prop({ type: mongoose.Schema.Types.Mixed, default: {} })
-  attributes: Record<string, string>;  // { size: 'L', color: 'Đỏ' }
+  attributes: Record<string, string>;  // { size: 'L', color: 'Red' }
 
   @Prop({ required: true, min: 0 })
   price: number;               // VND integer (e.g., 299000)
@@ -425,7 +425,7 @@ export class Product extends Document {
   variants: ProductVariant[];
 
   @Prop({ type: mongoose.Schema.Types.Mixed, default: {} })
-  attributes: Record<string, unknown>;  // { color: 'Đỏ', material: 'Cotton' }
+  attributes: Record<string, unknown>;  // { color: 'Red', material: 'Cotton' }
 
   @Prop({ type: [String], default: [] })
   tags: string[];              // ['sale', 'new-arrival', 'bestseller']
@@ -481,7 +481,7 @@ export class Product extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `sku` | Unique | SKU lookup, import dedup |
 | `{ categoryId, status, deletedAt }` | Compound | Category listing page |
@@ -494,10 +494,10 @@ export class Product extends Document {
 
 ### 3.3 `categories`
 
-**Mục đích:** Cây phân loại sản phẩm (3 levels max). Dùng **Materialized Path** pattern.
-**Access patterns chính:**
+**Purpose:** Product classification tree (3 levels max). Uses the **Materialized Path** pattern.
+**Main access patterns:**
 - Navigation: load all root categories (level=0)
-- Subtree query: `{ path: /^\/clothing/ }` → tất cả sub-categories của "clothing"
+- Subtree query: `{ path: /^\/clothing/ }` → all sub-categories of "clothing"
 - URL lookup: `findOne({ slug })` for SEO-friendly URLs
 
 ```typescript
@@ -555,7 +555,7 @@ export class Category extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `slug` | Unique | URL-based lookup |
 | `parentId` | — | Tree navigation: children of X |
@@ -566,8 +566,8 @@ export class Category extends Document {
 
 ### 3.4 `orders`
 
-**Mục đích:** Đơn hàng với snapshot bất biến của items, địa chỉ, payment.
-**Access patterns chính:**
+**Purpose:** Orders with an immutable snapshot of items, shipping address, and payment.
+**Main access patterns:**
 - Buyer order history: `{ userId, status }` sort by `createdAt`
 - Admin management: `{ status }` sort by `createdAt`
 - Order detail: `findOne({ orderNumber })`
@@ -759,7 +759,7 @@ export class Order extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `{ userId, createdAt: -1 }` | Compound | Buyer order history (paginated) |
 | `orderNumber` | Unique | Order lookup by number |
@@ -771,9 +771,9 @@ export class Order extends Document {
 
 ### 3.5 `carts`
 
-**Mục đích:** Giỏ hàng cho cả logged-in user (by `userId`) và guest (by `sessionId`).
-**Access patterns chính:**
-- Load cart: `findOne({ userId })` hoặc `findOne({ sessionId })`
+**Purpose:** Shopping cart for both logged-in users (by `userId`) and guests (by `sessionId`).
+**Main access patterns:**
+- Load cart: `findOne({ userId })` or `findOne({ sessionId })`
 - Abandoned cart job: `{ abandonedAt: { $ne: null } }` — trigger email/push notification
 
 ```typescript
@@ -831,7 +831,7 @@ export class Cart extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `userId` | Unique Sparse | 1 cart per user; null values excluded |
 | `sessionId` | Sparse | Guest cart lookup |
@@ -841,8 +841,8 @@ export class Cart extends Document {
 
 ### 3.6 `reviews`
 
-**Mục đích:** Đánh giá sản phẩm của người mua đã mua hàng (verified purchase).
-**Access patterns chính:**
+**Purpose:** Product reviews by buyers who have made a purchase (verified purchase).
+**Main access patterns:**
 - Product reviews: `{ productId, deletedAt: null }` paginated
 - Check duplicate: `{ productId, userId }` unique
 - My reviews: `{ userId }`
@@ -880,7 +880,7 @@ export class Review extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `{ productId, deletedAt }` | Compound | Product reviews listing |
 | `{ productId, userId }` | Unique Compound | Prevent 1 user reviewing same product twice |
@@ -890,10 +890,10 @@ export class Review extends Document {
 
 ### 3.7 `coupons`
 
-**Mục đích:** Mã giảm giá (flat VND hoặc percent). Atomic usage tracking.
-**Access patterns chính:**
+**Purpose:** Discount codes (flat VND or percent). Atomic usage tracking.
+**Main access patterns:**
 - Validate: `findOne({ code, isActive: true, deletedAt: null })`
-- Apply: `findOneAndUpdate` với `$inc: { usedCount: 1 }` (atomic)
+- Apply: `findOneAndUpdate` with `$inc: { usedCount: 1 }` (atomic)
 - Expiry cleanup job: `{ expiresAt: { $lt: now } }`
 
 ```typescript
@@ -907,8 +907,8 @@ export class Coupon extends Document {
 
   @Prop({ required: true, min: 0 })
   value: number;
-  // type='flat'    → VND amount (e.g., 50000 = giảm 50.000đ)
-  // type='percent' → 0-100 (e.g., 10 = giảm 10%)
+  // type='flat'    → VND amount (e.g., 50000 = 50,000 VND discount)
+  // type='percent' → 0-100 (e.g., 10 = 10% discount)
 
   @Prop({ default: 0, min: 0 })
   minOrderAmount: number;      // minimum order total to apply
@@ -935,7 +935,7 @@ export class Coupon extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `code` | Unique | Coupon validation lookup |
 | `{ isActive, expiresAt }` | Compound | Expiry cleanup job |
@@ -945,14 +945,14 @@ export class Coupon extends Document {
 
 ### 3.8 `behavioral_events`
 
-**Mục đích:** Time-series event stream cho ML training và real-time analytics (167 events/sec peak).
-**Access patterns chính:**
+**Purpose:** Time-series event stream for ML training and real-time analytics (167 events/sec peak).
+**Main access patterns:**
 - ML training fetch: filter by `eventType + timestamp` range (90 days)
 - User behavior timeline: `{ userId, timestamp }` descending
 - CTR analytics: aggregate `rec_click` / `view` per placement
 
-> **Note:** Collection này được cấu hình như **MongoDB Time Series collection** — cung cấp columnar storage và time-range query optimization tốt hơn regular collection.
-> Fallback: regular collection với compound index `{ userId, timestamp: -1 }` nếu Atlas M0 không hỗ trợ time series.
+> **Note:** This collection is configured as a **MongoDB Time Series collection** — providing columnar storage and better time-range query optimization than a regular collection.
+> Fallback: regular collection with compound index `{ userId, timestamp: -1 }` if Atlas M0 does not support time series.
 
 ```typescript
 @Schema({
@@ -1000,7 +1000,7 @@ export class BehavioralEvent extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `{ userId, timestamp: -1 }` | Compound | User behavior history, ML feature fetch |
 | `{ eventType, timestamp: -1 }` | Compound | Event analytics, CTR computation |
@@ -1012,8 +1012,8 @@ export class BehavioralEvent extends Document {
 
 ### 3.9 `feature_snapshots`
 
-**Mục đích:** Daily snapshot của ML features cho mỗi user — dữ liệu training cho Collaborative Filtering model.
-**Access patterns chính:**
+**Purpose:** Daily snapshot of ML features for each user — training data for the Collaborative Filtering model.
+**Main access patterns:**
 - ML training: bulk fetch by `snapshotDate` (all users for a given day)
 - Online inference: `findOne({ userId })` sort `snapshotDate: -1` → latest features
 
@@ -1050,7 +1050,7 @@ export class FeatureSnapshot extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `{ userId, snapshotDate: -1 }` | Compound | Latest snapshot per user (online inference) |
 | `snapshotDate` | — | Bulk fetch for ML training pipeline |
@@ -1059,8 +1059,8 @@ export class FeatureSnapshot extends Document {
 
 ### 3.10 `model_versions`
 
-**Mục đích:** Model registry cho AI Recommendation Service — tracking deployed models, metrics, artifacts.
-**Access patterns chính:**
+**Purpose:** Model registry for the AI Recommendation Service — tracking deployed models, metrics, and artifacts.
+**Main access patterns:**
 - Load active model: `findOne({ modelType, isActive: true })`
 - Version history: `{ modelType }` sort by `promotedAt: -1`
 - Promote new model: `updateMany` set `isActive: false` then set `isActive: true` on new
@@ -1102,7 +1102,7 @@ export class ModelVersion extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `{ modelType, isActive }` | Compound | Load active model (hot path) |
 | `{ modelType, promotedAt: -1 }` | Compound | Version history listing |
@@ -1111,8 +1111,8 @@ export class ModelVersion extends Document {
 
 ### 3.11 `campaigns`
 
-**Mục đích:** Marketing campaigns (email / push / both) gửi đến một segment người dùng.
-**Access patterns chính:**
+**Purpose:** Marketing campaigns (email / push / both) sent to a user segment.
+**Main access patterns:**
 - Scheduler job: `{ status: 'scheduled', scheduledAt: { $lte: now } }`
 - Campaign analytics: load campaign + embedded metrics in 1 document
 - Admin listing: filter by `status`, sort `createdAt`
@@ -1181,7 +1181,7 @@ export class Campaign extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `{ status, scheduledAt }` | Compound | Scheduler job: find due campaigns |
 | `segmentId` | — | Campaigns by segment |
@@ -1191,9 +1191,9 @@ export class Campaign extends Document {
 
 ### 3.12 `segments`
 
-**Mục đích:** RFM-based user segments cho marketing targeting. `userIds[]` được recompute hàng ngày bằng aggregation pipeline.
-**Access patterns chính:**
-- List segments: `find({})` (ít documents, admin-only)
+**Purpose:** RFM-based user segments for marketing targeting. `userIds[]` is recomputed daily via an aggregation pipeline.
+**Main access patterns:**
+- List segments: `find({})` (few documents, admin-only)
 - Get users for campaign: `findOne({ name })` → read `userIds[]`
 - Stale check: `{ lastComputedAt: { $lt: yesterday } }` → trigger recompute
 
@@ -1226,7 +1226,7 @@ export class Segment extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `name` | Unique | Lookup by name |
 | `lastComputedAt` | — | Find stale segments to recompute |
@@ -1235,13 +1235,13 @@ export class Segment extends Document {
 
 ### 3.13 `audit_logs`
 
-**Mục đích:** Immutable compliance trail cho mọi hành động admin/staff. INSERT-only — không bao giờ update hoặc delete.
-**Access patterns chính:**
+**Purpose:** Immutable compliance trail for all admin/staff actions. INSERT-only — never update or delete.
+**Main access patterns:**
 - User audit trail: `{ actor }` sort `timestamp: -1`
 - Resource audit trail: `{ resource, resourceId }` sort `timestamp: -1`
 - Admin activity: `{ action }` + date range
 
-> **Security constraint:** MongoDB Atlas role cho app service account chỉ có `insert` permission trên collection này — không có `update`, `delete`.
+> **Security constraint:** The MongoDB Atlas role for the app service account only has `insert` permission on this collection — no `update` or `delete`.
 
 ```typescript
 @Schema({ collection: 'audit_logs' })
@@ -1278,7 +1278,7 @@ export class AuditLog extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `{ actor, timestamp: -1 }` | Compound | User's action history |
 | `{ resource, resourceId, timestamp: -1 }` | Compound | Resource change history |
@@ -1288,8 +1288,8 @@ export class AuditLog extends Document {
 
 ### 3.14 `push_subscriptions`
 
-**Mục đích:** Web Push API subscriptions (VAPID). Mỗi browser/device tạo ra 1 subscription.
-**Access patterns chính:**
+**Purpose:** Web Push API subscriptions (VAPID). Each browser/device creates 1 subscription.
+**Main access patterns:**
 - Send push to user: `find({ userId })` → iterate endpoints
 - Cleanup expired: `{ expirationTime: { $lt: now } }`
 - Dedup on re-subscribe: upsert on `endpoint` (unique)
@@ -1320,7 +1320,7 @@ export class PushSubscription extends Document {
 
 **Indexes:**
 
-| Field(s) | Type | Lý Do |
+| Field(s) | Type | Reason |
 |---|---|---|
 | `userId` | — | Find all subscriptions for a user |
 | `endpoint` | Unique | Dedup on re-subscribe; cleanup lookup |
@@ -1330,7 +1330,7 @@ export class PushSubscription extends Document {
 
 ### 3.15 error_logs
 
-**Mục đích:** Lưu trữ toàn bộ unhandled exceptions từ NestJS `AllExceptionsFilter`. Thay thế hoàn toàn Sentry. INSERT-ONLY — app service account không có UPDATE/DELETE permission trên collection này.
+**Purpose:** Stores all unhandled exceptions from the NestJS `AllExceptionsFilter`. Completely replaces Sentry. INSERT-ONLY — the app service account has no UPDATE/DELETE permission on this collection.
 
 **Mongoose Schema:**
 
@@ -1379,19 +1379,19 @@ export class ErrorLog {
 ```
 
 **Access Pattern:**
-- Write: fire-and-forget từ `AllExceptionsFilter` (async, không block HTTP response)
+- Write: fire-and-forget from `AllExceptionsFilter` (async, does not block HTTP response)
 - Read: Admin Dashboard "System Health" panel, filter by level/statusCode/path
-- Volume: thấp (~10-50 errors/day trong demo) → không ảnh hưởng MongoDB quota
+- Volume: low (~10-50 errors/day in demo) → does not affect MongoDB quota
 
-**Data Retention:** TTL index tự động xóa documents sau 30 ngày.
+**Data Retention:** TTL index automatically deletes documents after 30 days.
 
 ---
 
 ## 4. Indexing Strategy
 
-Tổng hợp toàn bộ indexes quan trọng (≈35 indexes):
+Summary of all important indexes (~35 indexes):
 
-| Collection | Index Fields | Type | Lý Do |
+| Collection | Index Fields | Type | Reason |
 |---|---|---|---|
 | `users` | `email` | Unique | Login lookup |
 | `users` | `{ status, deletedAt }` | Compound | Active user filter |
@@ -1441,7 +1441,7 @@ Tổng hợp toàn bộ indexes quan trọng (≈35 indexes):
 
 ### Index Creation Script (Mongoose)
 
-Indexes được định nghĩa trực tiếp trong Mongoose schema bằng `@index` decorator:
+Indexes are defined directly in the Mongoose schema using the `@index` decorator:
 
 ```typescript
 // Example: products collection
@@ -1454,40 +1454,40 @@ Indexes được định nghĩa trực tiếp trong Mongoose schema bằng `@ind
 export class Product extends Document { ... }
 ```
 
-Mongoose tự động sync indexes khi `autoIndex: true` (development only).
-**Production:** Tắt `autoIndex`, tạo indexes manually qua MongoDB Atlas UI hoặc `createIndex()` migration script.
+Mongoose automatically syncs indexes when `autoIndex: true` (development only).
+**Production:** Disable `autoIndex`, create indexes manually via the MongoDB Atlas UI or a `createIndex()` migration script.
 
 ---
 
 ## 5. Data Conventions
 
-| Convention | Rule | Ví dụ |
+| Convention | Rule | Example |
 |---|---|---|
 | **Primary Key** | MongoDB ObjectId (auto `_id`) | `_id: ObjectId("65f4a2b3...")` |
-| **API ID exposure** | Serialize ObjectId → string trong `ResponseDto` | `"id": "65f4a2b3c0e1d2f3a4b5c6d7"` |
-| **Timestamps** | `{ timestamps: true }` → auto `createdAt`, `updatedAt` | Mọi collection trừ `carts`, `audit_logs` |
+| **API ID exposure** | Serialize ObjectId → string in `ResponseDto` | `"id": "65f4a2b3c0e1d2f3a4b5c6d7"` |
+| **Timestamps** | `{ timestamps: true }` → auto `createdAt`, `updatedAt` | All collections except `carts`, `audit_logs` |
 | **Soft delete** | Field `deletedAt: Date \| null`; default query filter `{ deletedAt: null }` | `users`, `products`, `reviews`, `coupons`, `campaigns` |
-| **Hard delete** | Không bao giờ hard-delete | `audit_logs` là immutable; mọi document khác dùng soft delete |
-| **Money (VND)** | `Number` integer (không có decimal) | `price: 299000` ✓ — `price: 299000.50` ✗ |
-| **Enums** | Định nghĩa trong `libs/shared/constants/`, validate qua Mongoose `enum` option | `OrderStatus`, `UserStatus`, `EventType` |
+| **Hard delete** | Never hard-delete | `audit_logs` is immutable; all other documents use soft delete |
+| **Money (VND)** | `Number` integer (no decimal) | `price: 299000` ✓ — `price: 299000.50` ✗ |
+| **Enums** | Defined in `libs/shared/constants/`, validated via Mongoose `enum` option | `OrderStatus`, `UserStatus`, `EventType` |
 | **Booleans** | Prefix `is` | `isActive`, `isDefault`, `isVerifiedPurchase` |
-| **Arrays** | Mặc định `[]`, không dùng `null` cho array fields | `roles: []`, `addresses: []`, `tags: []` |
+| **Arrays** | Default `[]`, do not use `null` for array fields | `roles: []`, `addresses: []`, `tags: []` |
 | **ObjectId refs** | `mongoose.Schema.Types.ObjectId` + `ref: 'CollectionName'` | `ref: 'User'`, `ref: 'Product'` |
 | **Immutable fields** | `@Prop({ immutable: true })` | `audit_logs.timestamp` |
-| **String trim** | `trim: true` trên mọi user-input string field | `name`, `email`, `code`, `slug` |
-| **Schema version** | `__schemaVersion: number` cho breaking changes | Xem Section 7 |
+| **String trim** | `trim: true` on all user-input string fields | `name`, `email`, `code`, `slug` |
+| **Schema version** | `__schemaVersion: number` for breaking changes | See Section 7 |
 | **Text search** | Meilisearch primary; MongoDB `$text` fallback | products, categories |
-| **Vector search** | MongoDB Atlas Vector Search (free, built-in) | Dùng cho CBF embedding similarity |
-| **Naming** | camelCase fields trong MongoDB | `createdAt`, `avgRating`, `couponCode` |
+| **Vector search** | MongoDB Atlas Vector Search (free, built-in) | Used for CBF embedding similarity |
+| **Naming** | camelCase fields in MongoDB | `createdAt`, `avgRating`, `couponCode` |
 
 ---
 
 ## 6. Redis Data Structures
 
-Tất cả Redis keys được defined trong `libs/shared/constants/redis-keys.ts`.
+All Redis keys are defined in `libs/shared/constants/redis-keys.ts`.
 Redis provider: **Upstash Redis** (Free tier: 10,000 commands/day).
 
-| Key Pattern | Redis Type | TTL | Mục Đích | Notes |
+| Key Pattern | Redis Type | TTL | Purpose | Notes |
 |---|---|---|---|---|
 | `sess:{SHA256(refreshToken)}` | String | 604800s (7d) | Refresh token session store | Value = `JSON{userId, roles}` |
 | `rec:{userId}:{placement}` | String | 600s (10min) | AI recommendation cache per user | Value = `JSON[productId,...]` |
@@ -1523,7 +1523,7 @@ export const REDIS_KEYS = {
 
 ### 6.2 getOrSet Helper Pattern
 
-Tất cả Redis reads trong NestJS đều dùng helper này để tránh cache stampede và đảm bảo consistent TTL:
+All Redis reads in NestJS use this helper to prevent cache stampedes and ensure consistent TTL:
 
 ```typescript
 // src/shared/redis/redis.service.ts
@@ -1562,11 +1562,11 @@ export class RedisService {
 
 ## 7. Schema Versioning Strategy
 
-MongoDB không có SQL migrations. Project dùng 3 patterns tùy mức độ thay đổi:
+MongoDB does not have SQL migrations. The project uses 3 patterns depending on the level of change:
 
-### Pattern 1: Thêm Field Mới (Non-Breaking)
+### Pattern 1: Adding a New Field (Non-Breaking)
 
-Thêm field với `default` value — backward compatible, không cần migration:
+Add a field with a `default` value — backward compatible, no migration needed:
 
 ```typescript
 // Before
@@ -1578,23 +1578,23 @@ status: string;
 verifiedAt: Date | null;   // ← new field, default null = safe
 ```
 
-**Khi nào dùng:** Thêm optional fields, thêm enum values (không xóa).
+**When to use:** Adding optional fields, adding enum values (without removing existing ones).
 
 ### Pattern 2: `__schemaVersion` Field (Breaking Changes)
 
-Khi thay đổi cấu trúc document (rename field, change type, restructure embedded doc):
+When changing document structure (rename field, change type, restructure embedded doc):
 
 ```typescript
 @Schema({ timestamps: true, collection: 'products' })
 export class Product extends Document {
   @Prop({ default: 1 })
-  __schemaVersion: number;   // increment khi có breaking change
+  __schemaVersion: number;   // increment on breaking change
 
   // ... other fields
 }
 ```
 
-**Read path** — transform on-the-fly trong service layer:
+**Read path** — transform on-the-fly in the service layer:
 ```typescript
 // apps/api/src/modules/catalog/catalog.service.ts
 private transformProduct(doc: Product): ProductResponseDto {
@@ -1628,19 +1628,19 @@ async function migrate() {
 
 ### Pattern 3: Expand/Contract (Zero-Downtime)
 
-Cho changes cần zero-downtime deploy:
+For changes requiring a zero-downtime deploy:
 
-1. **Expand** — Thêm field mới song song với field cũ (với default):
+1. **Expand** — Add new field alongside the old field (with default):
    ```typescript
    @Prop({ default: null }) newField: string | null;    // ← add
    @Prop({ required: true }) oldField: string;          // ← keep
    ```
 
-2. **Dual-write** — Write cả hai fields trong application code
+2. **Dual-write** — Write both fields in application code
 
 3. **Migrate** — Background script backfills `newField` from `oldField`
 
-4. **Contract** — Sau khi 100% documents đã có `newField`, xóa `oldField`
+4. **Contract** — After 100% of documents have `newField`, remove `oldField`
 
 ### Migration Scripts Convention
 
@@ -1687,16 +1687,16 @@ migrate().catch(console.error);
 
 ## 8. Seeding Data
 
-Seed scripts cho môi trường development. Tất cả scripts: **idempotent** (safe to run twice).
+Seed scripts for the development environment. All scripts are **idempotent** (safe to run twice).
 
-| Script | File | Nội Dung | Bắt Buộc |
+| Script | File | Contents | Required |
 |---|---|---|---|
-| Admin users | `scripts/seed/01-admin-user.ts` | 1 admin + 1 staff + 5 buyer users với realistic VN data | ✓ |
-| Categories | `scripts/seed/02-categories.ts` | 3-level tree: Thời Trang → Áo Nam → Áo Thun, Quần Nam; Electronics → Laptop, Điện Thoại | ✓ |
-| Products | `scripts/seed/03-products.ts` | 50 products (3–5 variants mỗi product), realistic VND prices (49k–5tr) | ✓ |
-| Coupons | `scripts/seed/04-coupons.ts` | WELCOME10 (10%), SALE50K (50k flat), FREESHIP (0đ flat, min 200k), VIPONLY (20%, VIP only), SUMMER2026 (15%) | ✓ |
-| Behavioral history | `scripts/seed/05-behavior-history.ts` | 500 events/user × 5 users = 2500 events (view, add_to_cart, purchase, search, rec_click) — required cho AI training | ✓ AI |
-| Feature snapshots | `scripts/seed/06-feature-snapshots.ts` | Daily snapshots cho 5 users × 30 ngày = 150 documents | ✓ AI |
+| Admin users | `scripts/seed/01-admin-user.ts` | 1 admin + 1 staff + 5 buyer users with realistic Vietnamese data | ✓ |
+| Categories | `scripts/seed/02-categories.ts` | 3-level tree: Fashion → Men's Tops → T-Shirts, Men's Bottoms; Electronics → Laptops, Phones | ✓ |
+| Products | `scripts/seed/03-products.ts` | 50 products (3–5 variants each), realistic VND prices (49k–5tr) | ✓ |
+| Coupons | `scripts/seed/04-coupons.ts` | WELCOME10 (10%), SALE50K (50k flat), FREESHIP (0 VND flat, min 200k), VIPONLY (20%, VIP only), SUMMER2026 (15%) | ✓ |
+| Behavioral history | `scripts/seed/05-behavior-history.ts` | 500 events/user × 5 users = 2500 events (view, add_to_cart, purchase, search, rec_click) — required for AI training | ✓ AI |
+| Feature snapshots | `scripts/seed/06-feature-snapshots.ts` | Daily snapshots for 5 users × 30 days = 150 documents | ✓ AI |
 | Marketing data | `scripts/seed/07-marketing.ts` | 2 segments (VIP: top 20%, Newcomer: 0–1 orders), 1 draft campaign | optional |
 
 **Run command:**
@@ -1727,7 +1727,7 @@ if (!existing) {
 
 ## 9. Query Patterns
 
-5 query patterns phổ biến nhất — với index usage notes.
+The 5 most common query patterns — with index usage notes.
 
 ### Pattern 1: Product Catalog Listing (Filters + Pagination)
 
@@ -1901,4 +1901,4 @@ model_versions     │ audit_logs
 | MongoDB Atlas M0 | Atlas Vector Search | Included | Used for CBF embeddings |
 | MongoDB Atlas M0 | Indexes | No hard limit | ~45 indexes |
 
-> **Tất cả trong giới hạn $0/month free tier — không cần thẻ tín dụng.**
+> **Everything within the $0/month free tier — no credit card required.**
