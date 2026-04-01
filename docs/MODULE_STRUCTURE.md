@@ -1,11 +1,11 @@
 # Module Structure & Code Organization
 
 **Project:** SMART ECOMMERCE AI SYSTEM
-**Version:** 1.0.0
-**Date:** 2026-03-24
+**Version:** 2.0.0
+**Date:** 2026-04-01
 **Author:** Senior Backend Engineer
 **Status:** Approved
-**References:** `docs/ARCHITECTURE.md` v1.0.0 · `docs/TECH_STACK.md` v1.0.0
+**References:** `docs/ARCHITECTURE.md` v2.0.0 · `docs/TECH_STACK.md` v2.0.0
 
 ---
 
@@ -50,6 +50,7 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │   │   │       ├── database/                  # Mongoose connection + base abstractions
 │   │   │       ├── redis/                     # Upstash Redis client + helper
 │   │   │       ├── config/                    # Env validation, typed config objects
+│   │   │       ├── email/                     # nodemailer Gmail SMTP transport wrapper
 │   │   │       ├── guards/                    # JwtAuthGuard, RolesGuard
 │   │   │       ├── interceptors/              # LoggingInterceptor, ResponseInterceptor
 │   │   │       ├── filters/                   # GlobalExceptionFilter
@@ -92,7 +93,7 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │   │   ├── Dockerfile
 │   │   └── package.json
 │   │
-│   └── ai-service/                            # FastAPI 0.111 + Celery 5 (Render.com)
+│   └── ai-service/                            # FastAPI 0.111 (Render.com)
 │       ├── app/
 │       │   ├── main.py                        # FastAPI app init, CORS, /health endpoint
 │       │   ├── config.py                      # pydantic-settings: REDIS_URL, MONGO_URI, R2_*
@@ -105,14 +106,15 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │       │   │   ├── cbf_service.py             # Cosine similarity matrix compute + query()
 │       │   │   ├── hybrid.py                  # α-weighted scoring + post_filter()
 │       │   │   └── fallback.py                # get_popular_products() — circuit open fallback
-│       │   ├── ml/
-│       │   │   ├── train_cf.py                # LightFM fit, evaluate (precision@10, recall@10)
-│       │   │   ├── train_cbf.py               # sentence-transformers embed + cosine sim matrix
-│       │   │   └── model_registry.py          # Cloudflare R2 upload/download .pkl artifacts
-│       │   └── workers/
-│       │       ├── celery_app.py              # Celery config (Redis broker + backend)
-│       │       ├── beat_schedule.py           # Cron: daily 02:00 ICT training pipeline
-│       │       └── event_consumer.py          # Redis Streams XREADGROUP → MongoDB bulk insert
+│       │   └── ml/
+│       │       ├── train_cf.py                # LightFM fit, evaluate (precision@10, recall@10)
+│       │       ├── train_cbf.py               # TF-IDF vectorize + cosine sim matrix build
+│       │       └── model_registry.py          # Cloudflare R2 upload/download .pkl artifacts
+│       ├── scripts/
+│       │   └── train_pipeline.py              # Entry point called by GitHub Actions cron
+│       │                                      # Runs: fetch_features → train_CF → evaluate
+│       │                                      # → promote_if_better → rebuild_CBF
+│       │                                      # → upload .pkl to R2 → update model_versions
 │       ├── tests/
 │       │   ├── test_recommend.py
 │       │   └── test_training.py
@@ -127,10 +129,10 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │           └── index.ts                       # Barrel export
 │
 ├── docs/                                      # Project documentation
-│   ├── REQUIREMENTS.md                        # v2.1.0 — 62 FRs
-│   ├── TECH_STACK.md                          # v1.0.0 — Tech decisions
-│   ├── ARCHITECTURE.md                        # v1.0.0 — System design
-│   └── MODULE_STRUCTURE.md                    # v1.0.0 — This file
+│   ├── REQUIREMENTS.md                        # v2.2.0 — 62 FRs
+│   ├── TECH_STACK.md                          # v2.0.0 — Tech decisions
+│   ├── ARCHITECTURE.md                        # v2.0.0 — System design
+│   └── MODULE_STRUCTURE.md                    # v2.0.0 — This file
 │
 ├── infra/                                     # Infrastructure config
 │   ├── docker-compose.yml                     # Full local dev: 8 services
@@ -147,7 +149,8 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │   └── workflows/
 │       ├── ci.yml                             # PR gate: lint + typecheck + Jest + pytest
 │       ├── cd-staging.yml                     # push develop → Render staging
-│       └── cd-production.yml                  # push main → Render + Vercel production
+│       ├── cd-production.yml                  # push main → Render + Vercel production
+│       └── ml-training.yml                    # Daily 02:00 ICT cron → python scripts/train_pipeline.py
 │
 ├── .env.example                               # ALL required env vars (no values committed)
 ├── .gitignore
@@ -207,7 +210,6 @@ Template này áp dụng **thống nhất** cho tất cả 9 feature modules:
 | `repositories/` | Mongoose queries, projections, aggregations | Mongoose Model (inject), BaseRepository | Business logic, HTTP layer |
 | `events/` | Domain event class definitions | Plain TypeScript | Any NestJS/Mongoose import |
 | `*.module.ts` | DI wiring: providers, imports, exports | Modules trong dependency map | Circular imports |
-| `README.md` | Documentation | — | Code |
 
 ---
 
@@ -218,12 +220,12 @@ Template này áp dụng **thống nhất** cho tất cả 9 feature modules:
 1. `SharedModule` — imported by ALL modules (global infrastructure)
 2. `AuthModule` exports guards — applied via decorators, không cần import trực tiếp
 3. Feature modules chỉ import modules được liệt kê dưới đây
-4. Giao tiếp cross-module async qua `EventEmitter2` (không import trực tiếp)
+4. Giao tiếp cross-module async qua `EventEmitter2` (không inject service trực tiếp)
 5. **Tuyệt đối không circular import**
 
 ```mermaid
 graph TD
-    SM["SharedModule\ndatabase · redis · config\nguards · interceptors · filters\nutils · decorators"]
+    SM["SharedModule @Global()\ndatabase · redis · config\nguards · interceptors · filters\nutils · decorators · EmailService"]
 
     AM["AuthModule\n──────────────\nexports:\n  JwtAuthGuard\n  RolesGuard\n  CurrentUserDecorator"]
 
@@ -243,30 +245,26 @@ graph TD
 
     AnM["AnalyticsModule\n──────────────\n(no exports — read-only)"]
 
-    %% SharedModule → all
     SM --> AM & CM & CartM & OM & PM & RM & MM & NM & AnM
 
-    %% Auth guards (dotted = decorator-based, no module import needed)
     AM -. "JwtAuthGuard\n@Roles() decorator" .-> CM & CartM & OM & PM & RM & MM & NM & AnM
 
-    %% Feature imports (solid = NestJS module import)
     CM -->|"stock check\nduring cart ops"| CartM
     CartM -->|"validate cart\nbefore order"| OM
     OM -->|"update order\nafter payment"| PM
     CM -->|"product filter\n(out-of-stock removal)"| RM
     NM -->|"send email/push\nfor campaigns"| MM
 
-    %% Async domain events (EventEmitter2 — decoupled, no module import)
-    OM == "OrderPlacedEvent\nOrderStatusChangedEvent\n(async)" ==> NM
+    OM == "OrderPlacedEvent\nOrderStatusChangedEvent\n(async EventEmitter2)" ==> NM
     PM == "PaymentConfirmedEvent\n(async)" ==> OM
     CM == "StockLowEvent\n(async)" ==> NM
-    RM == "BehavioralEvent\n→ Redis Streams\n(not EventEmitter)" ==> AnM
+    RM == "BehavioralEvent\n→ MongoDB async write" ==> AnM
 ```
 
 **Legend:**
-- `→` Solid: NestJS `imports: [ModuleX]` — can use exported providers
-- `-. ->` Dotted: Guards applied via `@UseGuards()` decorator — no module import
-- `==` Bold: Async `EventEmitter2` emit/listen — completely decoupled
+- `→` Solid: NestJS `imports: [ModuleX]` — có thể dùng exported providers
+- `-. ->` Dotted: Guards áp dụng qua `@UseGuards()` decorator — không import module
+- `==` Bold: Async `EventEmitter2` emit/listen — hoàn toàn decoupled
 
 ### Import Matrix
 
@@ -298,16 +296,18 @@ auth/
 │   └── auth-response.dto.ts                   # {accessToken, user: UserResponseDto}
 ├── schemas/
 │   └── user.schema.ts                         # UserDocument: email, passwordHash, roles[],
-│                                              #   addresses[{street, district, city}], createdAt
+│                                              #   addresses[{street, district, city, phone}],
+│                                              #   status (active|suspended), deletedAt, createdAt
 ├── interfaces/
 │   ├── jwt-payload.interface.ts               # {sub: string, roles: Role[], iat: number, exp: number}
 │   └── auth-tokens.interface.ts               # {accessToken: string, refreshToken: string}
 ├── controllers/
 │   └── auth.controller.ts                     # POST /auth/login, /auth/register, /auth/refresh
 │                                              # DELETE /auth/logout
+│                                              # GET /auth/me, PATCH /auth/me/password
 ├── services/
 │   └── auth.service.ts                        # login(), register(), refresh(), logout()
-│                                              # validateUser() — used by Passport local strategy
+│                                              # changePassword(), validateUser()
 ├── repositories/
 │   └── user.repository.ts                     # findByEmail(), findById()
 │                                              # createUser(), updateRoles(), updatePassword()
@@ -320,6 +320,33 @@ auth/
 **Exported providers:** `JwtAuthGuard`, `RolesGuard`, `CurrentUser` decorator
 **MongoDB collection:** `users`
 
+**Key API endpoints:**
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/register` | Public | Register; emits `UserRegisteredEvent` → welcome email |
+| `POST` | `/api/v1/auth/login` | Public | Validate credentials, return JWT + set refresh cookie |
+| `POST` | `/api/v1/auth/refresh` | Cookie | Rotate refresh token, issue new access token |
+| `DELETE` | `/api/v1/auth/logout` | JWT | Invalidate refresh token in Redis, clear cookie |
+| `GET` | `/api/v1/auth/me` | JWT | Return current user profile (no passwordHash) |
+| `PATCH` | `/api/v1/auth/me/password` | JWT | Change password after verifying current password |
+
+**EventEmitter2 events emitted:**
+- `user.registered` → `UserRegisteredEvent{userId, email, fullName}` → NotificationModule sends welcome email
+
+**EventEmitter2 events listened to:** None
+
+**Redis keys read/written:**
+- Write: `sess:{hash}` (refresh token SHA-256 hash, TTL 7d) on login/refresh
+- Delete: `sess:{hash}` on logout
+- Read: `sess:{hash}` on refresh to verify not revoked
+
+**Error scenarios:**
+- `AUTH_CREDENTIALS_INVALID` — email/password mismatch
+- `AUTH_EMAIL_TAKEN` — duplicate email on register (409)
+- `AUTH_REFRESH_INVALID` — refresh token not in Redis
+- `AUTH_ACCOUNT_UNVERIFIED` — email not yet verified (403)
+
 ---
 
 ### 4.2 CatalogModule — `src/modules/catalog/`
@@ -330,45 +357,67 @@ catalog/
 │   ├── create-product.dto.ts                  # {name, sku, price, variants[], categoryId, attributes{}}
 │   ├── update-product.dto.ts                  # PartialType(CreateProductDto)
 │   ├── product-query.dto.ts                   # {page, limit, sort, categoryId, minPrice, maxPrice,
-│   │                                          #  inStock, brand, q (search fallback)}
-│   ├── create-category.dto.ts                 # {name, slug, parentId?}
+│   │                                          #  inStock, brand, q (Atlas Search query)}
+│   ├── create-category.dto.ts                 # {name, slug?, parentId?}
 │   ├── product-response.dto.ts                # Product + resolvedCategory + stockSummary
-│   └── bulk-import.dto.ts                     # CSV upload result: {created, updated, errors[]}
+│   └── bulk-import.dto.ts                     # CSV result: {created, updated, errors[]}
 ├── schemas/
-│   ├── product.schema.ts                      # ProductDocument: sku, name, description, images[],
-│   │                                          #   variants[{sku, size, color, stock, price}],
-│   │                                          #   categoryId, attributes{}, tags[], avgRating, soldCount
+│   ├── product.schema.ts                      # ProductDocument: sku, name, description{short,long},
+│   │                                          #   images[], variants[{sku,size,color,stock,price}],
+│   │                                          #   categoryId, attributes{}, tags[], avgRating,
+│   │                                          #   soldCount, status (draft|active|inactive), deletedAt
 │   └── category.schema.ts                     # CategoryDocument: name, slug, path (materialized),
-│                                              #   parentId, level, imageUrl
+│                                              #   parentId, level, imageUrl, isActive
 ├── interfaces/
 │   ├── product.interface.ts                   # IProduct, IVariant, IProductAttribute
 │   └── category.interface.ts                  # ICategory, ICategoryTree
 ├── controllers/
-│   ├── product.controller.ts                  # GET/POST /products, GET/PATCH/DELETE /products/:id
-│   │                                          # POST /products/bulk-import (CSV)
-│   │                                          # POST /products/:id/images
+│   ├── product.controller.ts                  # CRUD /products, POST /products/bulk-import,
+│   │                                          # POST /products/:id/images (R2 presigned URL)
 │   └── category.controller.ts                 # CRUD /categories, GET /categories/tree
 ├── services/
-│   ├── product.service.ts                     # create/update/delete/list, R2 image presigned URL
-│   ├── category.service.ts                    # tree build, slug generation, path update on move
-│   └── inventory.service.ts                   # checkStock(productId, variantId, qty): boolean
-│                                              # decrementStock() — used in OrderModule (transaction)
-│                                              # restoreStock() — used on order cancel
+│   ├── product.service.ts                     # CRUD + Atlas Search, R2 presigned URL generation
+│   ├── category.service.ts                    # tree build, slug generation, path recalculation
+│   └── inventory.service.ts                   # checkStock(), decrementStock(), restoreStock()
 ├── repositories/
 │   ├── product.repository.ts                  # findById, findByCategory, findBySku, bulkUpsert
-│   │                                          # search fallback via MongoDB $text
 │   └── category.repository.ts                 # findTree, findBySlug, findAncestors
 ├── events/
-│   ├── product-created.event.ts               # {productId, name} → BullMQ search-sync-queue
-│   ├── product-updated.event.ts               # {productId} → BullMQ search-sync-queue
+│   ├── product-created.event.ts               # → search index sync
+│   ├── product-updated.event.ts               # → search re-sync + Redis cache bust
 │   └── stock-low.event.ts                     # {productId, variantId, stock, threshold}
-│                                              # → BullMQ inventory-queue → NotificationModule
 ├── catalog.module.ts                          # exports: ProductService, InventoryService
 └── README.md
 ```
 
 **Exported providers:** `ProductService`, `InventoryService`
 **MongoDB collections:** `products`, `categories`
+
+**Key API endpoints:**
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/products` | Public | List + filter (category, price, inStock, search); paginated |
+| `POST` | `/api/v1/products` | STAFF | Create; emits `product.created` |
+| `GET` | `/api/v1/products/:id` | Public | Detail; Redis cache `product:{id}` TTL 5min |
+| `PATCH` | `/api/v1/products/:id` | STAFF | Partial update; bust cache; emit `product.updated` |
+| `DELETE` | `/api/v1/products/:id` | ADMIN | Soft delete (`deletedAt = now()`) |
+| `POST` | `/api/v1/products/bulk-import` | STAFF | CSV multi-part; bulk upsert by SKU |
+| `POST` | `/api/v1/products/:id/images` | STAFF | Generate R2 presigned PUT URL |
+| `GET` | `/api/v1/categories/tree` | Public | Nested category tree via materialized path |
+
+**EventEmitter2 events emitted:**
+- `product.created` → search sync
+- `product.updated` → search re-sync + Redis cache bust
+- `stock.low` → NotificationModule alerts STAFF
+
+**Redis keys:** Write/Read `product:{id}` (TTL 300s); invalidated on update/delete
+
+**Error scenarios:**
+- `PRODUCT_NOT_FOUND` — soft-deleted or wrong ObjectId
+- `PRODUCT_OUT_OF_STOCK` — `checkStock()` false
+- SKU duplicate → HTTP 409
+- R2 presign failure → HTTP 503, client retry
 
 ---
 
@@ -380,38 +429,56 @@ cart/
 │   ├── add-to-cart.dto.ts                     # {productId, variantId, quantity}
 │   ├── update-cart-item.dto.ts                # {quantity}
 │   ├── apply-coupon.dto.ts                    # {code}
-│   └── cart-response.dto.ts                   # {items[{product, variant, qty, unitPrice, subtotal}],
-│                                              #  coupon?, discount, subtotal, total}
+│   └── cart-response.dto.ts                   # {items[], coupon?, discount, subtotal, total}
 ├── schemas/
 │   ├── cart.schema.ts                         # CartDocument: userId (indexed), sessionId (guest),
-│   │                                          #   items[{productId, variantId, qty, price, addedAt}],
-│   │                                          #   couponId, updatedAt
+│   │                                          #   items[{productId,variantId,qty,price,addedAt}],
+│   │                                          #   couponId, updatedAt, abandonedAt
 │   └── coupon.schema.ts                       # CouponDocument: code (unique), type (flat|percent),
 │                                              #   value, minOrderAmount, usageLimit, usedCount,
 │                                              #   expiresAt, isActive
 ├── interfaces/
 │   └── cart.interface.ts                      # ICartItem, ICouponValidation, CartMergeStrategy
 ├── controllers/
-│   └── cart.controller.ts                     # GET /cart, PUT /cart/items (upsert)
-│                                              # DELETE /cart/items/:itemId
+│   └── cart.controller.ts                     # GET /cart, PUT /cart/items, DELETE /cart/items/:id
 │                                              # POST /cart/coupon, DELETE /cart/coupon
+│                                              # POST /cart/merge
 ├── services/
 │   ├── cart.service.ts                        # addItem(), removeItem(), updateQty()
-│   │                                          # mergeGuestCart() — on login
-│   │                                          # validateCartStock() — before checkout
+│   │                                          # mergeGuestCart(), validateCartStock()
 │   └── coupon.service.ts                      # validateCoupon(), applyCoupon(), releaseCoupon()
 ├── repositories/
 │   ├── cart.repository.ts                     # findByUserId, findBySession, upsertCart, clearCart
 │   └── coupon.repository.ts                   # findByCode, incrementUsageCount
 ├── events/
 │   └── cart-abandoned.event.ts                # {userId, cartId, items[], totalValue, timestamp}
-│                                              # → BullMQ delayed job (24h) → push/email reminder
 ├── cart.module.ts                             # exports: CartService
 └── README.md
 ```
 
 **Exported providers:** `CartService`
 **MongoDB collections:** `carts`, `coupons`
+
+**Key API endpoints:**
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/cart` | JWT/Session | Fetch cart; resolves product snapshots |
+| `PUT` | `/api/v1/cart/items` | JWT/Session | Upsert item; calls `InventoryService.checkStock()` |
+| `DELETE` | `/api/v1/cart/items/:itemId` | JWT/Session | Remove line item |
+| `POST` | `/api/v1/cart/coupon` | JWT | Apply + validate coupon |
+| `DELETE` | `/api/v1/cart/coupon` | JWT | Remove coupon |
+| `POST` | `/api/v1/cart/merge` | JWT | Merge guest → authenticated cart on login |
+
+**EventEmitter2 events emitted:**
+- `cart.abandoned` → BullMQ 24h delayed job → recovery push/email
+
+**EventEmitter2 events listened to:**
+- `user.registered` (AuthModule) → `mergeGuestCart()` if sessionId present
+
+**Error scenarios:**
+- `PRODUCT_OUT_OF_STOCK`, `COUPON_EXPIRED`, `COUPON_USAGE_EXCEEDED`, `CART_EMPTY`
+- Guest merge conflict: quantities summed, capped at stock level
 
 ---
 
@@ -430,28 +497,26 @@ order/
 │                                              #   variantId, qty, unitPrice, productSnapshot{}}],
 │                                              #   shippingAddress{street, district, city, phone},
 │                                              #   payment{method, transactionId, paidAt, amount},
-│                                              #   status, timeline[{status, timestamp, note}],
-│                                              #   couponCode, discount, subtotal, total
+│                                              #   status, timeline[{status, timestamp, note, actor}],
+│                                              #   couponCode, discount, subtotal, shippingFee, total
 ├── interfaces/
-│   ├── order.interface.ts                     # IOrder, IOrderItem
-│   └── order-status.enum.ts                   # enum OrderStatus: PENDING_PAYMENT, PAID,
-│                                              #   PROCESSING, SHIPPED, DELIVERED,
-│                                              #   COMPLETED, CANCELLED, RETURN_REQUESTED, REFUNDED
+│   ├── order.interface.ts                     # IOrder, IOrderItem, IOrderTimeline
+│   └── order-status.enum.ts                   # PENDING_PAYMENT → PAID → PROCESSING → SHIPPED
+│                                              # → DELIVERED → COMPLETED | CANCELLED | REFUNDED
 ├── controllers/
-│   └── order.controller.ts                    # POST /orders, GET /orders (my orders / all)
-│                                              # GET /orders/:id, PATCH /orders/:id/status
-│                                              # POST /orders/:id/cancel
+│   └── order.controller.ts                    # POST /orders, GET /orders, GET /orders/:id
+│                                              # PATCH /orders/:id/status, POST /orders/:id/cancel
 ├── services/
-│   └── order.service.ts                       # placeOrder() — MongoDB session (ACID transaction):
-│                                              #   1. validateCart, 2. decrementStock (CatalogModule),
+│   └── order.service.ts                       # placeOrder() — 5-step MongoDB session transaction:
+│                                              #   1. validateCart, 2. decrementStock,
 │                                              #   3. createOrder, 4. clearCart, 5. initiatePayment
 │                                              # updateStatus(), cancelOrder(), getHistory()
 ├── repositories/
-│   └── order.repository.ts                    # findById, findByUser, findByStatus, updateStatus
-│                                              # countByStatus (analytics), revenueByPeriod
+│   └── order.repository.ts                    # findById, findByUser, findByStatus
+│                                              # countByStatus, revenueByPeriod (analytics)
 ├── events/
-│   ├── order-placed.event.ts                  # {orderId, userId, total} → email confirmation
-│   ├── order-status-changed.event.ts          # {orderId, newStatus} → buyer notification
+│   ├── order-placed.event.ts                  # {orderId, userId, total}
+│   ├── order-status-changed.event.ts          # {orderId, newStatus, userId}
 │   └── order-cancelled.event.ts               # {orderId, items[]} → restore inventory
 ├── order.module.ts                            # exports: OrderService
 └── README.md
@@ -460,6 +525,28 @@ order/
 **Exported providers:** `OrderService`
 **MongoDB collection:** `orders`
 
+**Key API endpoints:**
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/orders` | JWT (BUYER) | Place order; 5-step MongoDB transaction |
+| `GET` | `/api/v1/orders` | JWT | BUYER: own; STAFF: all; status filter |
+| `GET` | `/api/v1/orders/:id` | JWT | Full detail; ownership check for BUYER |
+| `PATCH` | `/api/v1/orders/:id/status` | JWT (STAFF) | Advance state; FSM validation |
+| `POST` | `/api/v1/orders/:id/cancel` | JWT | BUYER: only PENDING_PAYMENT; STAFF: pre-SHIPPED |
+
+**EventEmitter2 events emitted:**
+- `order.placed` → NotificationModule: confirmation email + push
+- `order.status.changed` → NotificationModule: status update
+- `order.cancelled` → CatalogModule: `InventoryService.restoreStock()`
+
+**EventEmitter2 events listened to:**
+- `payment.confirmed` (PaymentModule) → `updateStatus(orderId, PAID)` + timeline append
+
+**Error scenarios:**
+- `CART_EMPTY`, `PRODUCT_OUT_OF_STOCK` (transaction retry ×3), `ORDER_INVALID_STATUS`
+- Payment timeout → order stays `PENDING_PAYMENT`; retryable
+
 ---
 
 ### 4.5 PaymentModule — `src/modules/payment/`
@@ -467,10 +554,10 @@ order/
 ```
 payment/
 ├── dto/
-│   ├── initiate-payment.dto.ts                # {orderId, amount, method: 'vnpay' | 'momo'}
-│   ├── vnpay-webhook.dto.ts                   # VNPay IPN callback payload fields
-│   └── momo-webhook.dto.ts                    # Momo IPN callback payload fields
-├── schemas/                                   # No own collection — payment embedded in orders{}
+│   ├── initiate-payment.dto.ts                # {orderId, amount, method: 'vnpay'|'momo'}
+│   ├── vnpay-webhook.dto.ts                   # VNPay IPN fields
+│   └── momo-webhook.dto.ts                    # Momo IPN fields
+├── schemas/                                   # No own collection — embedded in orders.payment{}
 ├── interfaces/
 │   ├── payment-gateway.interface.ts           # IPaymentGateway:
 │   │                                          #   initiate(order): Promise<{paymentUrl, transactionId}>
@@ -478,22 +565,37 @@ payment/
 │   └── payment-result.interface.ts            # {paymentUrl: string, transactionId: string}
 ├── controllers/
 │   └── payment.controller.ts                  # POST /payments/initiate
-│                                              # POST /payments/vnpay/webhook (VNPay IPN)
-│                                              # POST /payments/momo/webhook (Momo IPN)
+│                                              # POST /payments/vnpay/webhook
+│                                              # POST /payments/momo/webhook
 ├── services/
-│   ├── payment.service.ts                     # initiatePayment() → chooses adapter by method
-│   │                                          # handleWebhook() → verify sig → emit PaymentConfirmedEvent
-│   ├── vnpay.adapter.ts                       # Implements IPaymentGateway: HMAC-SHA512 sign/verify
-│   └── momo.adapter.ts                        # Implements IPaymentGateway: RSA sign/verify
-├── repositories/                              # No own repo — updates orders via event
+│   ├── payment.service.ts                     # initiatePayment() → adapter by method
+│   │                                          # handleWebhook() → verify sig → emit event
+│   ├── vnpay.adapter.ts                       # IPaymentGateway: HMAC-SHA512 sign/verify
+│   └── momo.adapter.ts                        # IPaymentGateway: RSA sign/verify
 ├── events/
 │   └── payment-confirmed.event.ts             # {orderId, transactionId, amount, method}
-│                                              # → OrderModule listens → updates status to PAID
 ├── payment.module.ts
 └── README.md
 ```
 
 **MongoDB collection:** None (embedded in `orders.payment{}`)
+
+**Key API endpoints:**
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/payments/initiate` | JWT (BUYER) | Generate VNPay/Momo payment URL |
+| `POST` | `/api/v1/payments/vnpay/webhook` | Public (HMAC) | VNPay IPN; HMAC-SHA512 verify |
+| `POST` | `/api/v1/payments/momo/webhook` | Public (RSA) | Momo IPN; RSA verify |
+
+**EventEmitter2 events emitted:**
+- `payment.confirmed` → OrderModule updates order to `PAID`
+
+**Redis keys:** `rl:vnpay:{txId}` / `rl:momo:{txId}` — idempotency (TTL 24h) to prevent double-processing
+
+**Error scenarios:**
+- `PAYMENT_WEBHOOK_INVALID` — signature mismatch → HTTP 400
+- Duplicate webhook → Redis key exists → return ack without re-processing
 
 ---
 
@@ -502,35 +604,45 @@ payment/
 ```
 recommendation/
 ├── dto/
-│   ├── recommend-query.dto.ts                 # {placement: 'homepage'|'pdp'|'cart'|'checkout', n?: number}
-│   ├── behavioral-event.dto.ts                # {eventType: 'view'|'add_to_cart'|'purchase'|'search',
+│   ├── recommend-query.dto.ts                 # {placement: 'homepage'|'pdp'|'cart', n?: number}
+│   ├── behavioral-event.dto.ts                # {eventType: 'view'|'add_to_cart'|'purchase'|'search'|'rec_click',
 │   │                                          #  productId?, query?, metadata{}}
-│   └── recommendation-response.dto.ts         # {products: ProductResponseDto[], source: 'ai'|'fallback'|'cache',
-│                                              #  modelVersion?: string}
-├── schemas/                                   # No own schema — reads from Redis + delegates to FastAPI
+│   └── recommendation-response.dto.ts         # {products: ProductResponseDto[],
+│                                              #  source: 'ai'|'fallback'|'cache', modelVersion?}
 ├── interfaces/
 │   ├── recommendation.interface.ts            # IRecommendRequest, IRecommendResult
-│   └── placement-config.interface.ts          # PlacementConfig: {alpha: number, n: number, ttl: number}
+│   └── placement-config.interface.ts          # PlacementConfig: {alpha, n, ttl}
 │                                              # homepage: {alpha:0.7, n:12, ttl:600}
 │                                              # pdp:      {alpha:0.3, n:8,  ttl:600}
 │                                              # cart:     {alpha:0.5, n:6,  ttl:300}
 ├── controllers/
-│   └── recommendation.controller.ts           # GET /recommendations?placement=&n=
-│                                              # POST /events (behavioral event ingest)
+│   └── recommendation.controller.ts           # GET /recommendations, POST /events
 ├── services/
-│   ├── recommendation.service.ts             # getRecommendations(): Redis cache → FastAPI → fallback
-│   ├── ai-client.service.ts                   # HTTP call to FastAPI /recommend (opossum circuit breaker)
-│   │                                          # Config: timeout=500ms, errorThreshold=50%, reset=60s
+│   ├── recommendation.service.ts             # getRecommendations(): cache → FastAPI → fallback
+│   ├── ai-client.service.ts                   # opossum circuit breaker: timeout=500ms,
+│   │                                          # errorThreshold=50%, reset=60s
 │   ├── fallback.service.ts                    # getPopularProducts(): MongoDB agg + Redis cache 1h
-│   └── behavioral-event.service.ts            # publishEvent(): Redis XADD behavioral:events MAXLEN 50000
-├── repositories/                              # No own repo (behavioral_events in AnalyticsModule)
-├── events/
-│   └── behavioral-event.event.ts             # {userId, sessionId, eventType, productId, timestamp}
+│   └── behavioral-event.service.ts            # publishEvent(): async MongoDB insertOne fire-and-forget
 ├── recommendation.module.ts
 └── README.md
 ```
 
-**MongoDB collection:** None (delegates to FastAPI + Redis)
+**MongoDB collection:** `behavioral_events` (async write only — read by AnalyticsModule)
+
+**Key API endpoints:**
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/recommendations` | JWT (optional) | Personalized recs; anonymous → popularity fallback |
+| `POST` | `/api/v1/events` | JWT (optional) | Ingest behavioral event; fire-and-forget MongoDB insert |
+
+**Redis keys:**
+- `rec:{userId}:{placement}` — AI rec cache (TTL per placement config)
+- `fallback:popular:{placement}` — popularity fallback (TTL 3600s)
+
+**Error scenarios:**
+- FastAPI timeout/error → circuit opens → `fallback:popular:{placement}` served
+- Redis `XADD` failure → event silently dropped, HTTP response unaffected
 
 ---
 
@@ -539,15 +651,14 @@ recommendation/
 ```
 marketing/
 ├── dto/
-│   ├── create-campaign.dto.ts                 # {name, segmentId, channel: 'email',
-│   │                                          #  subject, template, scheduledAt?}
+│   ├── create-campaign.dto.ts                 # {name, segmentId, channel:'email', subject, template, scheduledAt?}
 │   ├── update-campaign.dto.ts                 # PartialType(CreateCampaignDto)
 │   ├── create-segment.dto.ts                  # {name, rfmRules: {rMin,rMax,fMin,fMax,mMin,mMax}}
-│   └── campaign-response.dto.ts               # Campaign + metrics{sent, opened, clicked, converted, revenue}
+│   └── campaign-response.dto.ts               # Campaign + metrics{sent,opened,clicked,converted,revenue}
 ├── schemas/
-│   ├── campaign.schema.ts                     # CampaignDocument: name, segmentId, channel, content{},
-│   │                                          #   status (draft|scheduled|running|completed|paused),
-│   │                                          #   scheduledAt, metrics{sent,opened,clicked,converted}
+│   ├── campaign.schema.ts                     # CampaignDocument: name, segmentId, channel,
+│   │                                          #   content{subject,htmlBody}, status, scheduledAt,
+│   │                                          #   metrics{sent,opened,clicked,converted}
 │   └── segment.schema.ts                      # SegmentDocument: name, rfmRules{}, userIds[],
 │                                              #   lastComputedAt, userCount
 ├── interfaces/
@@ -556,22 +667,41 @@ marketing/
 ├── controllers/
 │   ├── campaign.controller.ts                 # CRUD /campaigns, POST /campaigns/:id/send
 │   │                                          # GET /campaigns/:id/metrics
-│   └── segment.controller.ts                  # CRUD /segments, POST /segments/compute-rfm (on-demand)
+│   └── segment.controller.ts                  # CRUD /segments, POST /segments/compute-rfm
 ├── services/
-│   ├── campaign.service.ts                    # create/update/send/pause/archive, trackMetric()
-│   └── segment.service.ts                     # computeRFM() via MongoDB aggregation pipeline (on-demand)
+│   ├── campaign.service.ts                    # create/update/send/pause/archive
+│   │                                          # send() → NotificationService.bulkSendEmail()
+│   │                                          #   via nodemailer Gmail SMTP
+│   └── segment.service.ts                     # computeRFM() — MongoDB aggregation pipeline
 │                                              # buildSegment(), refreshSegmentUsers()
 ├── repositories/
 │   ├── campaign.repository.ts                 # CRUD + updateMetrics() (atomic $inc)
 │   └── segment.repository.ts                  # CRUD + findUsersBySegment() + updateUserIds()
 ├── events/
-│   └── campaign-send-triggered.event.ts       # {campaignId, segmentId, channel}
-│                                              # → BullMQ delayed job for scheduled campaigns
+│   └── campaign-send-triggered.event.ts       # → BullMQ delayed job for scheduled campaigns
 ├── marketing.module.ts
 └── README.md
 ```
 
 **MongoDB collections:** `campaigns`, `segments`
+
+**Key API endpoints:**
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/campaigns` | JWT (STAFF) | List campaigns; status filter |
+| `POST` | `/api/v1/campaigns` | JWT (STAFF) | Create campaign (draft) |
+| `POST` | `/api/v1/campaigns/:id/send` | JWT (STAFF) | Trigger immediate send via Gmail SMTP nodemailer |
+| `GET` | `/api/v1/campaigns/:id/metrics` | JWT (STAFF) | sent, opened, clicked, converted, revenue |
+| `POST` | `/api/v1/segments/compute-rfm` | JWT (STAFF) | On-demand RFM MongoDB aggregation |
+
+**EventEmitter2 events emitted:**
+- `campaign.send.triggered` → BullMQ delayed job for scheduled campaigns
+
+**Error scenarios:**
+- Empty `userIds[]` → HTTP 400; staff must run `compute-rfm` first
+- Partial send failure → failed recipients logged; `metrics.sent` increments only successes
+- Gmail daily limit (500/day) → remaining jobs queued via BullMQ for next batch
 
 ---
 
@@ -583,36 +713,54 @@ notification/
 │   ├── send-email.dto.ts                      # {to: string[], subject, templateName, variables{}}
 │   ├── send-push.dto.ts                       # {userId, title, body, url?, icon?}
 │   ├── bulk-send-email.dto.ts                 # {recipients: [{email, variables{}}], subject, templateName}
-│   └── push-subscription.dto.ts               # Web Push API subscription object
-│                                              # {endpoint, expirationTime, keys: {p256dh, auth}}
+│   └── push-subscription.dto.ts               # Web Push subscription: {endpoint, keys{p256dh, auth}}
 ├── schemas/
-│   └── push-subscription.schema.ts            # PushSubscriptionDocument: userId, endpoint,
-│                                              #   keys{p256dh, auth}, createdAt
+│   └── push-subscription.schema.ts            # PushSubscriptionDocument: userId, endpoint, keys{}, createdAt
 ├── interfaces/
 │   └── notification.interface.ts              # IEmailPayload, IPushPayload, INotificationResult
 ├── controllers/
 │   └── notification.controller.ts             # POST /notifications/push/subscribe
 │                                              # DELETE /notifications/push/unsubscribe
-│                                              # POST /notifications/test (admin only)
+│                                              # POST /notifications/test (ADMIN)
 ├── services/
 │   ├── notification.service.ts                # sendEmail(), sendPush(), bulkSendEmail()
-│   │                                          # Orchestrates email.service + push.service
-│   ├── email.service.ts                       # Resend SDK: send transactional + marketing emails
-│   │                                          # React Email template render
-│   └── push.service.ts                        # web-push VAPID: send to subscribed browsers
-│                                              # Handles expired endpoints cleanup
+│   ├── email.service.ts                       # nodemailer Gmail SMTP wrapper
+│   │                                          # GMAIL_USER + GMAIL_APP_PASSWORD env vars
+│   │                                          # Renders Handlebars HTML templates
+│   └── push.service.ts                        # web-push VAPID send; auto-cleanup expired endpoints
 ├── repositories/
 │   └── push-subscription.repository.ts        # save, findByUserId, deleteByEndpoint
-├── events/                                    # Listens to:
-│   │                                          #   OrderPlacedEvent → send order confirmation email
-│   │                                          #   OrderStatusChangedEvent → send status update push/email
-│   │                                          #   StockLowEvent → send alert to staff
+├── events/                                    # Listens to (via EventEmitter2):
+│   │                                          #   order.placed → order confirmation email
+│   │                                          #   order.status.changed → status update push/email
+│   │                                          #   stock.low → STAFF alert email
+│   │                                          #   user.registered → welcome email
 ├── notification.module.ts                     # exports: NotificationService
 └── README.md
 ```
 
 **Exported providers:** `NotificationService`
 **MongoDB collection:** `push_subscriptions`
+
+**Key API endpoints:**
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/notifications/push/subscribe` | JWT | Register Web Push subscription |
+| `DELETE` | `/api/v1/notifications/push/unsubscribe` | JWT | Remove subscription by endpoint |
+| `POST` | `/api/v1/notifications/test` | JWT (ADMIN) | Send test email + push to specific user |
+
+**EventEmitter2 events listened to:**
+- `order.placed` → order confirmation email
+- `order.status.changed` → status update email + push
+- `stock.low` → STAFF alert
+- `user.registered` → welcome email
+
+**Error scenarios:**
+- Gmail auth failure → logged as critical; non-blocking
+- Gmail daily limit (500/day) → BullMQ queues remainder
+- Push endpoint expired (410 Gone) → `deleteByEndpoint()` auto-cleanup
+- Missing template variable → Handlebars renders empty string; logged as warning
 
 ---
 
@@ -621,7 +769,7 @@ notification/
 ```
 analytics/
 ├── dto/
-│   ├── dashboard-query.dto.ts                 # {from: Date, to: Date, granularity: 'day'|'week'|'month'}
+│   ├── dashboard-query.dto.ts                 # {from, to, granularity: 'day'|'week'|'month'}
 │   ├── product-performance-query.dto.ts       # {productId, from, to}
 │   └── analytics-response.dto.ts              # {revenue, orders, aov, conversionRate, aiCTR,
 │                                              #  topProducts[], revenueByDay[]}
@@ -629,7 +777,7 @@ analytics/
 │   └── behavioral-event.schema.ts             # BehavioralEventDocument: userId, sessionId,
 │                                              #   eventType (view|add_to_cart|purchase|search|rec_click),
 │                                              #   productId?, recommendationSource?,
-│                                              #   query?, metadata{}, timestamp (indexed)
+│                                              #   query?, metadata{}, timestamp
 ├── interfaces/
 │   └── analytics.interface.ts                 # IDashboardMetrics, IProductPerformance,
 │                                              #   ICampaignROI, IAIPerformance
@@ -637,7 +785,7 @@ analytics/
 │   └── analytics.controller.ts                # GET /analytics/dashboard
 │                                              # GET /analytics/products/:id/performance
 │                                              # GET /analytics/campaigns/:id/roi
-│                                              # GET /analytics/ai/ctr (BG-02: AI CTR >= 5%)
+│                                              # GET /analytics/ai/ctr
 ├── services/
 │   ├── analytics.service.ts                   # getDashboard(), getProductPerformance()
 │   │                                          # getCampaignROI(), getAICTR()
@@ -646,15 +794,31 @@ analytics/
 │                                              #   conversionFunnel(), rfmScoring()
 │                                              #   aiCTRByPlacement()
 ├── repositories/
-│   └── behavioral-event.repository.ts         # bulkInsert() — called from Celery consumer
+│   └── behavioral-event.repository.ts         # bulkInsert() (from GitHub Actions training pipeline)
 │                                              # aggregateByEventType(), getTopProducts()
-│                                              # countBySource() — AI vs fallback rec clicks
-├── events/                                    # Listens to OrderPlacedEvent for revenue tracking
+│                                              # countBySource() — AI vs fallback clicks
+├── events/                                    # Listens to: order.placed (revenue tracking)
 ├── analytics.module.ts
 └── README.md
 ```
 
 **MongoDB collection:** `behavioral_events`
+
+**Key API endpoints:**
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/analytics/dashboard` | JWT (STAFF) | Revenue, orders, AOV, conversion rate |
+| `GET` | `/api/v1/analytics/products/:id/performance` | JWT (STAFF) | Views, add-to-cart rate, purchase rate |
+| `GET` | `/api/v1/analytics/campaigns/:id/roi` | JWT (STAFF) | Campaign ROI attribution |
+| `GET` | `/api/v1/analytics/ai/ctr` | JWT (STAFF) | AI CTR by placement; tracks BG-02 (>= 5%) |
+
+**EventEmitter2 events listened to:**
+- `order.placed` → increment revenue tracking for conversion funnel
+
+**Error scenarios:**
+- Date range > 90 days → HTTP 400 (TTL retention limit)
+- Aggregation timeout → `maxTimeMS: 30000`; HTTP 500; reduce date range
 
 ---
 
@@ -664,73 +828,69 @@ analytics/
 apps/api/src/shared/
 │
 ├── database/
-│   ├── base.schema.ts                         # Abstract base: timestamps: true → createdAt, updatedAt
-│   │                                          # All schemas extend this implicitly via @Schema options
-│   ├── base.repository.ts                     # BaseRepository<T extends Document>:
-│   │                                          #   findById(id): Promise<T | null>
-│   │                                          #   create(data): Promise<T>
-│   │                                          #   updateById(id, update): Promise<T>
-│   │                                          #   deleteById(id): Promise<boolean>
-│   │                                          #   findWithPagination(filter, page, limit): Promise<PaginatedResult<T>>
+│   ├── base.schema.ts                         # Abstract base: timestamps: true
+│   ├── base.repository.ts                     # BaseRepository<T>: findById, create, updateById,
+│   │                                          # deleteById, findWithPagination
 │   └── database.module.ts                     # @Global() MongooseModule.forRootAsync()
-│                                              # Reads MONGO_URI from ConfigService
-│                                              # Retry strategy: 5 attempts, exponential backoff
+│                                              # Retry: 5 attempts, exponential backoff
 │
 ├── redis/
 │   ├── redis.client.ts                        # ioredis createClient(REDIS_URL) — Upstash TLS
 │   ├── redis.service.ts                       # get/set/del/exists/expire/hgetall
-│   │                                          # setWithTTL(key, value, ttl): Promise<void>
-│   │                                          # getOrSet(key, factory, ttl): Promise<T>
-│   └── redis.module.ts                        # @Global() module — exports RedisService globally
+│   │                                          # setWithTTL(key, value, ttl)
+│   │                                          # getOrSet<T>(key, factory, ttl): Promise<T>
+│   └── redis.module.ts                        # @Global() — exports RedisService
 │
 ├── config/
 │   ├── app.config.ts                          # {port, nodeEnv, corsOrigins[]}
-│   ├── jwt.config.ts                          # {secret, accessExpiresIn: '15m', refreshExpiresIn: '7d'}
+│   ├── jwt.config.ts                          # {secret, accessExpiresIn:'15m', refreshExpiresIn:'7d'}
 │   ├── redis.config.ts                        # {url: UPSTASH_REDIS_REST_URL}
 │   ├── mongo.config.ts                        # {uri: MONGO_URI}
 │   ├── r2.config.ts                           # {accountId, accessKeyId, secretAccessKey, bucket, publicUrl}
-│   ├── ai-service.config.ts                   # {baseUrl: AI_SERVICE_URL, internalToken: INTERNAL_API_SECRET}
-│   └── env.validation.ts                      # Joi/zod schema — app crashes at startup if env missing
+│   ├── ai-service.config.ts                   # {baseUrl: AI_SERVICE_URL, internalToken}
+│   └── env.validation.ts                      # Joi schema — app crashes at startup if env missing
 │                                              # Required: MONGO_URI, REDIS_URL, JWT_SECRET,
-│                                              # R2_ACCESS_KEY, AI_SERVICE_URL, GEMINI_API_KEY,
+│                                              # R2_ACCESS_KEY, AI_SERVICE_URL,
 │                                              # VNPAY_HASH_SECRET, MOMO_SECRET_KEY,
-│                                              # RESEND_API_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
+│                                              # GMAIL_USER, GMAIL_APP_PASSWORD,
+│                                              # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
+│
+├── email/
+│   └── email.service.ts                       # nodemailer Gmail SMTP transport wrapper
+│                                              # createTransport({ host: 'smtp.gmail.com', port: 587,
+│                                              #   secure: false, // STARTTLS
+│                                              #   auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD }})
+│                                              # sendMail(options): Promise<SentMessageInfo>
+│                                              # @Global() — consumed by NotificationModule
 │
 ├── guards/
 │   ├── jwt-auth.guard.ts                      # extends AuthGuard('jwt') — verifies Bearer token
-│   └── roles.guard.ts                         # implements CanActivate
-│                                              # Reads @Roles() metadata vs req.user.roles
+│   └── roles.guard.ts                         # Reads @Roles() metadata vs req.user.roles
 │
 ├── interceptors/
 │   ├── logging.interceptor.ts                 # Logs: [METHOD] /path → statusCode (Xms)
-│   └── response.interceptor.ts                # Wraps all responses:
-│                                              # {success: true, data, meta: {requestId}}
-│                                              # or {success: false, error: {code, message, details[]}}
+│   └── response.interceptor.ts                # Wraps: {success:true, data, meta:{requestId}}
+│                                              #   or: {success:false, error:{code,message,details[]}}
 │
 ├── filters/
-│   └── global-exception.filter.ts             # Catches ALL exceptions including unhandled
-│                                              # Maps to error code from @lib/constants/error-codes
-│                                              # Sends to Sentry for tracking
+│   └── global-exception.filter.ts             # Catches ALL exceptions
+│                                              # Maps to error codes from @lib/constants/error-codes
+│                                              # Async insert to error_logs MongoDB collection
 │
 ├── pipes/
-│   └── validation.pipe.ts                     # GlobalValidationPipe:
-│                                              # whitelist: true (strip unknown fields)
-│                                              # forbidNonWhitelisted: true (throw on unknown)
-│                                              # transform: true (auto-cast primitives)
+│   └── validation.pipe.ts                     # whitelist:true, forbidNonWhitelisted:true,
+│                                              # transform:true, enableImplicitConversion:true
 │
 ├── decorators/
 │   ├── roles.decorator.ts                     # @Roles(...roles: Role[]) sets metadata
 │   ├── current-user.decorator.ts              # @CurrentUser() → req.user (JWT payload)
-│   └── api-pagination.decorator.ts            # @ApiPagination() adds Swagger page/limit/sort docs
+│   └── api-pagination.decorator.ts            # @ApiPagination() adds Swagger page/limit/sort
 │
 └── utils/
-    ├── paginate.util.ts                       # paginate(model, filter, {page, limit, sort})
-    │                                          # → {data: T[], meta: PaginationMeta}
+    ├── paginate.util.ts                       # paginate(model, filter, {page,limit,sort})
     ├── request-id.util.ts                     # generateRequestId() → crypto.randomUUID()
-    ├── slug.util.ts                           # generateSlug('Áo thun Nam') → 'ao-thun-nam'
-    │                                          # Vietnamese diacritic removal + kebab-case
-    └── hash.util.ts                           # hashToken(token) → SHA-256 hex string
-                                               # Used for storing refresh tokens in Redis
+    ├── slug.util.ts                           # Vietnamese diacritic removal + kebab-case
+    └── hash.util.ts                           # SHA-256 hex; used for refresh token storage
 ```
 
 ---
@@ -741,194 +901,114 @@ apps/api/src/shared/
 libs/shared/src/
 │
 ├── types/
-│   ├── api-response.type.ts                   # ApiResponse<T> = {success: true, data: T, meta: {requestId}}
-│   │                                          # PaginatedResponse<T> = ApiResponse + PaginationMeta
-│   │                                          # ApiError = {success: false, error: {code, message, details[]}}
-│   ├── pagination.type.ts                     # PaginationMeta = {total, page, limit, totalPages}
-│   │                                          # PaginationQuery = {page?, limit?, sort?, order?}
-│   └── role.enum.ts                           # enum Role { BUYER = 'buyer', STAFF = 'staff', ADMIN = 'admin' }
+│   ├── api-response.type.ts                   # ApiResponse<T>, PaginatedResponse<T>, ApiError
+│   ├── pagination.type.ts                     # PaginationMeta, PaginationQuery
+│   └── role.enum.ts                           # enum Role { BUYER, STAFF, ADMIN }
 │
 ├── constants/
-│   ├── error-codes.ts                         # ALL error code strings (source of truth):
-│   │                                          # AUTH_TOKEN_EXPIRED, AUTH_TOKEN_INVALID,
-│   │                                          # AUTH_FORBIDDEN, AUTH_REFRESH_INVALID,
-│   │                                          # PRODUCT_NOT_FOUND, PRODUCT_OUT_OF_STOCK,
-│   │                                          # CART_EMPTY, ORDER_NOT_FOUND, ORDER_INVALID_STATUS,
-│   │                                          # PAYMENT_WEBHOOK_INVALID, COUPON_EXPIRED,
-│   │                                          # COUPON_USAGE_EXCEEDED, RATE_LIMIT_EXCEEDED,
-│   │                                          # AI_SERVICE_UNAVAILABLE, GEMINI_UNAVAILABLE,
-│   │                                          # VALIDATION_ERROR, INTERNAL_ERROR
-│   ├── queue-names.ts                         # EMAIL_QUEUE = 'email-queue'
-│   │                                          # SEARCH_SYNC_QUEUE = 'search-sync-queue'
-│   │                                          # INVENTORY_QUEUE = 'inventory-queue'
-│   │                                          # ANALYTICS_QUEUE = 'analytics-queue'
-│   ├── redis-keys.ts                          # KEY patterns (template literals):
-│   │                                          # SESSION_KEY = (hash: string) => `sess:${hash}`
+│   ├── error-codes.ts                         # ALL error codes (source of truth)
+│   │                                          # AUTH_*, PRODUCT_*, CART_*, ORDER_*,
+│   │                                          # PAYMENT_*, COUPON_*, CAMPAIGN_*,
+│   │                                          # AI_SERVICE_UNAVAILABLE, VALIDATION_ERROR,
+│   │                                          # INTERNAL_ERROR, RATE_LIMIT_EXCEEDED
+│   ├── queue-names.ts                         # EMAIL_QUEUE, SEARCH_SYNC_QUEUE,
+│   │                                          # INVENTORY_QUEUE, ANALYTICS_QUEUE
+│   ├── redis-keys.ts                          # KEY template functions:
+│   │                                          # SESSION_KEY = (hash) => `sess:${hash}`
 │   │                                          # REC_CACHE_KEY = (uid, place) => `rec:${uid}:${place}`
 │   │                                          # PRODUCT_CACHE_KEY = (id) => `product:${id}`
 │   │                                          # FEATURE_KEY = (uid) => `features:user:${uid}`
 │   │                                          # FALLBACK_KEY = (place) => `fallback:popular:${place}`
-│   │                                          # RATE_LIMIT_KEY = (ip, ep) => `rl:${ip}:${ep}`
-│   └── placement-config.ts                    # PLACEMENT_CONFIG: Record<Placement, PlacementConfig>
-│                                              # homepage: {alpha: 0.7, n: 12, ttl: 600}
-│                                              # pdp:      {alpha: 0.3, n: 8,  ttl: 600}
-│                                              # cart:     {alpha: 0.5, n: 6,  ttl: 300}
+│   │                                          # IDEMPOTENCY_KEY = (gw,txId) => `rl:${gw}:${txId}`
+│   └── placement-config.ts                    # PLACEMENT_CONFIG record:
+│                                              # homepage: {alpha:0.7, n:12, ttl:600}
+│                                              # pdp:      {alpha:0.3, n:8,  ttl:600}
+│                                              # cart:     {alpha:0.5, n:6,  ttl:300}
 │
-└── index.ts                                   # Barrel export: export * from './types/...'
-                                               #                export * from './constants/...'
+└── index.ts                                   # Barrel export
 ```
 
 ---
 
 ## 7. Naming Conventions
 
-### TypeScript / NestJS
-
 | Element | Convention | Example |
 |---|---|---|
 | **File** | `kebab-case.{type}.ts` | `user-profile.service.ts` |
 | **Class** | `PascalCase` | `UserProfileService` |
 | **Interface** | `PascalCase` (no `I` prefix) | `JwtPayload`, `CartItem` |
-| **Interface file** | `kebab-case.interface.ts` | `jwt-payload.interface.ts` |
-| **DTO** | `PascalCase` + `Dto` suffix | `CreateProductDto`, `LoginDto` |
-| **DTO file** | `kebab-case.dto.ts` | `create-product.dto.ts` |
-| **Mongoose Schema class** | `PascalCase` + `Document` suffix | `UserDocument`, `ProductDocument` |
-| **Schema file** | `kebab-case.schema.ts` | `user.schema.ts` |
+| **DTO** | `PascalCase` + `Dto` suffix | `CreateProductDto` |
+| **Mongoose Schema** | `PascalCase` + `Document` | `UserDocument` |
 | **Enum** | `PascalCase` name, `UPPER_SNAKE` values | `enum OrderStatus { PENDING_PAYMENT }` |
-| **Constant** | `UPPER_SNAKE_CASE` | `MAX_RETRY_COUNT`, `EMAIL_QUEUE` |
-| **Constant file** | `kebab-case.ts` | `queue-names.ts`, `error-codes.ts` |
-| **Controller** | `PascalCase` + `Controller` | `ProductController` |
-| **Controller file** | `kebab-case.controller.ts` | `product.controller.ts` |
-| **Service** | `PascalCase` + `Service` | `CartService`, `SegmentService` |
-| **Service file** | `kebab-case.service.ts` | `cart.service.ts` |
-| **Repository** | `PascalCase` + `Repository` | `UserRepository` |
-| **Repository file** | `kebab-case.repository.ts` | `user.repository.ts` |
-| **Guard** | `PascalCase` + `Guard` | `JwtAuthGuard`, `RolesGuard` |
-| **Guard file** | `kebab-case.guard.ts` | `jwt-auth.guard.ts` |
-| **Interceptor** | `PascalCase` + `Interceptor` | `LoggingInterceptor` |
-| **Interceptor file** | `kebab-case.interceptor.ts` | `logging.interceptor.ts` |
-| **Filter** | `PascalCase` + `Filter` | `GlobalExceptionFilter` |
-| **Filter file** | `kebab-case.filter.ts` | `global-exception.filter.ts` |
-| **Decorator** | `PascalCase` function | `@Roles()`, `@CurrentUser()` |
-| **Decorator file** | `kebab-case.decorator.ts` | `roles.decorator.ts` |
-| **Adapter** | `PascalCase` + `Adapter` | `VNPayAdapter`, `MomoAdapter` |
-| **Adapter file** | `kebab-case.adapter.ts` | `vnpay.adapter.ts` |
-| **Event class** | `PascalCase` + `Event` | `OrderPlacedEvent`, `StockLowEvent` |
-| **Event file** | `kebab-case.event.ts` | `order-placed.event.ts` |
-| **Module** | `PascalCase` + `Module` | `AuthModule`, `CatalogModule` |
-| **Module file** | `kebab-case.module.ts` | `auth.module.ts` |
-| **Config** | `kebab-case.config.ts` | `jwt.config.ts`, `r2.config.ts` |
-| **Util** | `kebab-case.util.ts` | `paginate.util.ts`, `slug.util.ts` |
-| **Test file (unit)** | `*.spec.ts` | `auth.service.spec.ts` |
-| **Test file (e2e)** | `*.e2e-spec.ts` | `auth.e2e-spec.ts` |
-| **Variable** | `camelCase` | `userId`, `accessToken`, `orderTotal` |
-| **Boolean variable** | `is` / `has` / `can` prefix | `isAuthenticated`, `hasStock`, `canCancel` |
+| **Constant** | `UPPER_SNAKE_CASE` | `EMAIL_QUEUE`, `MAX_RETRY_COUNT` |
+| **Variable** | `camelCase` | `userId`, `accessToken` |
+| **Boolean** | `is` / `has` / `can` prefix | `isAuthenticated`, `hasStock` |
+| **Event class** | `PascalCase` + `Event` | `OrderPlacedEvent` |
+| **Adapter** | `PascalCase` + `Adapter` | `VNPayAdapter` |
+| **URL path** | `kebab-case`, plural noun | `/api/v1/products`, `/marketing-campaigns` |
+| **MongoDB field** | `camelCase` | `createdAt`, `passwordHash` |
+| **Redis key** | `namespace:qualifier:{id}` | `rec:{userId}:homepage` |
+| **Environment var** | `UPPER_SNAKE_CASE` | `GMAIL_USER`, `GMAIL_APP_PASSWORD` |
 
-### Next.js / React
+**Python / FastAPI:**
 
 | Element | Convention | Example |
 |---|---|---|
-| **Page component file** | `page.tsx` | `app/(shop)/products/[slug]/page.tsx` |
-| **Component file** | `PascalCase.tsx` | `ProductCard.tsx`, `CartDrawer.tsx` |
-| **Hook file** | `use-kebab-case.ts` | `use-cart.ts`, `use-recommendations.ts` |
-| **Store file** | `kebab-case.store.ts` | `cart.store.ts`, `ui.store.ts` |
-| **API client file** | `kebab-case.api.ts` | `products.api.ts`, `orders.api.ts` |
-
-### URL / API
-
-| Element | Convention | Example |
-|---|---|---|
-| **URL path segment** | `kebab-case`, plural noun | `/api/v1/products`, `/marketing-campaigns` |
-| **Query param** | `camelCase` | `?minPrice=100000&sortBy=createdAt` |
-| **MongoDB field** | `camelCase` | `createdAt`, `passwordHash`, `soldCount` |
-| **Redis key** | `namespace:qualifier:{id}` | `rec:{userId}:homepage`, `sess:{hash}` |
-| **BullMQ queue** | `kebab-case-queue` | `email-queue`, `search-sync-queue` |
-| **Environment variable** | `UPPER_SNAKE_CASE` | `MONGO_URI`, `JWT_SECRET`, `REDIS_URL` |
-
-### Python / FastAPI
-
-| Element | Convention | Example |
-|---|---|---|
-| **File** | `snake_case.py` | `train_cf.py`, `cf_service.py` |
-| **Class** | `PascalCase` | `CFService`, `ModelRegistry`, `HybridScorer` |
-| **Function** | `snake_case` | `train_model()`, `get_recommendations()` |
-| **Variable** | `snake_case` | `user_id`, `model_version`, `alpha` |
-| **Constant** | `UPPER_SNAKE_CASE` | `MAX_RETRAIN_HOURS = 25`, `REDIS_STREAM_KEY` |
-| **Test file** | `test_*.py` | `test_recommend.py`, `test_training.py` |
+| **File** | `snake_case.py` | `train_cf.py`, `model_registry.py` |
+| **Class** | `PascalCase` | `CFService`, `ModelRegistry` |
+| **Function/Variable** | `snake_case` | `train_model()`, `user_id` |
+| **Constant** | `UPPER_SNAKE_CASE` | `MAX_RETRAIN_HOURS`, `REDIS_STREAM_KEY` |
 
 ---
 
 ## 8. Import Path Aliases
 
-### Configuration — `apps/api/tsconfig.json`
-
 ```json
+// apps/api/tsconfig.json
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "target": "ES2022",
     "baseUrl": ".",
     "paths": {
       "@modules/*":  ["src/modules/*"],
       "@shared/*":   ["src/shared/*"],
       "@config/*":   ["src/shared/config/*"],
       "@lib/*":      ["../../libs/shared/src/*"]
-    },
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "outDir": "./dist",
-    "rootDir": "./src"
+    }
   }
 }
 ```
 
-### Usage Examples
+**Usage examples:**
 
 ```typescript
-// ✅ Correct — always use path aliases for cross-folder imports
+// ✅ Correct — always use path aliases
+import { ProductService }      from '@modules/catalog/services/product.service';
+import { JwtAuthGuard }        from '@shared/guards/jwt-auth.guard';
+import { EmailService }        from '@shared/email/email.service';
+import { RedisService }        from '@shared/redis/redis.service';
+import { paginateQuery }       from '@shared/utils/paginate.util';
+import { JwtConfig }           from '@config/jwt.config';
+import type { ApiResponse }    from '@lib/types/api-response.type';
+import { Role }                from '@lib/types/role.enum';
+import { EMAIL_QUEUE }         from '@lib/constants/queue-names';
+import { AUTH_TOKEN_EXPIRED }  from '@lib/constants/error-codes';
+import { SESSION_KEY }         from '@lib/constants/redis-keys';
 
-// Importing from another module (must be explicitly exported)
-import { ProductService }    from '@modules/catalog/services/product.service';
-import { InventoryService }  from '@modules/catalog/services/inventory.service';
-
-// Importing shared infrastructure
-import { JwtAuthGuard }      from '@shared/guards/jwt-auth.guard';
-import { RolesGuard }        from '@shared/guards/roles.guard';
-import { Roles }             from '@shared/decorators/roles.decorator';
-import { CurrentUser }       from '@shared/decorators/current-user.decorator';
-import { RedisService }      from '@shared/redis/redis.service';
-import { paginateQuery }     from '@shared/utils/paginate.util';
-import { generateSlug }      from '@shared/utils/slug.util';
-
-// Importing config
-import { JwtConfig }         from '@config/jwt.config';
-import { R2Config }          from '@config/r2.config';
-
-// Importing shared library (cross-app contracts)
-import type { ApiResponse }  from '@lib/types/api-response.type';
-import { Role }              from '@lib/types/role.enum';
-import { EMAIL_QUEUE }       from '@lib/constants/queue-names';
-import { AUTH_TOKEN_EXPIRED } from '@lib/constants/error-codes';
-import { SESSION_KEY }       from '@lib/constants/redis-keys';
-
-
-// ❌ Wrong — relative paths that cross module or layer boundaries
-import { ProductService }    from '../../catalog/services/product.service';  // cross-module relative
-import { JwtAuthGuard }      from '../../../shared/guards/jwt-auth.guard';   // deep relative path
-import { EMAIL_QUEUE }       from '../../../../libs/shared/src/constants';   // skip @lib alias
+// ❌ Wrong — deep relative paths across modules/layers
+import { ProductService }  from '../../catalog/services/product.service';
+import { JwtAuthGuard }    from '../../../shared/guards/jwt-auth.guard';
 ```
 
-### Jest Module Name Mapper — `apps/api/package.json`
+**Jest module name mapper:**
 
 ```json
 {
   "jest": {
     "moduleNameMapper": {
-      "^@modules/(.*)$":  "<rootDir>/src/modules/$1",
-      "^@shared/(.*)$":   "<rootDir>/src/shared/$1",
-      "^@config/(.*)$":   "<rootDir>/src/shared/config/$1",
-      "^@lib/(.*)$":      "<rootDir>/../../libs/shared/src/$1"
+      "^@modules/(.*)$": "<rootDir>/src/modules/$1",
+      "^@shared/(.*)$":  "<rootDir>/src/shared/$1",
+      "^@config/(.*)$":  "<rootDir>/src/shared/config/$1",
+      "^@lib/(.*)$":     "<rootDir>/../../libs/shared/src/$1"
     }
   }
 }
@@ -938,71 +1018,64 @@ import { EMAIL_QUEUE }       from '../../../../libs/shared/src/constants';   // 
 
 ## 9. Module Creation Checklist
 
-Copy checklist này vào mỗi `README.md` khi tạo module mới:
-
 ```markdown
 ## Module Creation Checklist — {ModuleName}
 
 ### Phase 1: Scaffold
-- [ ] Tạo thư mục: `apps/api/src/modules/{module-name}/`
-- [ ] Tạo 7 subfolders: `dto/` `schemas/` `interfaces/` `controllers/` `services/` `repositories/` `events/`
-- [ ] Tạo `{module}.module.ts` với @Module({ imports: [], controllers: [], providers: [], exports: [] })
-- [ ] Tạo `README.md` với: Purpose, Exported services, Endpoints list, Dependencies
+- [ ] Tạo thư mục `apps/api/src/modules/{module-name}/` + 7 subfolders
+- [ ] Tạo `{module}.module.ts` với @Module({ imports:[], controllers:[], providers:[], exports:[] })
+- [ ] Tạo `README.md`: Purpose, Exported services, Endpoints list, Dependencies
 
-### Phase 2: Schema (Mongoose)
-- [ ] Tạo `schemas/{resource}.schema.ts` với `@Schema({ timestamps: true })`
-- [ ] Khai báo đầy đủ `@Prop()` với type + required + default + index
-- [ ] Thêm compound indexes nếu cần (vd: `{userId: 1, createdAt: -1}`)
-- [ ] Export `SchemaFactory.createForClass(Resource)` và `ResourceDocument` type
-- [ ] Register trong module: `MongooseModule.forFeature([{ name: Resource.name, schema: ResourceSchema }])`
+### Phase 2: Schema
+- [ ] `@Schema({ timestamps: true })` + đầy đủ `@Prop()` với type/required/default/index
+- [ ] Compound indexes nếu cần
+- [ ] `SchemaFactory.createForClass()` export
+- [ ] Register: `MongooseModule.forFeature([{ name: Resource.name, schema: ResourceSchema }])`
 
 ### Phase 3: Repository
 - [ ] Extend `BaseRepository<ResourceDocument>`
-- [ ] Inject model: `@InjectModel(Resource.name) private model: Model<ResourceDocument>`
-- [ ] Implement domain-specific queries (không để raw queries trong service)
-- [ ] Export repository trong module `providers` và `exports`
+- [ ] `@InjectModel(Resource.name)` — không để raw queries trong service
+- [ ] Export trong module `providers` + `exports`
 
 ### Phase 4: Service
-- [ ] Inject repository (KHÔNG inject Model trực tiếp vào service)
-- [ ] Tất cả business logic nằm ở đây — không trong controller, không trong repository
-- [ ] Throw `HttpException` subclasses với codes từ `@lib/constants/error-codes`
-- [ ] Export service trong module `exports` nếu các module khác cần dùng
+- [ ] Inject repository (KHÔNG inject Model trực tiếp)
+- [ ] All business logic ở đây — không trong controller, không trong repository
+- [ ] Throw HttpException subclasses với codes từ `@lib/constants/error-codes`
+- [ ] Export nếu các module khác cần dùng
 
 ### Phase 5: Controller
 - [ ] `@Controller('api/v1/{resources}')` — plural noun, kebab-case
-- [ ] `@UseGuards(JwtAuthGuard)` + `@Roles(Role.STAFF)` trên endpoints cần auth
-- [ ] Chỉ gọi service — controller KHÔNG chứa if/else business logic
+- [ ] `@UseGuards(JwtAuthGuard)` + `@Roles()` trên endpoints cần auth
+- [ ] Chỉ gọi service — không chứa if/else business logic
 - [ ] `@ApiOperation()`, `@ApiResponse()`, `@ApiBearerAuth()` Swagger decorators
-- [ ] Input validated via DTOs + global ValidationPipe (không validate thủ công)
-- [ ] Return DTO instance (KHÔNG return raw Mongoose document — expose __v, passwordHash, etc.)
+- [ ] Return DTO instance (KHÔNG return raw Mongoose document)
 
 ### Phase 6: DTOs
-- [ ] CreateDto: tất cả required fields với `@IsNotEmpty()` `@IsString()` `@IsNumber()` etc.
-- [ ] UpdateDto: `PartialType(CreateDto)` hoặc `PickType`/`OmitType` từ mapped-types
-- [ ] QueryDto: tất cả filter fields `@IsOptional()` + `@Transform(({ value }) => Number(value))` cho numerics
-- [ ] ResponseDto: `@Exclude()` internal fields (passwordHash, __v, refreshToken)
+- [ ] CreateDto: required fields với validators
+- [ ] UpdateDto: `PartialType(CreateDto)`
+- [ ] QueryDto: `@IsOptional()` + `@Transform()` cho numerics
+- [ ] ResponseDto: `@Exclude()` internal fields (passwordHash, __v)
 
 ### Phase 7: Tests
-- [ ] Tạo `services/{service}.spec.ts` — unit test với `jest.mock()` repository
-- [ ] Tạo `test/{module}.e2e-spec.ts` — integration test với in-memory MongoDB
-- [ ] Test: happy path, 404 not found, 422 validation, 403 forbidden, edge cases
-- [ ] Coverage target: ≥ 80% branches trong service layer
-- [ ] Run: `npm run test -- --testPathPattern={module}` — tất cả pass
+- [ ] `services/{service}.spec.ts` — unit test với mocked repository
+- [ ] `test/{module}.e2e-spec.ts` — integration test
+- [ ] Happy path + 404 + 422 + 403 + edge cases
+- [ ] Coverage >= 80% branches in service layer
+- [ ] `npm run test -- --testPathPattern={module}` — all pass
 
-### Phase 8: Registration & Integration
-- [ ] Import module trong `apps/api/src/app.module.ts` `imports` array
-- [ ] `nest build` — không có circular dependency warning
-- [ ] `GET /health` trả 200 sau khi thêm module
-- [ ] `GET /api/v1/{resources}` trả 200 hoặc 401 (không phải 500)
+### Phase 8: Registration
+- [ ] Import trong `app.module.ts`
+- [ ] `nest build` — no circular dependency warning
+- [ ] `GET /health` → 200 after adding module
 
 ### Phase 9: Documentation
-- [ ] Update `README.md` trong module: Purpose, Public API, Endpoint list với examples
-- [ ] Update `docs/MODULE_STRUCTURE.md` nếu có MongoDB collections mới
-- [ ] Thêm Swagger `@ApiTags('{resource}')` trong controller để group Swagger docs
+- [ ] Update module README.md
+- [ ] Update `docs/MODULE_STRUCTURE.md` if new MongoDB collections
+- [ ] `@ApiTags('{resource}')` on controller for Swagger grouping
 ```
 
 ---
 
-*MODULE_STRUCTURE.md — v1.0.0 — 2026-03-24*
-*Tài liệu này là Bước 4/5 trong workflow thiết kế hệ thống.*
-*Bước tiếp theo: Bắt đầu implement Sprint 1 theo thứ tự: SharedModule → AuthModule → CatalogModule*
+*MODULE_STRUCTURE.md — v2.0.0 — 2026-04-01*
+*References: ARCHITECTURE.md v2.0.0 · TECH_STACK.md v2.0.0*
+*Next step: Implement Sprint 1 — SharedModule → AuthModule → CatalogModule*

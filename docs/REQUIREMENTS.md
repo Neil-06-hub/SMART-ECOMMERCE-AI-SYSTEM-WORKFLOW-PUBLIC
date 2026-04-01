@@ -1,8 +1,8 @@
 # Đặc Tả Yêu Cầu Hệ Thống (Requirements Specification)
 
 **Project:** SMART ECOMMERCE AI SYSTEM
-**Version:** 2.1.0
-**Date:** 2026-03-23
+**Version:** 2.2.0
+**Date:** 2026-04-01
 **Course:** Môn Học Năm 4 - HK2
 **Status:** Approved
 **Language:** Tiếng Việt — thuật ngữ kỹ thuật giữ nguyên tiếng Anh
@@ -395,6 +395,24 @@ Các nền tảng thương mại điện tử truyền thống đang thất bạ
 | SMS Provider | OTP 2FA + order notification SMS (FR-AUTH-03, FR-ORDER-03) | Optional — có thể mock trong Phase 1 |
 | Object Storage | Lưu ảnh sản phẩm, ảnh review, packing slips | Free tier storage hoặc self-hosted |
 
+### 5.4 Phạm Vi Demo & Đối Tượng Đánh Giá
+
+**Đối tượng đánh giá:** Giảng viên có kinh nghiệm sâu trong lĩnh vực CNTT và thương mại điện tử.
+
+**Tiêu chí đánh giá ưu tiên:**
+1. **Chất lượng AI Recommendation** — LightFM Collaborative Filtering + TF-IDF CBF phải hoạt động thực sự, không chỉ là fallback. Precision@10 và Recall@10 phải đạt ngưỡng (>= 0.30 và >= 0.20).
+2. **Luồng e-commerce hoàn chỉnh** — Register → Browse → Search → Product Detail → Add to Cart → Checkout → VNPay payment → Order confirmation email.
+3. **AnalyticsModule** — Dashboard phải hiển thị dữ liệu thực từ behavioral_events, không dùng mock data.
+4. **MarketingModule** — RFM segmentation và campaign email delivery phải chạy được (sử dụng Gmail SMTP nodemailer).
+
+**Scale thực tế trong demo:** ~10-50 concurrent users, ~50-100 emails/ngày, ~1,000-5,000 behavioral events/ngày — toàn bộ infrastructure free tier đủ xử lý.
+
+**Không yêu cầu trong bối cảnh demo:**
+- SEO traffic (không có real search engine indexing)
+- 99.5% SLA (shared free tier không có SLA cam kết)
+- Horizontal scaling (1 Render instance mỗi service là đủ)
+- Real payment (VNPay sandbox only — không có giao dịch thật)
+
 ---
 
 ## 6. Ngoài Phạm Vi Phase 1 (Out of Scope)
@@ -415,6 +433,9 @@ Các tính năng sau đây **KHÔNG** được triển khai trong Phase 1:
 - **Real-time fraud detection** — ML model chấm điểm giao dịch realtime để phát hiện gian lận
 - **Loyalty tier membership** (Gold/Silver/Platinum với perks khác nhau) — Phase 1 chỉ có hệ thống điểm cơ bản (FR-AUTH-07)
 - **International shipping** — chỉ giao hàng trong nước (Việt Nam)
+- Cloudflare CDN proxy (removed — Vercel Edge CDN đã đủ cho demo scale)
+- Third-party error tracking (Sentry) — replaced by MongoDB error_logs collection
+- Resend/SendGrid email API — replaced by Gmail SMTP (nodemailer) for demo scale
 
 ---
 

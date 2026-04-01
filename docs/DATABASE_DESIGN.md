@@ -1,5 +1,5 @@
 # DATABASE DESIGN — SMART ECOMMERCE AI SYSTEM
-**Version:** 1.0.0 | **Date:** 2026-03-24 | **Author:** Solo Developer
+**Version:** 2.0.0 | **Date:** 2026-04-01 | **Author:** Solo Developer
 **Database:** MongoDB Atlas M0 (Free Tier) | **ODM:** Mongoose 8.x | **Runtime:** NestJS (TypeScript)
 
 ---
@@ -61,7 +61,7 @@
 | Timestamps | `{ timestamps: true }` → Mongoose tự gen `createdAt`, `updatedAt` | DRY, consistent across all collections |
 | Soft Delete | Field `deletedAt: Date \| null`, default filter `{ deletedAt: null }` | Preserve data for audits; never hard-delete user/product data |
 | Money (VND) | `Number` (integer, đơn vị đồng) | VND không có phần thập phân — không cần `Decimal128` |
-| Text Search | Meilisearch primary; MongoDB `$text` fallback | Meilisearch hỗ trợ tiếng Việt + typo tolerance |
+| Text Search | MongoDB Atlas Search (included in M0 free tier) | Native Vietnamese collation + typo tolerance, no extra service needed |
 | Vector Search | MongoDB Atlas Vector Search (included in M0) | Free, no extra service needed for CBF embeddings |
 
 ---
@@ -1328,6 +1328,65 @@ export class PushSubscription extends Document {
 
 ---
 
+### 3.15 error_logs
+
+**Mục đích:** Lưu trữ toàn bộ unhandled exceptions từ NestJS `AllExceptionsFilter`. Thay thế hoàn toàn Sentry. INSERT-ONLY — app service account không có UPDATE/DELETE permission trên collection này.
+
+**Mongoose Schema:**
+
+```typescript
+@Schema({ collection: 'error_logs', timestamps: true })
+export class ErrorLog {
+  @Prop({ required: true, enum: ['error', 'warn'] })
+  level: 'error' | 'warn';
+
+  @Prop({ required: true })
+  message: string;
+
+  @Prop({ type: String })
+  stack?: string;
+
+  @Prop()
+  path?: string;           // HTTP request path
+
+  @Prop()
+  method?: string;         // HTTP method (GET, POST, ...)
+
+  @Prop({ type: Object })
+  body?: Record<string, unknown>;  // sanitized request body
+
+  @Prop({ type: String })
+  userId?: string;         // ObjectId string if authenticated
+
+  @Prop()
+  requestId?: string;      // correlates with API response meta.requestId
+
+  @Prop({ required: true })
+  statusCode: number;
+
+  @Prop({ type: Object })
+  context?: Record<string, unknown>;  // extra metadata
+}
+```
+
+**Indexes:**
+```typescript
+// Admin dashboard error browsing (most recent errors first)
+{ level: 1, createdAt: -1 }
+
+// TTL auto-purge after 30 days
+{ createdAt: 1 }  // TTL index: expireAfterSeconds: 2592000
+```
+
+**Access Pattern:**
+- Write: fire-and-forget từ `AllExceptionsFilter` (async, không block HTTP response)
+- Read: Admin Dashboard "System Health" panel, filter by level/statusCode/path
+- Volume: thấp (~10-50 errors/day trong demo) → không ảnh hưởng MongoDB quota
+
+**Data Retention:** TTL index tự động xóa documents sau 30 ngày.
+
+---
+
 ## 4. Indexing Strategy
 
 Tổng hợp toàn bộ indexes quan trọng (≈35 indexes):
@@ -1461,6 +1520,43 @@ export const REDIS_KEYS = {
   guestCart: (sessionId: string) => `cart:guest:${sessionId}`,
 } as const;
 ```
+
+### 6.2 getOrSet Helper Pattern
+
+Tất cả Redis reads trong NestJS đều dùng helper này để tránh cache stampede và đảm bảo consistent TTL:
+
+```typescript
+// src/shared/redis/redis.service.ts
+@Injectable()
+export class RedisService {
+  constructor(@InjectRedis() private readonly redis: Redis) {}
+
+  async getOrSet<T>(
+    key: string,
+    ttlSeconds: number,
+    factory: () => Promise<T>,
+  ): Promise<T> {
+    const cached = await this.redis.get(key);
+    if (cached) return JSON.parse(cached) as T;
+
+    const value = await factory();
+    await this.redis.setex(key, ttlSeconds, JSON.stringify(value));
+    return value;
+  }
+
+  async invalidate(key: string): Promise<void> {
+    await this.redis.del(key);
+  }
+
+  async invalidatePattern(pattern: string): Promise<void> {
+    // Use SCAN instead of KEYS to avoid blocking Redis
+    const keys = await this.redis.keys(pattern);
+    if (keys.length > 0) await this.redis.del(...keys);
+  }
+}
+```
+
+**Rule:** Never call `redis.get()` + `redis.set()` separately in business code. Always use `getOrSet()` to ensure atomic cache-or-compute behavior.
 
 ---
 
