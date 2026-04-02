@@ -678,7 +678,7 @@ marketing/
 │   ├── campaign.repository.ts                 # CRUD + updateMetrics() (atomic $inc)
 │   └── segment.repository.ts                  # CRUD + findUsersBySegment() + updateUserIds()
 ├── events/
-│   └── campaign-send-triggered.event.ts       # → BullMQ delayed job for scheduled campaigns
+│   └── campaign-send.event.ts                 # → BullMQ delayed job for scheduled campaigns
 ├── marketing.module.ts
 └── README.md
 ```
@@ -696,7 +696,7 @@ marketing/
 | `POST` | `/api/v1/segments/compute-rfm` | JWT (STAFF) | On-demand RFM MongoDB aggregation |
 
 **EventEmitter2 events emitted:**
-- `campaign.send.triggered` → BullMQ delayed job for scheduled campaigns
+- `campaign.send` → BullMQ delayed job for scheduled campaigns
 
 **Error scenarios:**
 - Empty `userIds[]` → HTTP 400; staff must run `compute-rfm` first

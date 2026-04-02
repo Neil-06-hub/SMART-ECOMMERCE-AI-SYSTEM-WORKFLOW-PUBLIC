@@ -615,7 +615,7 @@ export const ShippingAddressSchema = SchemaFactory.createForClass(ShippingAddres
 
 @Schema({ _id: false })
 export class Payment {
-  @Prop({ required: true, enum: ['vnpay', 'momo', 'cod'] })
+  @Prop({ required: true, enum: ['vnpay', 'cod'] })
   method: string;
 
   @Prop({ default: null })
