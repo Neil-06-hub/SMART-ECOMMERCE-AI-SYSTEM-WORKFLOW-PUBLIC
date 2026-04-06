@@ -15,7 +15,7 @@
 > This is a university capstone project. No credit card, no budget. Every service must have
 > a genuinely free tier (not expiring after 14 days) or be self-hostable via Docker.
 >
-> **Axiom 2 — Team fit over hype:** The TypeScript/Node.js stack (NestJS + Next.js) is primary.
+> **Axiom 2 — Team fit over hype:** The TypeScript/Node.js stack (Express.js + Next.js) is primary.
 > Python is only for the AI service. Do not choose a technology just because it is "trending" —
 > it must be justified by a specific requirement in REQUIREMENTS.md.
 
@@ -47,7 +47,7 @@
 | UI Library | Tailwind CSS + shadcn/ui | Tailwind 3.x | Utility-first styling + headless components | — |
 | Client State | Zustand | 4.x | UI state (modal, drawer, auth step) | — |
 | Server State | TanStack Query | 5.x | Data fetching, caching, optimistic updates | — |
-| Backend Framework | NestJS | 10.x | Modular monolith REST API | Render.com (free) |
+| Backend Framework | Express.js | 10.x | Modular monolith REST API | Render.com (free) |
 | Backend Language | TypeScript + Node.js | TS 5.x / Node 20 LTS | Primary language | — |
 | AI Service Language | Python | 3.11 | ML training + inference | — |
 | AI Inference Framework | FastAPI | 0.111.x | REST inference + model hot-reload | Render.com (free) |
@@ -55,7 +55,7 @@
 | Recommendation (CBF) | scikit-learn (TF-IDF + cosine sim) | sklearn 1.4 | Content-based filtering, Vietnamese text | — |
 | ML Job Scheduler | GitHub Actions cron | — | Daily training pipeline (02:00 ICT) | GitHub (free) |
 | Primary Database | MongoDB Atlas | 7.x (M0 free) | Document store, flexible schema | MongoDB Atlas M0 |
-| ODM | Mongoose | 8.x | Schema validation + queries in NestJS | — |
+| ODM | Mongoose | 8.x | Schema validation + queries in Express.js | — |
 | Cache + Queue broker | Redis | 7.x | AI rec cache, feature store, BullMQ (email) | Upstash (free) |
 | Background Jobs (Node) | BullMQ | 5.x | Email queue only | — |
 | Search Engine | MongoDB Atlas Search | 7.x | Full-text search, Vietnamese collation | MongoDB Atlas M0 (included) |
@@ -81,7 +81,7 @@
               ┌──────────────┴──────────────┐
               ▼                             ▼
 ┌─────────────────────┐       ┌──────────────────────────────┐
-│   Next.js 15        │       │   NestJS REST API             │
+│   Next.js 15        │       │   Express.js REST API             │
 │   (Vercel — free)   │◄─────►│   TypeScript / Node 20 LTS   │
 │   SSR homepage      │       │   Render.com (free)          │
 │   SSG/ISR catalog   │       │   /api/v1/*                  │
@@ -130,10 +130,10 @@ TRAINING PIPELINE (offline):
 
 **Main request flows:**
 1. Browser → Vercel → Next.js (SSR/SSG page)
-2. Client JS → Render.com → NestJS REST `/api/v1/*`
-3. NestJS → MongoDB (read/write + Atlas Search) + Redis (AI cache hit)
-4. NestJS → BullMQ → email-queue → Nodemailer → Gmail SMTP
-5. NestJS → POST /api/v1/events → MongoDB async write (behavioral events)
+2. Client JS → Render.com → Express.js REST `/api/v1/*`
+3. Express.js → MongoDB (read/write + Atlas Search) + Redis (AI cache hit)
+4. Express.js → BullMQ → email-queue → Nodemailer → Gmail SMTP
+5. Express.js → POST /api/v1/events → MongoDB async write (behavioral events)
 6. FastAPI `/recommend` → Redis feature store (< 5ms) → LightFM + TF-IDF CBF → cache in Redis → return
 
 ---
@@ -213,7 +213,7 @@ TRAINING PIPELINE (offline):
 
 ## 4. Backend Layer
 
-### 4.1 Framework — NestJS 10.x
+### 4.1 Framework — Express.js 10.x
 
 | Attribute | Value |
 |---|---|
@@ -222,7 +222,7 @@ TRAINING PIPELINE (offline):
 | **Architecture** | Modular Monolith |
 | **Hosting** | Render.com free tier (512MB RAM, 750 hrs/month) |
 
-**Why NestJS:**
+**Why Express.js:**
 
 1. **Module system maps 1:1 with FR modules:**
    ```
@@ -237,11 +237,11 @@ TRAINING PIPELINE (offline):
    ```
 
 2. **Built-in infrastructure:**
-   - `@nestjs/swagger` → automatic OpenAPI docs (no time wasted writing by hand)
+   - `@express/swagger` → automatic OpenAPI docs (no time wasted writing by hand)
    - `Guards` → RBAC implementation (FR-AUTH-04)
    - `Interceptors` → Request logging, response transform
    - `Pipes` → Input validation via `class-validator`
-   - `@nestjs/throttler` → Rate limiting (NFR-SEC-02)
+   - `@express/throttler` → Rate limiting (NFR-SEC-02)
 
 3. **DI container:** Consistency when working solo — easy to mock in tests
 
@@ -263,11 +263,11 @@ TRAINING PIPELINE (offline):
 > Old jobs migrated to lighter mechanisms:
 > - `inventory-queue` → `EventEmitter2` + in-process handler (no queue persistence needed)
 > - `search-sync-queue` → Removed (using MongoDB Atlas Search — data is already in MongoDB, no sync needed)
-> - `analytics-queue` → `@nestjs/schedule` cron job (EOD aggregation runs directly, no queue needed)
+> - `analytics-queue` → `@express/schedule` cron job (EOD aggregation runs directly, no queue needed)
 
 **Why NOT chosen:**
 - **Express:** No DI, no structure → every developer organizes code differently → hard to maintain
-- **Fastify:** Better performance but no built-in DI, smaller plugin ecosystem than NestJS
+- **Fastify:** Better performance but no built-in DI, smaller plugin ecosystem than Express.js
 - **Hono:** Edge-first framework, lacks enterprise features (DI, Guards, Swagger) needed for this project
 
 ---
@@ -396,7 +396,7 @@ steps:
 | **Online** (inference) | Redis Hash `features:user:{id}` | 2h | recent_views[], purchase_categories[], price_range, segment_id |
 | **Offline** (training) | MongoDB collection `feature_snapshots` | Append-only | Daily snapshot for training dataset |
 
-Freshness SLA: `@nestjs/schedule` cron job updates online features from MongoDB → Redis every hour. Alert if lag > 3h (FR-REC-10).
+Freshness SLA: `@express/schedule` cron job updates online features from MongoDB → Redis every hour. Alert if lag > 3h (FR-REC-10).
 
 ---
 
@@ -404,7 +404,7 @@ Freshness SLA: `@nestjs/schedule` cron job updates online features from MongoDB 
 
 ```
 Browser click/view/purchase
-    → POST /api/v1/events (NestJS)
+    → POST /api/v1/events (Express.js)
     → async MongoDB insertOne (fire-and-forget, does not block response)
     → behavioral_events collection (TTL 90 days)
 ```
@@ -414,7 +414,7 @@ Browser click/view/purchase
 - Eliminating Redis Streams saves ~500+ Redis commands/day (important given Upstash 10k limit)
 - Eliminating the Celery consumer reduces 1 process and lowers complexity
 - MongoDB `insertOne` async: ~2-5ms, does not block the web response
-- If batch insert is needed later: use NestJS `@nestjs/schedule` cron job buffer
+- If batch insert is needed later: use Express.js `@express/schedule` cron job buffer
 
 **Why NOT Kafka:** (reasons retained)
 - Kafka minimum viable deployment: 3 broker nodes, ZooKeeper — zero free hosting options
@@ -432,7 +432,7 @@ Browser click/view/purchase
 |---|---|
 | **Version** | MongoDB 7.x |
 | **Tier** | M0 (free forever — 512MB, shared cluster) |
-| **ODM** | Mongoose 8.x via `@nestjs/mongoose` |
+| **ODM** | Mongoose 8.x via `@express/mongoose` |
 | **Region** | Singapore (ap-southeast-1) — closest to Vietnam on Atlas M0 |
 
 **Collections:**
@@ -498,14 +498,14 @@ Browser click/view/purchase
 > | Old use case | Replaced by | Reason |
 > |---|---|---|
 > | Sessions (`sess:*`) | MongoDB collection `sessions` + JWT-only | Saves ~300+ cmds/day; MongoDB TTL index handles cleanup automatically |
-> | Product cache (`product:*`) | `node-cache` (in-memory NestJS) | Saves ~500+ cmds/day; TTL 5min; sufficient for a single instance |
-> | Category cache (`cat:*`) | `node-cache` (in-memory NestJS) | Few categories, rarely changes → in-memory cache is sufficient |
-> | Rate limiting (`rl:*`) | `@nestjs/throttler` memory store | Default behavior, no Redis needed; sufficient for a single instance |
+> | Product cache (`product:*`) | `node-cache` (in-memory Express.js) | Saves ~500+ cmds/day; TTL 5min; sufficient for a single instance |
+> | Category cache (`cat:*`) | `node-cache` (in-memory Express.js) | Few categories, rarely changes → in-memory cache is sufficient |
+> | Rate limiting (`rl:*`) | `@express/throttler` memory store | Default behavior, no Redis needed; sufficient for a single instance |
 > | Redis Streams | Direct MongoDB async write | Saves ~500+ cmds/day; demo scale does not need buffering |
 
 **Upstash vs self-hosted Redis:**
 - Upstash: serverless, free 10k cmd/day, no Redis server to manage, HTTP REST API (suits Render.com)
-- Self-hosted: free but requires 1 server slot on Render (already used by NestJS and FastAPI)
+- Self-hosted: free but requires 1 server slot on Render (already used by Express.js and FastAPI)
 - With the optimized strategy above, **~2,000 cmds/day << 10,000 limit** — safe even during a busy demo
 
 ---
@@ -565,7 +565,7 @@ No separate message broker is needed for behavioral events:
 | Service | Provider | Free Tier | Limits to Know |
 |---|---|---|---|
 | Frontend (Next.js) | **Vercel** | 100GB bandwidth, unlimited SSR | — |
-| API Server (NestJS) | **Render.com** | 750 hrs/month, 512MB RAM | Spin-down after 15 min idle |
+| API Server (Express.js) | **Render.com** | 750 hrs/month, 512MB RAM | Spin-down after 15 min idle |
 | AI Service (FastAPI) | **Render.com** | 750 hrs/month, 512MB RAM | Spin-down after 15 min idle; ~270MB used |
 | Primary DB + Search | **MongoDB Atlas M0** | 512MB, no expiry, Atlas Search included | Shared cluster, no replica set |
 | Cache + Queue | **Upstash Redis** | 10k commands/day, 256MB | Only ~2k cmds/day used (optimized) |
@@ -600,7 +600,7 @@ UptimeRobot (free) pings `GET /health` every 5 minutes → service never sleeps 
 services:
   mongodb:       # mongo:7 — port 27017
   redis:         # redis:7-alpine — port 6379
-  nestjs:        # custom Dockerfile, hot-reload with ts-node-dev
+  express:        # custom Dockerfile, hot-reload with ts-node-dev
   nextjs:        # custom Dockerfile, next dev
   fastapi:       # custom Dockerfile, uvicorn --reload
 ```
@@ -608,7 +608,7 @@ services:
 > **Removed:** `meilisearch` (using MongoDB Atlas Search), `celery` (using GitHub Actions cron)
 
 **Multi-stage Dockerfiles:**
-- `nestjs/Dockerfile`: `node:20-alpine` base → `npm ci` → `tsc build` → copy `dist/` → production image
+- `express/Dockerfile`: `node:20-alpine` base → `npm ci` → `tsc build` → copy `dist/` → production image
 - `fastapi/Dockerfile`: `python:3.11-slim` → pip layer (cached) → copy src → uvicorn
 
 ---
@@ -617,9 +617,9 @@ services:
 
 ```
 ci.yml              (trigger: pull_request → any branch)
-  ├── lint:          ESLint + Prettier check (NestJS + Next.js)
+  ├── lint:          ESLint + Prettier check (Express.js + Next.js)
   ├── typecheck:     tsc --noEmit
-  ├── test-unit:     Jest (NestJS) + pytest (FastAPI)
+  ├── test-unit:     Jest (Express.js) + pytest (FastAPI)
   └── test-e2e:      Playwright smoke test (optional Sprint 4)
 
 cd-staging.yml      (trigger: push → develop)
@@ -684,7 +684,7 @@ ml-training.yml     (trigger: cron 0 19 * * * = 02:00 ICT daily)
 |---|---|
 | **Free tier** | 500 emails/day via Google Workspace / personal Gmail with App Password |
 | **Library** | `nodemailer` npm package — SMTP transport |
-| **Templates** | Handlebars / inline HTML string — rendered server-side in NestJS |
+| **Templates** | Handlebars / inline HTML string — rendered server-side in Express.js |
 | **Use cases** | Order confirmation, shipping update, password reset, marketing campaigns |
 | **Bounce handling** | No webhook — track delivery failures via Nodemailer SMTP error callbacks; update `users.emailStatus` on hard bounce |
 
@@ -702,7 +702,7 @@ ml-training.yml     (trigger: cron 0 19 * * * = 02:00 ICT daily)
 
 ### 8.3 Push Notifications — Web Push VAPID
 
-- Self-hosted, $0 — NestJS sends directly to the browser
+- Self-hosted, $0 — Express.js sends directly to the browser
 - `web-push` npm package
 - Use cases: order status update (FR-NOTIF-03), price drop alert, cart abandonment reminder
 
@@ -731,12 +731,12 @@ SMS (ESMS.vn) is fully removed from Phase 1. Reason: charged per SMS, no free ti
 
 | Framework | Team Fit (30%) | Code Structure (30%) | Ecosystem (20%) | Performance (10%) | Learning Curve (10%) | **Total** |
 |---|---|---|---|---|---|---|
-| **NestJS 10** | 8 | **10** | 9 | 7 | 6 | **8.3** |
+| **Express.js 10** | 8 | **10** | 9 | 7 | 6 | **8.3** |
 | Express 5 | 9 | 4 | 10 | 9 | 9 | 7.4 |
 | Fastify 4 | 7 | 5 | 7 | 10 | 7 | 6.5 |
 | Hono 4 | 5 | 4 | 5 | 10 | 6 | 5.2 |
 
-**Verdict:** NestJS — DI + Module system = clear structure for ~40 FRs, the team does not need to agree on architecture conventions.
+**Verdict:** Express.js — DI + Module system = clear structure for ~40 FRs, the team does not need to agree on architecture conventions.
 
 ---
 
@@ -780,7 +780,7 @@ SMS (ESMS.vn) is fully removed from Phase 1. Reason: charged per SMS, no free ti
 | Service | Provider | Tier | USD/month |
 |---|---|---|---|
 | Frontend (Next.js SSR/SSG/ISR) | Vercel | Free | $0 |
-| API Server (NestJS REST) | Render.com | Free (750 hrs) | $0 |
+| API Server (Express.js REST) | Render.com | Free (750 hrs) | $0 |
 | AI Service (FastAPI — no Celery) | Render.com | Free (750 hrs) | $0 |
 | Primary Database + Search | MongoDB Atlas M0 | Free (512MB, Atlas Search included) | $0 |
 | Cache + Queue (Redis) | Upstash | Free (10k cmd/day, ~2k used) | $0 |
@@ -816,13 +816,13 @@ SMS (ESMS.vn) is fully removed from Phase 1. Reason: charged per SMS, no free ti
 
 | NFR / Threat | Implementation | Technology |
 |---|---|---|
-| Authentication | JWT access token (15 min) + refresh token HTTP-only cookie (7 days) | `@nestjs/jwt`, `cookie-parser` |
+| Authentication | JWT access token (15 min) + refresh token HTTP-only cookie (7 days) | `@express/jwt`, `cookie-parser` |
 | Password storage | bcrypt, cost factor 12 | `bcryptjs` |
 | NoSQL injection | Mongoose schema validation; whitelist `$` operators; no raw `$where` | Mongoose 8.x |
 | XSS | React automatic HTML escaping; CSP headers via Next.js `headers()` config | Next.js 15 |
-| CSRF | SameSite=Strict cookie; CSRF token for state-changing mutations | Custom NestJS Guard |
-| Rate limiting | `@nestjs/throttler` memory store (default, single instance is sufficient) | `@nestjs/throttler` |
-| RBAC | `@Roles()` decorator + `RolesGuard` in NestJS; roles: `buyer`, `staff`, `admin` | NestJS Guards |
+| CSRF | SameSite=Strict cookie; CSRF token for state-changing mutations | Custom Express.js Guard |
+| Rate limiting | `@express/throttler` memory store (default, single instance is sufficient) | `@express/throttler` |
+| RBAC | `@Roles()` decorator + `RolesGuard` in Express.js; roles: `buyer`, `staff`, `admin` | Express.js Guards |
 | HTTPS / TLS | Vercel (frontend) + Render.com (backend) auto-provision TLS 1.2+/1.3; HSTS enabled | Vercel, Render.com |
 | Audit log immutability | MongoDB `audit_logs` collection — app service account has insert-only permission | MongoDB Atlas role |
 | Secrets management | Environment variables, never commit `.env` — `.env.example` contains key names only | GitHub Actions secrets |
@@ -834,7 +834,7 @@ SMS (ESMS.vn) is fully removed from Phase 1. Reason: charged per SMS, no free ti
 
 | Sprint | Weeks | Technologies Introduced |
 |---|---|---|
-| **Sprint 1** | 1–4 | Docker Compose setup (MongoDB + Redis + NestJS + Next.js + FastAPI); MongoDB Atlas M0 + Mongoose schemas; NestJS modules scaffold (Auth, Catalog, Cart); Next.js App Router setup; Cloudflare R2; GitHub Actions CI |
+| **Sprint 1** | 1–4 | Docker Compose setup (MongoDB + Redis + Express.js + Next.js + FastAPI); MongoDB Atlas M0 + Mongoose schemas; Express.js modules scaffold (Auth, Catalog, Cart); Next.js App Router setup; Cloudflare R2; GitHub Actions CI |
 | **Sprint 2** | 5–8 | Order module + VNPay sandbox; BullMQ email queue + Nodemailer/Gmail SMTP; Atlas Search setup; Web Push VAPID; Basic Admin Dashboard; CD pipeline (Render + Vercel staging) |
 | **Sprint 3** | 9–12 | FastAPI AI service bootstrap; LightFM training pipeline (GitHub Actions cron); 2-tier feature store (Redis + MongoDB); TF-IDF CBF similarity matrix; Behavioral event ingestion (direct MongoDB); RFM segmentation (MongoDB aggregation) |
 | **Sprint 4** | 13–16 | Hybrid recommendation scoring (α tuning); Marketing campaign MVP; error_logs in-app monitoring; Performance tuning; Demo environment prep; Final documentation |

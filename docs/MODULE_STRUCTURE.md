@@ -12,9 +12,9 @@
 ## Table of Contents
 
 1. [Project Root Structure](#1-project-root-structure)
-2. [Standard NestJS Module Template](#2-standard-nestjs-module-template)
+2. [Standard Express.js Module Template](#2-standard-express-module-template)
 3. [Module Dependency Map](#3-module-dependency-map)
-4. [Module Detail — 9 NestJS Modules](#4-module-detail--9-nestjs-modules)
+4. [Module Detail — 9 Express.js Modules](#4-module-detail--9-express-modules)
 5. [Shared Infrastructure Layer](#5-shared-infrastructure-layer)
 6. [Shared TypeScript Library](#6-shared-typescript-library)
 7. [Naming Conventions](#7-naming-conventions)
@@ -30,7 +30,7 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │
 ├── apps/                                      # Deployable applications (3 units)
 │   │
-│   ├── api/                                   # NestJS 10 — Modular Monolith (Render.com)
+│   ├── api/                                   # Express.js 10 — Modular Monolith (Render.com)
 │   │   ├── src/
 │   │   │   ├── main.ts                        # Bootstrap: global pipes, filters, Swagger, CORS
 │   │   │   ├── app.module.ts                  # Root module — imports all 9 feature modules
@@ -46,7 +46,7 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │   │   │   │   ├── notification/              # FR-NOTIF-01..05
 │   │   │   │   └── analytics/                 # FR-ANAL-01..06
 │   │   │   │
-│   │   │   └── shared/                        # Cross-cutting infrastructure (not a NestJS module)
+│   │   │   └── shared/                        # Cross-cutting infrastructure (not a Express.js module)
 │   │   │       ├── database/                  # Mongoose connection + base abstractions
 │   │   │       ├── redis/                     # Upstash Redis client + helper
 │   │   │       ├── config/                    # Env validation, typed config objects
@@ -99,7 +99,7 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │       │   ├── config.py                      # pydantic-settings: REDIS_URL, MONGO_URI, R2_*
 │       │   ├── routers/
 │       │   │   ├── recommend.py               # POST /recommend
-│       │   │   ├── features.py                # POST /features/update (internal NestJS call)
+│       │   │   ├── features.py                # POST /features/update (internal Express.js call)
 │       │   │   └── internal.py                # POST /internal/reload-model
 │       │   ├── services/
 │       │   │   ├── cf_service.py              # LightFM model load + predict()
@@ -160,7 +160,7 @@ SMART-ECOMMERCE-AI-SYSTEM/
 
 ---
 
-## 2. Standard NestJS Module Template
+## 2. Standard Express.js Module Template
 
 > **MongoDB note:** Because Mongoose (NoSQL) is used, the folder is named `schemas/` instead of `entities/`.
 > A Mongoose `@Schema()` class is a document schema definition, not a SQL entity.
@@ -180,7 +180,7 @@ This template applies **uniformly** to all 9 feature modules:
 │   └── [resource].schema.ts                   #   @Schema() + @Prop() + SchemaFactory
 │
 ├── interfaces/                                # TypeScript domain types
-│   └── [resource].interface.ts                #   Interface, type, enum — pure TS, no NestJS deps
+│   └── [resource].interface.ts                #   Interface, type, enum — pure TS, no Express.js deps
 │
 ├── controllers/                               # HTTP layer ONLY
 │   └── [module].controller.ts                 #   @Controller(): parse request → call service → return DTO
@@ -194,7 +194,7 @@ This template applies **uniformly** to all 9 feature modules:
 ├── events/                                    # Domain events (async decoupling)
 │   └── [event-name].event.ts                  #   Plain TS class dispatched via EventEmitter2
 │
-├── [module].module.ts                         # NestJS @Module(): providers, imports, exports
+├── [module].module.ts                         # Express.js @Module(): providers, imports, exports
 └── README.md                                  # Purpose, exported services, endpoints, usage examples
 ```
 
@@ -202,13 +202,13 @@ This template applies **uniformly** to all 9 feature modules:
 
 | Folder | Responsibility | May Depend On | Must NOT |
 |---|---|---|---|
-| `dto/` | Input validation + output shaping | `class-validator`, `class-transformer`, `@nestjs/swagger` | Business logic |
-| `schemas/` | Mongoose document definition, indexes, virtuals | `mongoose`, `@nestjs/mongoose` | HTTP layer, services |
-| `interfaces/` | Domain contracts, TypeScript types/enums | Pure TypeScript only | NestJS, Mongoose |
+| `dto/` | Input validation + output shaping | `class-validator`, `class-transformer`, `@express/swagger` | Business logic |
+| `schemas/` | Mongoose document definition, indexes, virtuals | `mongoose`, `@express/mongoose` | HTTP layer, services |
+| `interfaces/` | Domain contracts, TypeScript types/enums | Pure TypeScript only | Express.js, Mongoose |
 | `controllers/` | HTTP method handlers, route mapping | Same module's service, DTOs, guards/decorators | Any business if/else logic |
 | `services/` | Business rules, transactions, orchestration | Same module's repository, SharedModule, adapters | Direct Mongoose Model, HTTP layer |
 | `repositories/` | Mongoose queries, projections, aggregations | Mongoose Model (inject), BaseRepository | Business logic, HTTP layer |
-| `events/` | Domain event class definitions | Plain TypeScript | Any NestJS/Mongoose import |
+| `events/` | Domain event class definitions | Plain TypeScript | Any Express.js/Mongoose import |
 | `*.module.ts` | DI wiring: providers, imports, exports | Modules in the dependency map | Circular imports |
 
 ---
@@ -262,7 +262,7 @@ graph TD
 ```
 
 **Legend:**
-- `→` Solid: NestJS `imports: [ModuleX]` — can use exported providers
+- `→` Solid: Express.js `imports: [ModuleX]` — can use exported providers
 - `-. ->` Dotted: Guards applied via `@UseGuards()` decorator — module is not imported
 - `==` Bold: Async `EventEmitter2` emit/listen — fully decoupled
 
@@ -282,7 +282,7 @@ graph TD
 
 ---
 
-## 4. Module Detail — 9 NestJS Modules
+## 4. Module Detail — 9 Express.js Modules
 
 ### 4.1 AuthModule — `src/modules/auth/`
 

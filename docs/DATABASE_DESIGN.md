@@ -1,6 +1,6 @@
 # DATABASE DESIGN — SMART ECOMMERCE AI SYSTEM
 **Version:** 2.0.0 | **Date:** 2026-04-01 | **Author:** Solo Developer
-**Database:** MongoDB Atlas M0 (Free Tier) | **ODM:** Mongoose 8.x | **Runtime:** NestJS (TypeScript)
+**Database:** MongoDB Atlas M0 (Free Tier) | **ODM:** Mongoose 8.x | **Runtime:** Express.js (TypeScript)
 
 ---
 
@@ -240,7 +240,7 @@ erDiagram
 
 > **Import pattern** (applies to all schemas below):
 > ```typescript
-> import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+> import { Prop, Schema, SchemaFactory } from '@express/mongoose';
 > import { Document, Types } from 'mongoose';
 > import * as mongoose from 'mongoose';
 > ```
@@ -1330,7 +1330,7 @@ export class PushSubscription extends Document {
 
 ### 3.15 error_logs
 
-**Purpose:** Stores all unhandled exceptions from the NestJS `AllExceptionsFilter`. Completely replaces Sentry. INSERT-ONLY — the app service account has no UPDATE/DELETE permission on this collection.
+**Purpose:** Stores all unhandled exceptions from the Express.js `AllExceptionsFilter`. Completely replaces Sentry. INSERT-ONLY — the app service account has no UPDATE/DELETE permission on this collection.
 
 **Mongoose Schema:**
 
@@ -1523,7 +1523,7 @@ export const REDIS_KEYS = {
 
 ### 6.2 getOrSet Helper Pattern
 
-All Redis reads in NestJS use this helper to prevent cache stampedes and ensure consistent TTL:
+All Redis reads in Express.js use this helper to prevent cache stampedes and ensure consistent TTL:
 
 ```typescript
 // src/shared/redis/redis.service.ts
