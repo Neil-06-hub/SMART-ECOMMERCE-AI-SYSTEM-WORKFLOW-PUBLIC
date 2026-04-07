@@ -17,34 +17,26 @@
 
 ---
 
-## Phase 0 — Foundation & Monorepo Scaffold
+## Phase 0 — Foundation & Scaffold
 
 **Skill:** `/devops-ci` then manual scaffold
 
 ### Steps:
-1. **Init monorepo** — create root `package.json` (npm workspaces), `tsconfig.base.json`
-2. **Scaffold apps:**
+1. **Scaffold apps:**
    ```
-   apps/api/          ← Express.js 10 (nest new --skip-git)
-   apps/web/          ← Next.js 15 (npx create-next-app@latest)
+   backend/           ← Express.js (Node.js/JS MVC)
+   apps/web/          ← Next.js 15 (React 18)
    apps/ai-service/   ← FastAPI 0.111 (manual + pyproject.toml)
-   libs/shared/       ← TS types + constants (manual)
-   infra/             ← docker-compose.yml
-   scripts/           ← seed/ migrations/
    .github/workflows/ ← CI pipelines
    ```
-3. **Install Express.js deps:**
+2. **Install Express.js deps (inside `backend/`):**
    ```
-   @express/mongoose mongoose
-   @express/bull bullmq
-   @express/jwt @express/passport passport-jwt
-   ioredis @upstash/redis
-   opossum (circuit breaker)
-   eventemitter2
-   class-validator class-transformer
-   nodemailer web-push
+   mongoose
+   jsonwebtoken bcryptjs
+   cloudinary multer multer-storage-cloudinary
+   nodemailer cors dotenv
    ```
-4. **Install FastAPI deps** (`pyproject.toml`):
+3. **Install FastAPI deps** (`pyproject.toml`):
    ```
    fastapi==0.111, uvicorn[standard], pydantic-settings
    lightfm==1.17, scikit-learn==1.4
@@ -52,52 +44,37 @@
    boto3 (Cloudflare R2 via S3 SDK)
    underthesea (Vietnamese NLP — optional, whitespace fallback ok)
    ```
-5. **Configure tsconfig aliases** in `apps/api/tsconfig.json`:
-   ```json
-   "@modules/*" → "src/modules/*"
-   "@shared/*"  → "src/shared/*"
-   "@config/*"  → "src/shared/config/*"
-   "@lib/*"     → "../../libs/shared/src/*"
-   ```
-6. **Docker Compose** (`infra/docker-compose.yml`) — 8 services:
-   MongoDB, Redis (Upstash proxy), Meilisearch, Express.js, FastAPI, Next.js, nginx
-7. **libs/shared/src/constants/error-codes.ts** — define all error code strings (first file written)
-8. **libs/shared/src/types/** — shared TS types (ProductSummary, OrderSummary, etc.)
+4. **Environment Variables Config**
+   Configure `.env` in `backend/` and `apps/web/`.
 
 ---
 
-## Phase 1 — Express.js Backend (9 Modules)
+## Phase 1 — Express.js Backend (MVC JavaScript)
 
 **Skill workflow:** `/architect` → `/database-manager` → `/backend-express` → `/api-contract` → `/security-guard` → `/test-engineer` → `/code-reviewer`
 
-### 1.1 SharedModule (Global)
+### 1.1 Core Configuration (Global)
 
-Files to create:
-- `src/shared/database/mongoose.provider.ts` — MongoDB Atlas connection
-- `src/shared/redis/redis.service.ts` — `getOrSet()` helper, all key builders
-- `src/shared/interceptors/response.interceptor.ts` — standard envelope wrapper
-- `src/shared/filters/http-exception.filter.ts` — error envelope
-- `src/shared/guards/jwt-auth.guard.ts` + `roles.guard.ts`
-- `src/shared/decorators/roles.decorator.ts` + `current-user.decorator.ts`
-- `src/shared/config/` — pydantic-style env validation
+Files to create/maintain:
+- `backend/server.js` — Express API entry point
+- `backend/config/db.js` — MongoDB Atlas connection
+- `backend/middleware/authMiddleware.js` — JWT auth and roles verification
+- `backend/middleware/errorMiddleware.js` — global error handling
 
-### 1.2 AuthModule
+### 1.2 Auth & User Management
 
 Collections: `users`
 Endpoints:
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/refresh`
-- `POST /api/v1/auth/logout`
-- `GET/PATCH /api/v1/auth/profile`
-- `POST /api/v1/auth/addresses`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET/PUT /api/users/profile`
+- `POST /api/users/addresses`
 
 Key logic:
-- bcrypt hash (rounds=12), JWT RS256 (access 15min, refresh 7d)
-- Refresh token stored in Redis: `sess:{SHA256(token)}` TTL 7d
-- Soft delete on users: `{ deletedAt: null }` everywhere
+- `bcryptjs` hash, JWT tokens for auth.
+- Soft delete on users.
 
-### 1.3 CatalogModule
+### 1.3 Catalog (Products & Categories)
 
 Collections: `products`, `categories`, `reviews`
 Endpoints:
