@@ -9,22 +9,41 @@ const getPersonalizedRecommendations = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Lấy lịch sử hoạt động gần nhất
-    const activities = await Activity.find({ user: userId })
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .populate("product", "tags category");
+    // Gọi FastAPI thay vì tính toán nội bộ
+    const fastApiUrl = process.env.FASTAPI_URL || "http://127.0.0.1:8000";
+    
+    // Yêu cầu gợi ý
+    const response = await fetch(`${fastApiUrl}/recommend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: userId.toString(),
+        placement: "homepage",
+        n: 8
+      })
+    });
 
-    if (activities.length === 0) {
-      // Nếu chưa có lịch sử -> trả về sản phẩm nổi bật
-      const products = await Product.find({ isActive: true, featured: true }).limit(8);
-      return res.json({ success: true, products, type: "featured", message: "Sản phẩm nổi bật" });
+    if (!response.ok) {
+      throw new Error(`FastAPI responded with status: ${response.status}`);
     }
 
-    const recommendations = await getCollaborativeRecommendations(userId, activities);
-    res.json({ success: true, products: recommendations, type: "personalized", message: "Gợi ý dành riêng cho bạn" });
+    const data = await response.json();
+    
+    // Lấy thông tin chi tiết sản phẩm từ MongoDB dựa trên ID trả về từ FastAPI
+    const products = await Product.find({ _id: { $in: data.productIds } });
+    
+    res.json({ 
+      success: true, 
+      products: products, 
+      type: "personalized_ai", 
+      message: "Gợi ý thông minh từ AI Model",
+      version: data.model_version
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.error("FastAPI Error:", err);
+    // Fallback: Nếu FastAPI lỗi, trả về sản phẩm nổi bật
+    const products = await Product.find({ isActive: true, featured: true }).limit(8);
+    res.json({ success: true, products, type: "featured_fallback", message: "Phát hiện lỗi AI, hiển thị SP nổi bật" });
   }
 };
 
