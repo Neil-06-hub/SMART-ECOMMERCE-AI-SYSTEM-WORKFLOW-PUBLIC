@@ -10,6 +10,15 @@ const userSchema = new mongoose.Schema(
     avatar: { type: String, default: "" },
     phone: { type: String, default: "" },
     address: { type: String, default: "" },
+    addresses: [
+      {
+        fullName: { type: String },
+        phone: { type: String },
+        street: { type: String },
+        city: { type: String },
+        isDefault: { type: Boolean, default: false }
+      }
+    ],
     dob: { type: Date, default: null },
     gender: { type: String, enum: ["Nam", "Nữ", "Khác", ""], default: "" },
     // Tags sở thích dùng cho AI Recommendation
@@ -21,6 +30,8 @@ const userSchema = new mongoose.Schema(
     // Theo dõi trạng thái cart bỏ quên để trigger Marketing
     cartAbandonedAt: { type: Date, default: null },
     cartAbandonedNotified: { type: Boolean, default: false },
+    // Soft delete
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
