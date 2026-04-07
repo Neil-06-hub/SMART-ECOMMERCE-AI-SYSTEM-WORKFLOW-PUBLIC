@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This repository currently contains **design documentation only** — no application source code has been scaffolded yet. All docs live in `docs/`. The planned monorepo will have three deployable units:
 
 ```
-apps/api/          ← NestJS 10 (Render.com)
+apps/api/          ← Express.js 10 (Render.com)
 apps/web/          ← Next.js 15 (Vercel)
 apps/ai-service/   ← FastAPI 0.111 + Celery (Render.com)
 libs/shared/       ← Shared TypeScript types + constants
@@ -28,7 +28,7 @@ Read these before writing any code:
 | [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) | 62 FRs (Must/Should/Could), 7 business goals with targets, 4 personas |
 | [`docs/TECH_STACK.md`](docs/TECH_STACK.md) | Every technology choice + why-not alternatives, $0/month free tier breakdown |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System diagram, 9 SPOFs, 3 ADRs, API response envelope, RBAC, circuit breaker |
-| [`docs/MODULE_STRUCTURE.md`](docs/MODULE_STRUCTURE.md) | Exact monorepo tree, 9 NestJS module file lists, dependency rules, naming conventions, tsconfig aliases |
+| [`docs/MODULE_STRUCTURE.md`](docs/MODULE_STRUCTURE.md) | Exact monorepo tree, 9 Express.js module file lists, dependency rules, naming conventions, tsconfig aliases |
 | [`docs/DATABASE_DESIGN.md`](docs/DATABASE_DESIGN.md) | 14 MongoDB collections, full Mongoose schemas (TypeScript), 45 indexes, Redis key patterns, 5 query patterns |
 
 ---
@@ -37,7 +37,7 @@ Read these before writing any code:
 
 Once the codebase is scaffolded, the following commands apply.
 
-### NestJS API (`apps/api/`)
+### Express.js API (`apps/api/`)
 ```bash
 npm run start:dev      # hot reload
 npm run build          # tsc compile
@@ -68,7 +68,7 @@ pytest --cov=. --cov-report=html
 ```bash
 docker compose up -d                         # all 8 services
 docker compose up -d mongodb redis meilisearch   # infra only
-docker compose logs -f nestjs
+docker compose logs -f express
 docker compose down -v                       # reset including volumes
 ```
 
@@ -92,16 +92,16 @@ npx ts-node scripts/migrations/YYYYMMDD_description.ts
 
 ```
 Browser → Cloudflare → Vercel (Next.js SSR/SSG)
-                     → Render.com: NestJS :3000 ──internal HTTP──→ FastAPI :8000
+                     → Render.com: Express.js :3000 ──internal HTTP──→ FastAPI :8000
                                       │                                   │
                                   MongoDB Atlas M0              Celery Worker + Beat
                                   Upstash Redis 7
                                   Meilisearch Cloud
 ```
 
-NestJS and FastAPI are the only two server processes. Everything else is a managed service. FastAPI is purely for ML inference and training — no business logic lives there.
+Express.js and FastAPI are the only two server processes. Everything else is a managed service. FastAPI is purely for ML inference and training — no business logic lives there.
 
-### NestJS Module Boundaries
+### Express.js Module Boundaries
 
 Nine feature modules, each owning its MongoDB collections and BullMQ queues:
 
@@ -125,7 +125,7 @@ Cross-module async communication uses `EventEmitter2` exclusively (no direct ser
 Browser event → POST /api/v1/events → Redis XADD behavioral:events (MAXLEN 50k)
              ← [batch every 5s/500 events] → Celery consumer → MongoDB bulk insert
 
-GET /recommendations → NestJS RecommendationModule
+GET /recommendations → Express.js RecommendationModule
   → opossum circuit breaker (500ms timeout)
   → [OPEN] FastAPI /recommend/{userId} (LightFM CF + sklearn CBF, α-weighted)
   → [CLOSED/fallback] Redis fallback:popular:{placement}
@@ -176,4 +176,30 @@ fetch_features_from_mongo → train_CF_model (LightFM ~10min) → evaluate
 ```
 Error codes are defined in `libs/shared/src/constants/error-codes.ts` — never use raw strings.
 
-**Render.com spin-down:** Both NestJS and FastAPI sleep after 15min idle. UptimeRobot pings `GET /health` every 5 minutes in production to prevent this.
+**Render.com spin-down:** Both Express.js and FastAPI sleep after 15min idle. UptimeRobot pings `GET /health` every 5 minutes in production to prevent this.
+
+---
+
+## AI Skill Agents
+
+10 specialized skill agents in `.claude/commands/`. Invoke with `/command-name`.
+
+| Task | Command |
+|---|---|
+| Validate architecture, module boundaries, circular imports | `/architect` |
+| Scaffold Express.js module, endpoint, DTO, repository, service | `/backend-express` |
+| Build Next.js page, component, TanStack Query hook | `/frontend-nextjs` |
+| ML training pipeline, FastAPI routes, feature store, circuit breaker | `/ai-ml-engineer` |
+| MongoDB schema, index design, Redis key patterns, aggregation | `/database-manager` |
+| Validate endpoints against API_SPECIFICATIONS.md, generate DTOs | `/api-contract` |
+| GitHub Actions workflows, Docker Compose, Render/Vercel deployment | `/devops-ci` |
+| JWT, RBAC guards, bcrypt, VNPay webhook security, OWASP review | `/security-guard` |
+| Jest unit tests, Express.js e2e specs, pytest for FastAPI | `/test-engineer` |
+| Code review, fix TypeScript errors, Redis quota audit | `/code-reviewer` |
+
+**Standard feature development workflow:**
+```
+/architect → /database-manager → /backend-express → /api-contract → /security-guard → /test-engineer → /code-reviewer
+```
+
+**Architecture documentation:** See `docs/AI_LAYER_ARCHITECTURE.md` for the full 4-layer system design.

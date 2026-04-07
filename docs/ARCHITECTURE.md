@@ -9,7 +9,7 @@
 
 ---
 
-## Mục Lục
+## Table of Contents
 
 1. [Architecture Style & Rationale](#1-architecture-style--rationale)
 2. [System Architecture Diagram](#2-system-architecture-diagram)
@@ -25,39 +25,39 @@
 
 ## 1. Architecture Style & Rationale
 
-### 1.1 Lựa Chọn: "Majestic Monolith + AI Sidecar"
+### 1.1 Choice: "Majestic Monolith + AI Sidecar"
 
-Hệ thống gồm **hai deployable units** duy nhất:
+The system consists of exactly **two deployable units**:
 
-| Unit | Runtime | Vai Trò |
+| Unit | Runtime | Role |
 |---|---|---|
-| **NestJS API** | Node.js 20 LTS | Toàn bộ business logic: catalog, cart, order, payment, marketing, notification, analytics |
-| **FastAPI AI Service** | Python 3.11 | Chỉ phục vụ ML inference + training — lý do duy nhất tách riêng: Python ecosystem |
+| **Express.js API** | Node.js 20 LTS | All business logic: catalog, cart, order, payment, marketing, notification, analytics |
+| **FastAPI AI Service** | Python 3.11 | Serves only ML inference + training — the sole reason for separating it: Python ecosystem |
 
-Kết nối giữa hai units: **internal REST call** (NestJS → FastAPI) với circuit breaker bảo vệ, **Redis** làm shared cache layer (feature store + rec cache).
+Connection between the two units: **internal REST call** (Express.js → FastAPI) protected by a circuit breaker, with **Redis** as a shared cache layer (feature store + rec cache).
 
-### 1.2 Tại Sao KHÔNG Microservices
+### 1.2 Why NOT Microservices
 
-| Lý Do | Giải Thích |
+| Reason | Explanation |
 |---|---|
-| 1 developer + AI tools | Distributed system overhead (service discovery, inter-service auth, distributed tracing, saga pattern) = unmanageable cho solo developer |
-| Timeline 16 tuần / ~40 FRs | Development velocity > architectural isolation. Monolith = no network latency giữa modules |
-| Scale hiện tại | 100k user/month, 5k concurrent peak không cần horizontal split per domain |
-| Budget $0 | Mỗi microservice = 1 Render slot; free tier chỉ có 2 slots (đủ cho NestJS + FastAPI) |
-| "Make it work first" | Monolith với clear boundaries → refactor sang microservices khi thực sự cần |
+| 1 developer + AI tools | Distributed system overhead (service discovery, inter-service auth, distributed tracing, saga pattern) = unmanageable for a solo developer |
+| 16-week timeline / ~40 FRs | Development velocity > architectural isolation. Monolith = no network latency between modules |
+| Current scale | 100k users/month, 5k concurrent peak does not require horizontal split per domain |
+| Budget $0 | Each microservice = 1 Render slot; free tier only has 2 slots (sufficient for Express.js + FastAPI) |
+| "Make it work first" | Monolith with clear boundaries → refactor to microservices when truly needed |
 
 ### 1.3 Migration Path — Strangler Fig Pattern
 
 ```
-Phase 1 (hiện tại):    [NestJS Monolith] + [FastAPI AI Sidecar]
-                           ↓ (nếu cần scale, sau graduation)
-Phase 2:               [NestJS Core] + [RecommendationService] + [FastAPI AI]
+Phase 1 (current):     [Express.js Monolith] + [FastAPI AI Sidecar]
+                           ↓ (if scaling is needed, after graduation)
+Phase 2:               [Express.js Core] + [RecommendationService] + [FastAPI AI]
                        (extract RecommendationModule → standalone service)
-                           ↓ (nếu marketing batch jobs trở nên quá nặng)
-Phase 3:               [NestJS Core] + [RecommendationService] + [MarketingService] + [FastAPI AI]
+                           ↓ (if marketing batch jobs become too heavy)
+Phase 3:               [Express.js Core] + [RecommendationService] + [MarketingService] + [FastAPI AI]
 ```
 
-**Nguyên tắc Strangler Fig:** Không big-bang rewrite. Module nào chịu tải cao nhất → extract ra trước. NestJS module boundaries hôm nay = future service boundaries.
+**Strangler Fig principle:** No big-bang rewrite. The module with the highest load → extracted first. Express.js module boundaries today = future service boundaries.
 
 ---
 
@@ -68,24 +68,24 @@ graph TD
     Browser["Browser\nNext.js 15 App"]
 
     Browser -->|"SSR/SSG pages\n(Vercel free — built-in CDN edge)"| Vercel["Vercel\nNext.js 15\nSSR · SSG · ISR · CSR\nGlobal CDN Edge (Singapore PoP)"]
-    Browser -->|"/api/v1/*\nHTTPS direct"| NestJS
+    Browser -->|"/api/v1/*\nHTTPS direct"| Express.js
 
     subgraph Render["Render.com — Free Tier"]
-        NestJS["NestJS 10\nModular Monolith\nNode.js 20 LTS\n:3000"]
+        Express.js["Express.js 10\nModular Monolith\nNode.js 20 LTS\n:3000"]
         FastAPI["FastAPI 0.111\nPython 3.11\nLightFM + TF-IDF CBF\n:8000"]
     end
 
     GHA["GitHub Actions\nML Training Cron\n02:00 ICT daily"] -->|"POST /internal/reload-model"| FastAPI
 
-    NestJS -->|"POST /recommend\ncircuit breaker\n500ms timeout"| FastAPI
+    Express.js -->|"POST /recommend\ncircuit breaker\n500ms timeout"| FastAPI
 
     subgraph DataLayer["Data Layer"]
         MongoDB["MongoDB Atlas M0\nfree 512MB · no expiry\nMongoose ODM · Atlas Search"]
         Redis["Redis 7 — Upstash\nfree 10k cmd/day\nAI Rec Cache · BullMQ(email)\nFeature Store"]
     end
 
-    NestJS -->|"Mongoose queries"| MongoDB
-    NestJS -->|"cache · BullMQ"| Redis
+    Express.js -->|"Mongoose queries"| MongoDB
+    Express.js -->|"cache · BullMQ"| Redis
     FastAPI -->|"feature store read\nRec cache write"| Redis
 
     subgraph Storage["Object Storage"]
@@ -93,13 +93,13 @@ graph TD
     end
 
     FastAPI -->|"upload model .pkl\nafter training"| R2
-    NestJS -->|"upload product images\nvia presigned URL"| R2
+    Express.js -->|"upload product images\nvia presigned URL"| R2
 
-    subgraph BullMQ_Box["BullMQ — inside NestJS process"]
+    subgraph BullMQ_Box["BullMQ — inside Express.js process"]
         EmailQ["email-queue\nOrder confirm · Marketing\nAbandoned cart"]
     end
 
-    NestJS --- EmailQ
+    Express.js --- EmailQ
 
     subgraph External["External Services"]
         VNPay["VNPay\nsandbox"]
@@ -107,9 +107,9 @@ graph TD
         WebPush["Web Push VAPID\nBrowser native\nself-hosted"]
     end
 
-    NestJS --> VNPay
+    Express.js --> VNPay
     EmailQ --> Gmail
-    NestJS --> WebPush
+    Express.js --> WebPush
 
     subgraph DevOps["DevOps"]
         GH["GitHub Actions\nCI/CD Pipelines"]
@@ -121,35 +121,35 @@ graph TD
 
 ### 2.1 SSL/TLS Architecture (Without Cloudflare CDN Proxy)
 
-Kể từ ADR-004 (loại bỏ Cloudflare CDN proxy), SSL/TLS được xử lý trực tiếp bởi managed hosting:
+Since ADR-004 (removing the Cloudflare CDN proxy), SSL/TLS is handled directly by the managed hosting providers:
 
 | Service | TLS Provider | Certificate | Auto-Renew |
 |---|---|---|---|
 | **Vercel** (Next.js) | Let's Encrypt via Vercel | Issued for custom domain automatically | ✅ Yes |
-| **Render.com** (NestJS + FastAPI) | Let's Encrypt via Render | Issued for `*.onrender.com` subdomain | ✅ Yes |
+| **Render.com** (Express.js + FastAPI) | Let's Encrypt via Render | Issued for `*.onrender.com` subdomain | ✅ Yes |
 | **Cloudflare R2** | Cloudflare built-in | For R2 public bucket URLs | ✅ Yes |
 
-Không cần cấu hình SSL thủ công. Không cần Cloudflare làm SSL termination proxy.
+No manual SSL configuration is needed. Cloudflare does not need to act as an SSL termination proxy.
 
 ### 2.2 Request Flow Summary
 
-| Luồng | Path |
+| Flow | Path |
 |---|---|
-| **Page load (SSR)** | Browser → Vercel Edge CDN → Next.js RSC → NestJS API (nếu cần server data) |
-| **API call** | Browser → NestJS `/api/v1/*` (HTTPS direct, TLS via Render) |
-| **Search** | Browser → NestJS → MongoDB Atlas Search → response |
-| **AI Recommendation** | Browser → NestJS RecommendationModule → Redis cache check → (miss) → FastAPI → Redis feature store → LightFM+CBF → NestJS cache → response |
-| **Behavioral Event** | Browser → NestJS → async MongoDB insert (fire-and-forget) |
+| **Page load (SSR)** | Browser → Vercel Edge CDN → Next.js RSC → Express.js API (if server data is needed) |
+| **API call** | Browser → Express.js `/api/v1/*` (HTTPS direct, TLS via Render) |
+| **Search** | Browser → Express.js → MongoDB Atlas Search → response |
+| **AI Recommendation** | Browser → Express.js RecommendationModule → Redis cache check → (miss) → FastAPI → Redis feature store → LightFM+CBF → Express.js cache → response |
+| **Behavioral Event** | Browser → Express.js → async MongoDB insert (fire-and-forget) |
 | **Training pipeline** | GitHub Actions cron 02:00 ICT → fetch MongoDB → train LightFM → evaluate → promote → upload R2 → hot-reload FastAPI |
-| **Payment** | Browser → NestJS → VNPay → webhook callback → NestJS HMAC verify → update order |
-| **Email** | NestJS → BullMQ `email-queue` → nodemailer → Gmail SMTP → inbox |
-| **Error logging** | NestJS AllExceptionsFilter → async MongoDB `error_logs` insert (fire-and-forget) |
+| **Payment** | Browser → Express.js → VNPay → webhook callback → Express.js HMAC verify → update order |
+| **Email** | Express.js → BullMQ `email-queue` → nodemailer → Gmail SMTP → inbox |
+| **Error logging** | Express.js AllExceptionsFilter → async MongoDB `error_logs` insert (fire-and-forget) |
 
 ---
 
 ## 3. Core Service Breakdown
 
-### 3.1 NestJS Bootstrap Sequence (`main.ts`)
+### 3.1 Express.js Bootstrap Sequence (`main.ts`)
 
 ```typescript
 async function bootstrap() {
@@ -192,7 +192,7 @@ async function bootstrap() {
 }
 ```
 
-### 3.2 NestJS Module Architecture
+### 3.2 Express.js Module Architecture
 
 ```mermaid
 graph TD
@@ -263,15 +263,15 @@ stateDiagram-v2
     REFUNDED --> [*]
 ```
 
-**Quy tắc transition:**
-- Stock deducted: khi PAID → PROCESSING
-- Stock restored: khi → CANCELLED hoặc → REFUNDED
-- Refund triggered: khi PAID → CANCELLED (auto) hoặc khi admin approves RETURN_REQUESTED
-- EventEmitter2 fires `order.status.changed` on every transition → NotificationModule gửi email
+**Transition rules:**
+- Stock deducted: when PAID → PROCESSING
+- Stock restored: when → CANCELLED or → REFUNDED
+- Refund triggered: when PAID → CANCELLED (auto) or when admin approves RETURN_REQUESTED
+- EventEmitter2 fires `order.status.changed` on every transition → NotificationModule sends email
 
 ### 3.5 Cross-Module Event Communication
 
-Tất cả async cross-module communication dùng **EventEmitter2** (không inject service trực tiếp):
+All async cross-module communication uses **EventEmitter2** (no direct service injection):
 
 | Event | Emitter | Listener | Payload |
 |---|---|---|---|
@@ -295,7 +295,7 @@ ai-service/
 │   ├── config.py                  # pydantic-settings: REDIS_URL, MONGO_URI, R2_*
 │   ├── routers/
 │   │   ├── recommend.py           # POST /recommend
-│   │   ├── features.py            # POST /features/update (NestJS internal call)
+│   │   ├── features.py            # POST /features/update (Express.js internal call)
 │   │   └── internal.py            # POST /internal/reload-model (GitHub Actions call)
 │   ├── services/
 │   │   ├── cf_service.py          # LightFM model load + predict()
@@ -320,42 +320,42 @@ ai-service/
 ```mermaid
 sequenceDiagram
     participant Browser
-    participant NestJS as NestJS\nRecommendationModule
+    participant Express.js as Express.js\nRecommendationModule
     participant Circuit as Circuit Breaker\n(opossum)
     participant Redis
     participant FastAPI as FastAPI\nAI Service
     participant MongoDB
 
-    Browser->>NestJS: GET /api/v1/recommendations\n?placement=homepage&n=12
-    NestJS->>Redis: GET rec:{userId}:homepage
+    Browser->>Express.js: GET /api/v1/recommendations\n?placement=homepage&n=12
+    Express.js->>Redis: GET rec:{userId}:homepage
 
     alt Cache HIT (TTL 10 min — target: 80% hit rate)
-        Redis-->>NestJS: [productId, ...]
-        NestJS-->>Browser: 200 OK {data: products[], source: "cache"}
+        Redis-->>Express.js: [productId, ...]
+        Express.js-->>Browser: 200 OK {data: products[], source: "cache"}
 
     else Cache MISS
-        NestJS->>Circuit: callFastApiRecommend(userId, placement, n)
+        Express.js->>Circuit: callFastApiRecommend(userId, placement, n)
         Circuit->>FastAPI: POST /recommend\n(timeout: 500ms hard limit)
 
         alt FastAPI OK (< 500ms)
             FastAPI->>Redis: HGETALL features:user:{userId}
             Redis-->>FastAPI: {recent_views, categories, price_range, rfm_segment}
             FastAPI->>FastAPI: CF_score = LightFM.predict(userId, all_items)\nCBF_score = cosine_sim[item_vector]\nhybrid = α×CF + (1-α)×CBF\npost_filter: remove OOS + already-in-cart\ntop_N = argsort(hybrid_score)[:12]
-            FastAPI-->>NestJS: {productIds[], scores[], model_version}
-            NestJS->>Redis: SETEX rec:{userId}:homepage 600 [productIds]
-            NestJS-->>Browser: 200 OK {data: products[], source: "ai"}
+            FastAPI-->>Express.js: {productIds[], scores[], model_version}
+            Express.js->>Redis: SETEX rec:{userId}:homepage 600 [productIds]
+            Express.js-->>Browser: 200 OK {data: products[], source: "ai"}
 
         else FastAPI TIMEOUT or ERROR
-            Circuit-->>NestJS: CircuitOpenError (opens after 50% error rate)
-            NestJS->>Redis: GET fallback:popular:homepage
+            Circuit-->>Express.js: CircuitOpenError (opens after 50% error rate)
+            Express.js->>Redis: GET fallback:popular:homepage
             alt Fallback cache exists
-                Redis-->>NestJS: popular productIds
+                Redis-->>Express.js: popular productIds
             else Fallback cache miss
-                NestJS->>MongoDB: aggregate behavioral_events\n{7 days, sort viewCount desc, limit 12}
-                MongoDB-->>NestJS: popular products
-                NestJS->>Redis: SETEX fallback:popular:homepage 3600 [productIds]
+                Express.js->>MongoDB: aggregate behavioral_events\n{7 days, sort viewCount desc, limit 12}
+                MongoDB-->>Express.js: popular products
+                Express.js->>Redis: SETEX fallback:popular:homepage 3600 [productIds]
             end
-            NestJS-->>Browser: 200 OK {data: products[], source: "fallback"}
+            Express.js-->>Browser: 200 OK {data: products[], source: "fallback"}
         end
     end
 ```
@@ -427,7 +427,7 @@ Fields:
   total_orders          integer count
 
 Update triggers:
-  - On behavioral event (view, purchase) → NestJS calls POST /features/update → FastAPI updates Redis
+  - On behavioral event (view, purchase) → Express.js calls POST /features/update → FastAPI updates Redis
   - On order completed → OrderModule emits event → RecommendationModule updates features
   - TTL refresh: on every update (sliding expiry)
 
@@ -592,7 +592,7 @@ Example:
 | `POST /events` (behavioral) | 500 req | per minute per user | Memory (in-process, reset on restart) |
 | `GET /api/v1/*` (general) | 100 req | per minute per user | Redis |
 
-Implementation: `@nestjs/throttler` with `ThrottlerModule.forRootAsync` using `ThrottlerStorageRedisService`.
+Implementation: `@express/throttler` with `ThrottlerModule.forRootAsync` using `ThrottlerStorageRedisService`.
 
 ---
 
@@ -603,40 +603,40 @@ Implementation: `@nestjs/throttler` with `ThrottlerModule.forRootAsync` using `T
 ```mermaid
 sequenceDiagram
     participant Client
-    participant NestJS as NestJS AuthModule
+    participant Express.js as Express.js AuthModule
     participant Redis as Redis (Upstash)
     participant MongoDB
 
     Note over Client,MongoDB: LOGIN
-    Client->>NestJS: POST /api/v1/auth/login {email, password}
-    NestJS->>MongoDB: users.findOne({email, deletedAt: null})
-    MongoDB-->>NestJS: user {_id, passwordHash, roles, status}
-    NestJS->>NestJS: bcrypt.compare(password, hash) — cost 12
+    Client->>Express.js: POST /api/v1/auth/login {email, password}
+    Express.js->>MongoDB: users.findOne({email, deletedAt: null})
+    MongoDB-->>Express.js: user {_id, passwordHash, roles, status}
+    Express.js->>Express.js: bcrypt.compare(password, hash) — cost 12
     alt Matches
-        NestJS->>NestJS: sign accessToken RS256\n{sub: userId, roles, exp: now+15min}
-        NestJS->>NestJS: generate refreshToken = crypto.randomUUID()\nhash = SHA-256(token)
-        NestJS->>Redis: SETEX sess:{hash} 604800 {userId, roles}
-        NestJS-->>Client: 200 {accessToken}\nSet-Cookie: refreshToken=...\n  HttpOnly; Secure; SameSite=Strict
+        Express.js->>Express.js: sign accessToken RS256\n{sub: userId, roles, exp: now+15min}
+        Express.js->>Express.js: generate refreshToken = crypto.randomUUID()\nhash = SHA-256(token)
+        Express.js->>Redis: SETEX sess:{hash} 604800 {userId, roles}
+        Express.js-->>Client: 200 {accessToken}\nSet-Cookie: refreshToken=...\n  HttpOnly; Secure; SameSite=Strict
     else Wrong password
-        NestJS-->>Client: 401 AUTH_CREDENTIALS_INVALID
+        Express.js-->>Client: 401 AUTH_CREDENTIALS_INVALID
     end
 
     Note over Client,MongoDB: AUTHENTICATED REQUEST
-    Client->>NestJS: GET /api/v1/orders\nAuthorization: Bearer {accessToken}
-    NestJS->>NestJS: JwtAuthGuard: verify RS256 + check exp
-    NestJS->>NestJS: RolesGuard: req.user.roles vs @Roles() decorator
-    NestJS-->>Client: 200 {orders}
+    Client->>Express.js: GET /api/v1/orders\nAuthorization: Bearer {accessToken}
+    Express.js->>Express.js: JwtAuthGuard: verify RS256 + check exp
+    Express.js->>Express.js: RolesGuard: req.user.roles vs @Roles() decorator
+    Express.js-->>Client: 200 {orders}
 
     Note over Client,MongoDB: TOKEN REFRESH
-    Client->>NestJS: POST /api/v1/auth/refresh (cookie: refreshToken)
-    NestJS->>NestJS: hash = SHA-256(cookie value)
-    NestJS->>Redis: GET sess:{hash}
+    Client->>Express.js: POST /api/v1/auth/refresh (cookie: refreshToken)
+    Express.js->>Express.js: hash = SHA-256(cookie value)
+    Express.js->>Redis: GET sess:{hash}
     alt Session exists
-        Redis-->>NestJS: {userId, roles}
-        NestJS->>Redis: DEL sess:{oldHash}\nSETEX sess:{newHash} 604800 {userId, roles}
-        NestJS-->>Client: 200 {newAccessToken}\nSet-Cookie: newRefreshToken
+        Redis-->>Express.js: {userId, roles}
+        Express.js->>Redis: DEL sess:{oldHash}\nSETEX sess:{newHash} 604800 {userId, roles}
+        Express.js-->>Client: 200 {newAccessToken}\nSet-Cookie: newRefreshToken
     else Not found
-        NestJS-->>Client: 401 AUTH_REFRESH_INVALID
+        Express.js-->>Client: 401 AUTH_REFRESH_INVALID
     end
 ```
 
@@ -745,7 +745,7 @@ services:
     ports: ["6379:6379"]
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
 
-  nestjs:
+  express:
     build: ./apps/api
     ports: ["3001:3001"]
     environment:
@@ -794,7 +794,7 @@ graph TD
     subgraph CI["CI — ci.yml | trigger: pull_request"]
         LINT["ESLint + Prettier"]
         TYPECHECK["tsc --noEmit"]
-        JEST["Jest unit tests (NestJS)"]
+        JEST["Jest unit tests (Express.js)"]
         PYTEST["pytest (FastAPI)"]
         LINT & TYPECHECK & JEST & PYTEST --> GATE{All pass?}
     end
@@ -816,11 +816,11 @@ graph TD
 
     subgraph CD_PROD["CD Production — cd-production.yml | trigger: push main"]
         BUILD_P["Build production images"]
-        NESTJS_P["Deploy NestJS → Render.com production"]
+        EXPRESSJS_P["Deploy Express.js → Render.com production"]
         FASTAPI_P["Deploy FastAPI → Render.com production"]
         NEXT_P["Deploy Next.js → Vercel (auto via Vercel GitHub integration)"]
         HEALTH_CHECK["Health check all 3 services\nlog deployment event to error_logs"]
-        BUILD_P --> NESTJS_P & FASTAPI_P & NEXT_P --> HEALTH_CHECK
+        BUILD_P --> EXPRESSJS_P & FASTAPI_P & NEXT_P --> HEALTH_CHECK
     end
 ```
 
@@ -828,7 +828,7 @@ graph TD
 
 | Service | Mechanism |
 |---|---|
-| **NestJS on Render.com** | Rolling deploy: new container → health check passes → traffic switches → old stops |
+| **Express.js on Render.com** | Rolling deploy: new container → health check passes → traffic switches → old stops |
 | **FastAPI on Render.com** | Same rolling deploy; model hot-reload is in-process (no container restart needed) |
 | **Next.js on Vercel** | Atomic deployments — instant swap, instant rollback to any previous deployment |
 | **MongoDB** | Mongoose flexible schema → additive-only changes → zero migration downtime |
@@ -841,11 +841,11 @@ graph TD
 | SPOF | Severity | Impact | Mitigation Strategy |
 |---|---|---|---|
 | **MongoDB Atlas M0** | HIGH | All read/write fails — complete system down | Mongoose auto-reconnect (3 retries, exponential backoff); Atlas M0 99.9% SLA; daily backup via Atlas scheduled backup |
-| **Render.com NestJS** | HIGH | All API endpoints inaccessible | UptimeRobot alert within 5 min; Render.com 99.5% SLA; rolling deploy = zero downtime during releases |
+| **Render.com Express.js** | HIGH | All API endpoints inaccessible | UptimeRobot alert within 5 min; Render.com 99.5% SLA; rolling deploy = zero downtime during releases |
 | **Render.com FastAPI** | MEDIUM | AI recommendations unavailable | Circuit breaker → popularity fallback in < 100ms; core e-commerce (catalog, cart, order) fully unaffected |
 | **Render.com spin-down** | LOW | 10-15s cold start after 15 min idle | UptimeRobot pings `/health` every 5 min → service never spins down during demo hours |
 | **Upstash Redis** | MEDIUM | AI rec cache cold; email queue paused; feature store miss | Graceful degradation: AI fallback to MongoDB popularity query; BullMQ jobs retry on reconnect; rate limiting degrades to memory store |
-| **Cloudflare R2** | LOW | Product images don't load; model artifacts inaccessible on restart | CDN caches recent images; FastAPI keeps model in-memory (no restart = no R2 needed); NestJS serves placeholder image URL |
+| **Cloudflare R2** | LOW | Product images don't load; model artifacts inaccessible on restart | CDN caches recent images; FastAPI keeps model in-memory (no restart = no R2 needed); Express.js serves placeholder image URL |
 | **Vercel** | MEDIUM | Frontend UI inaccessible | Vercel 99.99% SLA; instant rollback; API still functional (mobile/headless access) |
 | **GitHub Actions** | LOW | CI/CD blocked; daily ML training skipped | Previous model version stays active in FastAPI memory; training resumes automatically next day; local builds unaffected |
 | **Gmail SMTP** | LOW | Transactional + marketing emails undeliverable | BullMQ retries 3× with 5-min exponential backoff; failed jobs logged to `error_logs`; orders still complete (email non-blocking) |
@@ -860,11 +860,11 @@ graph TD
 
 **Context:** 1 developer, 16-week timeline, $0 budget (2 Render free slots), 100k users/month scale.
 
-**Decision:** Single NestJS deployable unit. FastAPI as AI sidecar only (Python ML ecosystem requirement). Clear NestJS module boundaries = future microservice extraction path.
+**Decision:** Single Express.js deployable unit. FastAPI as AI sidecar only (Python ML ecosystem requirement). Clear Express.js module boundaries = future microservice extraction path.
 
 **Consequences:**
 - (+) Development velocity; no distributed system overhead; full ACID transactions in-process
-- (+) Free tier fits: 2 Render slots = NestJS + FastAPI
+- (+) Free tier fits: 2 Render slots = Express.js + FastAPI
 - (-) Cannot scale individual modules independently
 - (-) Single process — module bug can affect overall process (mitigated: ExceptionFilter isolates to HTTP response)
 
@@ -910,7 +910,7 @@ graph TD
 **Decision:** Remove Cloudflare CDN proxy. Rely on:
 - Vercel's built-in global CDN edge (Singapore PoP — ~20-40ms latency to Vietnam)
 - Render.com's built-in HTTPS/TLS (auto-provisioned Let's Encrypt)
-- `@nestjs/throttler` for application-level rate limiting
+- `@express/throttler` for application-level rate limiting
 
 Keep **Cloudflare R2** (object storage — separate product from CDN proxy).
 
