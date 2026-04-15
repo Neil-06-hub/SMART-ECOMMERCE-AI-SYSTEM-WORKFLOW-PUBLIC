@@ -14,6 +14,7 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 
 const User = require("../models/User");
 const Order = require("../models/Order");
+const Product = require("../models/Product"); // required for BehavioralEvent.populate("productId")
 const BehavioralEvent = require("../models/BehavioralEvent");
 const FeatureSnapshot = require("../models/FeatureSnapshot");
 
@@ -47,16 +48,14 @@ function scoreMonetary(avgValue) {
   return 1;
 }
 
+/**
+ * Core seeding logic — can be called from seed.js (already connected) or standalone.
+ */
 const seedFeatureSnapshots = async () => {
-  try {
-    await mongoose.connect(MONGO_URI);
-    console.log("Connected to MongoDB...");
-
     const users = await User.find({ role: "customer" }).select("_id");
 
     if (users.length === 0) {
-      console.error("No users found.");
-      process.exit(1);
+      throw new Error("No users found. Run seed.js to create users first.");
     }
 
     console.log(`Processing feature snapshots for ${users.length} users...`);
@@ -188,26 +187,27 @@ const seedFeatureSnapshots = async () => {
     // Bulk insert all snapshots
     await FeatureSnapshot.insertMany(snapshots, { ordered: false });
 
-    console.log(
-      `\nDone! Created ${snapshots.length} feature snapshots.`
-    );
+    console.log(`\n✅ Created ${snapshots.length} feature snapshots.`);
     console.log("RFM distribution:", {
-      avgR: (
-        snapshots.reduce((s, x) => s + x.rfmScores.r, 0) / snapshots.length
-      ).toFixed(2),
-      avgF: (
-        snapshots.reduce((s, x) => s + x.rfmScores.f, 0) / snapshots.length
-      ).toFixed(2),
-      avgM: (
-        snapshots.reduce((s, x) => s + x.rfmScores.m, 0) / snapshots.length
-      ).toFixed(2),
+      avgR: (snapshots.reduce((s, x) => s + x.rfmScores.r, 0) / snapshots.length).toFixed(2),
+      avgF: (snapshots.reduce((s, x) => s + x.rfmScores.f, 0) / snapshots.length).toFixed(2),
+      avgM: (snapshots.reduce((s, x) => s + x.rfmScores.m, 0) / snapshots.length).toFixed(2),
     });
-
-    process.exit(0);
-  } catch (error) {
-    console.error("Error seeding feature snapshots:", error);
-    process.exit(1);
-  }
 };
 
-seedFeatureSnapshots();
+module.exports = { seedFeatureSnapshots };
+
+// Run standalone: node seeds/06-feature-snapshots.js
+if (require.main === module) {
+  mongoose
+    .connect(MONGO_URI)
+    .then(async () => {
+      console.log("Connected to MongoDB...");
+      await seedFeatureSnapshots();
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error("Error seeding feature snapshots:", err);
+      process.exit(1);
+    });
+}

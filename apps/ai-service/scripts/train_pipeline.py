@@ -173,9 +173,9 @@ def run_pipeline() -> dict:
             train_interactions,
             user_index,
             item_index,
-            no_components=128,
-            epochs=50,
-            num_threads=4,
+            no_components=32,
+            epochs=20,
+            num_threads=1,
         )
 
         # ── Step 4: Evaluate ───────────────────────────────────────────────
@@ -226,8 +226,8 @@ def run_pipeline() -> dict:
                     {
                         "version": version,
                         "metrics": new_metrics,
-                        "n_users": cf_dataset.n_users(),
-                        "n_items": cf_dataset.n_items(),
+                        "n_users": len(cf_dataset.mapping()[0]),
+                        "n_items": len(cf_dataset.mapping()[2]),
                     }
                 ).encode(),
                 f"models/{version}/metadata.json",

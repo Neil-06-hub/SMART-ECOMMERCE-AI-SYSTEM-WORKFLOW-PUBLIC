@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Form, Input, Button, Radio, Row, Col, Typography, message, Space } from 'antd';
-import { CreditCardOutlined, CarOutlined, WalletOutlined, CheckCircleOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Radio, Row, Col, Typography, message, Space, Tag } from 'antd';
+import { CreditCardOutlined, CarOutlined, WalletOutlined, CheckCircleOutlined, SafetyCertificateOutlined, TagOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
-import { orderAPI } from '@/lib/api';
+import { orderAPI, discountAPI } from '@/lib/api';
 import { useCartStore } from '@/store/useStore';
 
 const { Title, Text } = Typography;
@@ -15,11 +15,30 @@ export default function Checkout() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [discountCode, setDiscountCode] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState(null);
+  const [discountLoading, setDiscountLoading] = useState(false);
 
   const formatPrice = (p) => new Intl.NumberFormat('vi-VN').format(p) + 'đ';
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const shippingFee = subtotal >= 500000 ? 0 : 30000;
-  const total = subtotal + shippingFee;
+  const discountAmount = appliedDiscount?.discountAmount || 0;
+  const total = subtotal + shippingFee - discountAmount;
+
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) return message.warning('Vui lòng nhập mã giảm giá');
+    setDiscountLoading(true);
+    try {
+      const res = await discountAPI.validate({ code: discountCode, orderAmount: subtotal });
+      setAppliedDiscount(res.data.discount);
+      message.success(`Áp dụng thành công! Giảm ${formatPrice(res.data.discount.discountAmount)}`);
+    } catch (err) {
+      setAppliedDiscount(null);
+      message.error(err.response?.data?.message || 'Mã giảm giá không hợp lệ');
+    } finally {
+      setDiscountLoading(false);
+    }
+  };
 
   const onFinish = async (values) => {
     if (items.length === 0) return message.error('Giỏ hàng đang trống!');
@@ -30,6 +49,8 @@ export default function Checkout() {
         shippingAddress: { fullName: values.fullName, phone: values.phone, address: values.address, city: values.city },
         paymentMethod: values.paymentMethod,
         note: values.note,
+        discount: discountAmount,
+        discountCode: appliedDiscount?.code || '',
       });
       clearCart();
       setSuccess(true);
@@ -158,6 +179,38 @@ export default function Checkout() {
                   <Text style={{ fontWeight: 700, fontSize: 15, color: shippingFee === 0 ? 'var(--brand-teal)' : 'var(--text-main)' }}>
                     {shippingFee === 0 ? 'Miễn phí' : formatPrice(shippingFee)}
                   </Text>
+                </div>
+                {discountAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: '#22C55E', fontSize: 15 }}>
+                      Giảm giá <Tag color="success" style={{ marginLeft: 4 }}>{appliedDiscount.code}</Tag>
+                    </Text>
+                    <Text style={{ fontWeight: 700, fontSize: 15, color: '#22C55E' }}>-{formatPrice(discountAmount)}</Text>
+                  </div>
+                )}
+              </div>
+
+              {/* Discount Code Input */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Input
+                    prefix={<TagOutlined style={{ color: 'var(--text-muted)' }} />}
+                    placeholder="Nhập mã giảm giá"
+                    value={discountCode}
+                    onChange={(e) => { setDiscountCode(e.target.value.toUpperCase()); setAppliedDiscount(null); }}
+                    onPressEnter={handleApplyDiscount}
+                    style={{ borderRadius: 10, flex: 1 }}
+                    disabled={!!appliedDiscount}
+                  />
+                  <Button
+                    onClick={appliedDiscount ? () => { setAppliedDiscount(null); setDiscountCode(''); } : handleApplyDiscount}
+                    loading={discountLoading}
+                    type={appliedDiscount ? 'default' : 'primary'}
+                    danger={!!appliedDiscount}
+                    style={{ borderRadius: 10, fontWeight: 600 }}
+                  >
+                    {appliedDiscount ? 'Bỏ' : 'Áp dụng'}
+                  </Button>
                 </div>
               </div>
 

@@ -134,74 +134,70 @@ function generateUserEvents(userId, products, userPreferences) {
   return events;
 }
 
-const seedBehaviorHistory = async () => {
-  try {
-    await mongoose.connect(MONGO_URI);
-    console.log("Connected to MongoDB...");
+/**
+ * Core seeding logic — can be called from seed.js (already connected) or standalone.
+ */
+const seedBehavioralEvents = async () => {
+  // Fetch existing users (customers only) and products
+  const users = await User.find({ role: "customer" }).select("_id preferences");
+  const products = await Product.find({ isActive: true }).select("_id category tags");
 
-    // Fetch existing users (customers only) and products
-    const users = await User.find({ role: "customer" }).select(
-      "_id preferences"
-    );
-    const products = await Product.find({ isActive: true }).select(
-      "_id category tags"
-    );
-
-    if (users.length === 0) {
-      console.error(
-        "No users found. Run earlier seed scripts first (seed.js to create users)."
-      );
-      process.exit(1);
-    }
-    if (products.length === 0) {
-      console.error(
-        "No products found. Run seed.js to create products first."
-      );
-      process.exit(1);
-    }
-
-    console.log(
-      `Found ${users.length} users and ${products.length} products.`
-    );
-
-    // Clear existing behavioral events
-    await BehavioralEvent.deleteMany({});
-    console.log("Cleared existing behavioral events...");
-
-    // Generate events for all users
-    let allEvents = [];
-    for (const user of users) {
-      const userPrefs = user.preferences || [];
-      const events = generateUserEvents(user._id, products, userPrefs);
-      allEvents = allEvents.concat(events);
-    }
-
-    // Insert in batches of 500
-    const batchSize = 500;
-    let inserted = 0;
-    for (let i = 0; i < allEvents.length; i += batchSize) {
-      const batch = allEvents.slice(i, i + batchSize);
-      await BehavioralEvent.insertMany(batch, { ordered: false });
-      inserted += batch.length;
-      console.log(`Inserted ${inserted}/${allEvents.length} events...`);
-    }
-
-    console.log(
-      `\nDone! Created ${allEvents.length} behavioral events for ${users.length} users.`
-    );
-    console.log(
-      "Event breakdown:",
-      allEvents.reduce((acc, e) => {
-        acc[e.eventType] = (acc[e.eventType] || 0) + 1;
-        return acc;
-      }, {})
-    );
-
-    process.exit(0);
-  } catch (error) {
-    console.error("Error seeding behavior history:", error);
-    process.exit(1);
+  if (users.length === 0) {
+    throw new Error("No users found. Run seed.js to create users first.");
   }
+  if (products.length === 0) {
+    throw new Error("No products found. Run seed.js to create products first.");
+  }
+
+  console.log(`Found ${users.length} users and ${products.length} products.`);
+
+  // Clear existing behavioral events
+  await BehavioralEvent.deleteMany({});
+  console.log("Cleared existing behavioral events...");
+
+  // Generate events for all users
+  let allEvents = [];
+  for (const user of users) {
+    const userPrefs = user.preferences || [];
+    const events = generateUserEvents(user._id, products, userPrefs);
+    allEvents = allEvents.concat(events);
+  }
+
+  // Insert in batches of 500
+  const batchSize = 500;
+  let inserted = 0;
+  for (let i = 0; i < allEvents.length; i += batchSize) {
+    const batch = allEvents.slice(i, i + batchSize);
+    await BehavioralEvent.insertMany(batch, { ordered: false });
+    inserted += batch.length;
+    console.log(`Inserted ${inserted}/${allEvents.length} events...`);
+  }
+
+  console.log(
+    `\n✅ Created ${allEvents.length} behavioral events for ${users.length} users.`
+  );
+  console.log(
+    "Event breakdown:",
+    allEvents.reduce((acc, e) => {
+      acc[e.eventType] = (acc[e.eventType] || 0) + 1;
+      return acc;
+    }, {})
+  );
 };
 
-seedBehaviorHistory();
+module.exports = { seedBehavioralEvents };
+
+// Run standalone: node seeds/05-behavior-history.js
+if (require.main === module) {
+  mongoose
+    .connect(MONGO_URI)
+    .then(async () => {
+      console.log("Connected to MongoDB...");
+      await seedBehavioralEvents();
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error("Error seeding behavior history:", err);
+      process.exit(1);
+    });
+}

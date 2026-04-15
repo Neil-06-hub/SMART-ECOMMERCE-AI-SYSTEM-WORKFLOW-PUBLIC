@@ -1,0 +1,17 @@
+name: Deploy — Next.js to Vercel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+
+# Vercel auto-deploys via its GitHub integration.
+# This workflow serves as a trigger log for visibility.
+jobs:
+  log:
+    name: Vercel Deploy (auto via integration)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log deployment trigger
+        run: echo "Next.js changes detected on main — Vercel will auto-deploy."

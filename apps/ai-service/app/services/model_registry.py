@@ -72,7 +72,7 @@ class ModelRegistry:
 
                 logger.info(
                     f"Model version {version} loaded. "
-                    f"CF users={cf_dataset.n_users()}, items={cf_dataset.n_items()}. "
+                    f"CF users={len(cf_dataset.mapping()[0])}, items={len(cf_dataset.mapping()[2])}. "
                     f"CBF products={len(cbf_similarity)}."
                 )
                 return version

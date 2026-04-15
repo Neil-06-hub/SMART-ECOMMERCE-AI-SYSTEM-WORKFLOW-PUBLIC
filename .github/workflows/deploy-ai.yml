@@ -1,0 +1,18 @@
+name: Deploy — FastAPI AI Service to Render
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/ai-service/**"
+
+jobs:
+  deploy:
+    name: Trigger Render Deploy (AI Service)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy hook
+        run: |
+          curl --fail -X POST "${{ secrets.RENDER_DEPLOY_HOOK_AI }}" \
+            -H "Content-Type: application/json" \
+            || echo "Deploy hook not configured — skipping"

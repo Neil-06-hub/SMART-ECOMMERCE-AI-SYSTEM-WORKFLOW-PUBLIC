@@ -84,7 +84,9 @@ export default function Dashboard() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <BulbOutlined style={{ color: '#f97316', fontSize: 20 }} />
             <Title level={5} style={{ margin: 0 }}>Nhận xét AI về tình hình kinh doanh</Title>
-            <Tag color="purple">AI Generated</Tag>
+            <Tag color={aiAnalysis.source === 'openrouter' ? 'blue' : aiAnalysis.source === 'gemini' ? 'purple' : 'gold'}>
+              {aiAnalysis.source === 'openrouter' ? 'OpenRouter' : aiAnalysis.source === 'gemini' ? 'Gemini' : 'Fallback'}
+            </Tag>
           </div>
           <Paragraph>{aiAnalysis.summary}</Paragraph>
           <Row gutter={16}>
@@ -100,6 +102,7 @@ export default function Dashboard() {
             </Col>
           </Row>
           {aiAnalysis.recommendation && <Alert message={aiAnalysis.recommendation} type="info" showIcon style={{ marginTop: 16 }} />}
+          {aiAnalysis.note && <Alert message={aiAnalysis.note} type="warning" showIcon style={{ marginTop: 12 }} />}
         </Card>
       )}
 

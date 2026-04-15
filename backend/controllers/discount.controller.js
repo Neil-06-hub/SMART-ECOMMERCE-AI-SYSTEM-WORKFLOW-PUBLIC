@@ -81,4 +81,41 @@ const toggleActive = async (req, res) => {
   }
 };
 
-module.exports = { getAll, create, update, remove, toggleActive };
+// @desc  Validate mã giảm giá (dùng ở checkout, không cần admin)
+// @route POST /api/discounts/validate
+const validate = async (req, res) => {
+  try {
+    const { code, orderAmount } = req.body;
+    if (!code) return res.status(400).json({ success: false, message: "Vui lòng nhập mã giảm giá" });
+
+    const discount = await DiscountCode.findOne({ code: code.toUpperCase().trim(), isActive: true });
+    if (!discount) return res.status(404).json({ success: false, message: "Mã giảm giá không hợp lệ hoặc đã hết hạn" });
+
+    if (discount.expiresAt && new Date() > discount.expiresAt)
+      return res.status(400).json({ success: false, message: "Mã giảm giá đã hết hạn" });
+
+    if (discount.usageLimit > 0 && discount.usedCount >= discount.usageLimit)
+      return res.status(400).json({ success: false, message: "Mã giảm giá đã hết lượt sử dụng" });
+
+    if (orderAmount && discount.minOrderAmount > 0 && orderAmount < discount.minOrderAmount)
+      return res.status(400).json({
+        success: false,
+        message: `Đơn hàng tối thiểu ${new Intl.NumberFormat("vi-VN").format(discount.minOrderAmount)}đ để dùng mã này`,
+      });
+
+    // Tính số tiền được giảm
+    let discountAmount = 0;
+    if (discount.type === "percent") {
+      discountAmount = Math.round((orderAmount || 0) * (discount.value / 100));
+      if (discount.maxDiscount > 0) discountAmount = Math.min(discountAmount, discount.maxDiscount);
+    } else {
+      discountAmount = discount.value;
+    }
+
+    res.json({ success: true, discount: { code: discount.code, type: discount.type, value: discount.value, discountAmount } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getAll, create, update, remove, toggleActive, validate };

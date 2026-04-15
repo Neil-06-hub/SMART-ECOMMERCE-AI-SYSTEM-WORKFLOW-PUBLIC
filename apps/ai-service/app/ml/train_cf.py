@@ -61,8 +61,8 @@ def train_cf(
     (train_interactions, train_weights) = dataset.build_interactions(weighted_triplets)
 
     logger.info(
-        f"LightFM Dataset built: {dataset.n_users()} users, "
-        f"{dataset.n_items()} items, {train_interactions.nnz} interactions."
+        f"LightFM Dataset built: {len(dataset.mapping()[0])} users, "
+        f"{len(dataset.mapping()[2])} items, {train_interactions.nnz} interactions."
     )
 
     # ── Train model ────────────────────────────────────────────────────────
@@ -72,6 +72,7 @@ def train_cf(
         learning_rate=learning_rate,
         item_alpha=item_alpha,
         user_alpha=user_alpha,
+        max_sampled=min(10, n_items - 1) if n_items > 1 else 1,
         random_state=42,
     )
 
@@ -80,7 +81,7 @@ def train_cf(
         sample_weight=train_weights,
         epochs=epochs,
         num_threads=num_threads,
-        verbose=True,
+        verbose=False,
     )
 
     logger.info("CF model training complete.")

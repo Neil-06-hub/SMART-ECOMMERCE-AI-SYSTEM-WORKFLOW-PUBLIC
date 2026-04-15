@@ -14,7 +14,7 @@ const { Option } = Select;
 export default function Shop() {
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
-  const [filters, setFilters] = useState({ page: 1, limit: 12, search: '', category: '', sort: 'newest', minPrice: 0, maxPrice: 10000000 });
+  const [filters, setFilters] = useState({ page: 1, limit: 12, search: '', category: '', sort: 'newest', minPrice: 0, maxPrice: 100000000 });
   const [gridView, setGridView] = useState(true);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [quickFilter, setQuickFilter] = useState('');
@@ -37,7 +37,7 @@ export default function Shop() {
 
   const handleFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value, page: 1 }));
   const handleReset = () => {
-    setFilters({ page: 1, limit: 12, search: '', category: '', sort: 'newest', minPrice: 0, maxPrice: 10000000 });
+    setFilters({ page: 1, limit: 12, search: '', category: '', sort: 'newest', minPrice: 0, maxPrice: 100000000 });
     setQuickFilter('');
   };
 
@@ -70,15 +70,17 @@ export default function Shop() {
               <p style={{ color: 'var(--text-main)', fontSize: 13, fontWeight: 800, letterSpacing: 0.5, marginBottom: 16, textTransform: 'uppercase' }}>Khoảng Giá</p>
               <div style={{ padding: '0 8px' }}>
                 <Slider
-                  range min={0} max={10000000} step={100000}
+                  range min={0} max={100000000} step={500000}
                   value={[filters.minPrice, filters.maxPrice]}
                   onChange={([min, max]) => setFilters((f) => ({ ...f, minPrice: min, maxPrice: max, page: 1 }))}
-                  tooltip={{ formatter: (v) => v.toLocaleString('vi-VN') + 'đ' }}
+                  tooltip={{ formatter: (v) => (v >= 1000000 ? (v / 1000000).toFixed(0) + 'M' : v.toLocaleString('vi-VN')) + 'đ' }}
                 />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 28, fontWeight: 500 }}>
                 <span>0đ</span>
-                <span style={{ color: 'var(--brand-teal)', fontWeight: 700 }}>{filters.maxPrice.toLocaleString('vi-VN')}đ</span>
+                <span style={{ color: 'var(--brand-teal)', fontWeight: 700 }}>
+                  {filters.maxPrice >= 1000000 ? (filters.maxPrice / 1000000).toFixed(0) + 'M' : filters.maxPrice.toLocaleString('vi-VN')}đ
+                </span>
               </div>
 
               <p style={{ color: 'var(--text-main)', fontSize: 13, fontWeight: 800, letterSpacing: 0.5, marginBottom: 16, textTransform: 'uppercase' }}>Lọc Nhanh</p>

@@ -10,7 +10,7 @@ dependencies = [
     "fastapi==0.111.0",
     "uvicorn[standard]>=0.30.0",
     "pydantic-settings>=2.2.1",
-    "lightfm==1.17",
+    "lightfm-next",
     "scikit-learn==1.4.0",
     "numpy>=1.26.4",
     "scipy>=1.13.0",
