@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap');
 
 * {
   margin: 0;
@@ -11,19 +11,24 @@
   --ai-pink: #fb923c;
   --brand-teal: #f97316;
   --brand-teal-light: #fdba74;
+  --brand-amber-soft: #fff7ed;
+  --bg-elevated: #fffcf7;
   --text-main: #111827;
   --text-muted: #6B7280;
-  --bg-main: #F8FAFC;
+  --bg-main: #FFFDF8;
   --bg-card: #FFFFFF;
-  --border-color: #E2E8F0;
+  --border-color: #E7D9C8;
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--bg-main);
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
   zoom: 1.15;
+  background-image:
+    radial-gradient(circle at top left, rgba(251, 146, 60, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(249, 115, 22, 0.08), transparent 22%);
 }
 
 .container {
@@ -61,7 +66,7 @@ body {
 .product-card:hover {
   transform: translateY(-8px);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
-  border-color: rgba(139, 92, 246, 0.3);
+  border-color: rgba(249, 115, 22, 0.32);
 }
 
 ::-webkit-scrollbar { width: 8px; }
@@ -71,9 +76,16 @@ body {
 
 .ant-btn-primary {
   background: var(--brand-teal) !important;
-  box-shadow: 0 4px 6px -1px rgba(13, 148, 136, 0.2) !important;
+  box-shadow: 0 12px 24px rgba(249, 115, 22, 0.24) !important;
 }
 .ant-btn-primary:hover {
   background: var(--brand-teal-light) !important;
   opacity: 0.9;
+}
+
+.ant-card,
+.ant-input,
+.ant-input-number,
+.ant-select-selector {
+  backdrop-filter: blur(8px);
 }

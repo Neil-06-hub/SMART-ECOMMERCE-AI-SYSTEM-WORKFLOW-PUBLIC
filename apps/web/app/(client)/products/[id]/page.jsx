@@ -15,10 +15,10 @@ export async function generateMetadata({ params }) {
 
 export default async function ProductDetailPage({ params }) {
   const { id } = await params;
-  
-  // ISR: Fetch data on server revalidating every 1800s (30 mins) as requested in Plan
+
+  // ISR: fetch product detail every 300s to keep PDP inventory/content reasonably fresh.
   const productData = await serverApi.getProductById(id);
-  
+
   return (
     <ClientProductDetail initialProductData={productData} id={id} />
   );

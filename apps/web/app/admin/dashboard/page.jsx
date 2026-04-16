@@ -1,150 +1,429 @@
 'use client';
 
-import { useState } from 'react';
-import { Row, Col, Card, Statistic, Button, Spin, Tag, List, Typography, Alert } from 'antd';
-import { UserOutlined, ShoppingOutlined, DollarOutlined, ShoppingCartOutlined, RiseOutlined, FallOutlined, BulbOutlined } from '@ant-design/icons';
+import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Row,
+  Skeleton,
+  Statistic,
+  Tag,
+  Typography,
+} from 'antd';
+import {
+  ArrowUpOutlined,
+  BarChartOutlined,
+  BulbOutlined,
+  DollarOutlined,
+  FallOutlined,
+  FireOutlined,
+  PieChartOutlined,
+  RiseOutlined,
+  ShoppingCartOutlined,
+  TeamOutlined,
+} from '@ant-design/icons';
 import { adminAPI } from '@/lib/api';
+import InsightEmptyState from '@/components/feedback/InsightEmptyState';
 
-const { Title, Text, Paragraph } = Typography;
+const { Paragraph, Text, Title } = Typography;
 
-const BarChart = ({ data }) => {
-  const max = Math.max(...data.map((d) => d.revenue), 1);
+const Area = dynamic(() => import('@ant-design/charts').then((m) => m.Area), { ssr: false });
+const Column = dynamic(() => import('@ant-design/charts').then((m) => m.Column), { ssr: false });
+const Pie = dynamic(() => import('@ant-design/charts').then((m) => m.Pie), { ssr: false });
+
+function formatPrice(value) {
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value || 0);
+}
+
+function unwrapPayload(payload) {
+  if (payload?.data && payload?.success !== undefined) return payload.data;
+  return payload;
+}
+
+function DashboardSkeleton() {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 120, padding: '0 8px' }}>
-      {data.map((d, i) => (
-        <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ width: '100%', background: 'linear-gradient(180deg, #f97316, #ea580c)', height: `${(d.revenue / max) * 100}px`, borderRadius: '4px 4px 0 0', minHeight: d.revenue > 0 ? 4 : 0, cursor: 'pointer', transition: 'opacity 0.2s' }} title={`${d.month}: ${d.revenue.toLocaleString('vi-VN')}đ`} />
-          <div style={{ fontSize: 8, color: '#999', marginTop: 4, textAlign: 'center', lineHeight: 1.2 }}>{d.month}</div>
-        </div>
+    <Row gutter={[20, 20]}>
+      {Array.from({ length: 4 }).map((_, index) => (
+        <Col key={index} xs={24} md={12} xl={6}>
+          <Card style={{ borderRadius: 24 }}>
+            <Skeleton active paragraph={{ rows: 2 }} />
+          </Card>
+        </Col>
       ))}
-    </div>
+      <Col xs={24} xl={14}>
+        <Card style={{ borderRadius: 24 }}>
+          <Skeleton active paragraph={{ rows: 8 }} />
+        </Card>
+      </Col>
+      <Col xs={24} xl={10}>
+        <Card style={{ borderRadius: 24 }}>
+          <Skeleton active paragraph={{ rows: 8 }} />
+        </Card>
+      </Col>
+    </Row>
   );
-};
+}
+
+function MetricCard({ title, value, icon, accent, suffix, extra }) {
+  return (
+    <Card
+      style={{
+        borderRadius: 24,
+        border: '1px solid var(--border-color)',
+        boxShadow: '0 14px 28px rgba(131, 61, 7, 0.05)',
+      }}
+      bodyStyle={{ padding: 22 }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+        <div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>{title}</div>
+          <Statistic value={value} suffix={suffix} valueStyle={{ fontSize: 28, fontWeight: 800, color: 'var(--text-main)' }} />
+          {extra ? <div style={{ marginTop: 8 }}>{extra}</div> : null}
+        </div>
+        <div
+          style={{
+            width: 50,
+            height: 50,
+            borderRadius: 16,
+            background: accent.background,
+            color: accent.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 22,
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 export default function Dashboard() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState(null);
 
-  const { data: statsData, isLoading } = useQuery({
+  const { data: rawDashboard, isLoading, isFetching } = useQuery({
     queryKey: ['admin-dashboard'],
-    queryFn: () => adminAPI.getDashboard().then((r) => r.data),
+    queryFn: () => adminAPI.getDashboard().then((response) => response.data),
+    staleTime: 60 * 1000,
+    refetchInterval: 60 * 1000,
   });
+
+  const statsData = unwrapPayload(rawDashboard);
+  const { stats, monthlyRevenue, ordersByStatus } = statsData || {};
+  const aiCtrByPlacement = statsData?.aiCtrByPlacement || statsData?.analytics?.aiCtrByPlacement || [];
+  const rfmSegments = statsData?.rfmSegments || statsData?.marketing?.rfmSegments || [];
+
+  const growthRate = stats?.lastMonthRevenue
+    ? (((stats.thisMonthRevenue - stats.lastMonthRevenue) / stats.lastMonthRevenue) * 100).toFixed(1)
+    : 0;
+
+  const revenueChartConfig = useMemo(() => ({
+    data: monthlyRevenue || [],
+    xField: 'month',
+    yField: 'revenue',
+    autoFit: true,
+    height: 300,
+    smooth: true,
+    lineStyle: { stroke: '#E85D04', lineWidth: 3 },
+    areaStyle: { fill: 'l(270) 0:#FED7AA 1:#FFF7ED', fillOpacity: 0.9 },
+    point: { size: 4, shape: 'circle', style: { fill: '#E85D04', stroke: '#fff', lineWidth: 2 } },
+    axis: {
+      y: {
+        labelFormatter: (value) => `${Math.round(Number(value) / 1000000)}M`,
+      },
+    },
+    tooltip: {
+      items: [{ channel: 'y', formatter: (value) => formatPrice(value) }],
+    },
+  }), [monthlyRevenue]);
+
+  const orderStatusChartConfig = useMemo(() => ({
+    data: (ordersByStatus || []).map((item) => ({
+      status: item._id,
+      count: item.count,
+    })),
+    angleField: 'count',
+    colorField: 'status',
+    innerRadius: 0.62,
+    autoFit: true,
+    height: 300,
+    legend: { color: { position: 'bottom' } },
+    labels: [
+      { text: 'status', style: { fontWeight: 700, fill: '#172033' } },
+      { text: 'count', style: { fontSize: 12, fill: '#6B7280' } },
+    ],
+    scale: {
+      color: {
+        range: ['#F59E0B', '#3B82F6', '#14B8A6', '#16A34A', '#EF4444'],
+      },
+    },
+  }), [ordersByStatus]);
+
+  const ctrChartConfig = useMemo(() => ({
+    data: aiCtrByPlacement,
+    xField: 'placement',
+    yField: 'ctr',
+    autoFit: true,
+    height: 300,
+    columnStyle: { radius: [10, 10, 0, 0] },
+    color: '#E85D04',
+    label: {
+      position: 'top',
+      text: (item) => `${item.ctr}%`,
+      style: { fill: '#7C2D12', fontWeight: 700 },
+    },
+    annotations: [
+      {
+        type: 'lineY',
+        yField: 5,
+        style: { stroke: '#DC2626', lineDash: [6, 4], lineWidth: 1.5 },
+        text: { content: 'Mục tiêu BG-02: 5%', position: 'right' },
+      },
+    ],
+  }), [aiCtrByPlacement]);
+
+  const rfmChartConfig = useMemo(() => ({
+    data: rfmSegments,
+    angleField: 'users',
+    colorField: 'segment',
+    innerRadius: 0.58,
+    autoFit: true,
+    height: 300,
+    legend: { color: { position: 'bottom' } },
+    labels: [
+      { text: 'segment', style: { fontWeight: 700, fill: '#172033' } },
+      { text: 'users', style: { fontSize: 12, fill: '#6B7280' } },
+    ],
+    scale: {
+      color: {
+        range: ['#E85D04', '#FB923C', '#2563EB', '#14B8A6', '#8B5CF6', '#E11D48'],
+      },
+    },
+  }), [rfmSegments]);
 
   const handleAIAnalysis = async () => {
     setAiLoading(true);
     try {
       const { data } = await adminAPI.getAIAnalysis();
       setAiAnalysis(data.analysis);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
     } finally {
       setAiLoading(false);
     }
   };
 
-  const formatPrice = (p) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p || 0);
-
-  if (isLoading) return <div style={{ textAlign: 'center', padding: 80 }}><Spin size="large" /></div>;
-
-  const { stats, monthlyRevenue, ordersByStatus } = statsData || {};
-  const growthRate = stats?.lastMonthRevenue
-    ? (((stats.thisMonthRevenue - stats.lastMonthRevenue) / stats.lastMonthRevenue) * 100).toFixed(1) : 0;
-
-  const statCards = [
-    { title: 'Tổng người dùng', value: stats?.totalUsers, icon: <UserOutlined />, color: '#f97316' },
-    { title: 'Sản phẩm active', value: stats?.totalProducts, icon: <ShoppingOutlined />, color: '#52c41a' },
-    { title: 'Tổng đơn hàng', value: stats?.totalOrders, icon: <ShoppingCartOutlined />, color: '#fa8c16' },
-    { title: 'Tổng doanh thu', value: formatPrice(stats?.totalRevenue), icon: <DollarOutlined />, color: '#eb2f96', isPrice: true },
-  ];
+  if (isLoading) return <DashboardSkeleton />;
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>Dashboard</Title>
-        <Button type="primary" icon={<BulbOutlined />} loading={aiLoading} onClick={handleAIAnalysis}
-          style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', border: 'none' }}>
-          Phân tích AI
-        </Button>
+      <div
+        style={{
+          borderRadius: 28,
+          padding: 28,
+          background: 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 100%)',
+          border: '1px solid var(--border-color)',
+          marginBottom: 24,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+          <div style={{ maxWidth: 760 }}>
+            <Tag color="gold" style={{ margin: 0, borderRadius: 999, paddingInline: 14, paddingBlock: 6, fontWeight: 700, marginBottom: 14 }}>
+              AI Performance Control Room
+            </Tag>
+            <Title level={3} style={{ margin: 0, fontWeight: 900 }}>Dashboard AI & Kinh doanh</Title>
+            <Paragraph style={{ margin: '8px 0 0', color: 'var(--text-muted)', maxWidth: 640 }}>
+              Giao diện tập trung hơn vào bức tranh điều hành: doanh thu, hành vi mua hàng, phân tích AI và trạng thái dữ liệu theo thời gian thực.
+            </Paragraph>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            {isFetching ? (
+              <Tag color="blue" style={{ margin: 0, borderRadius: 999, paddingInline: 14, paddingBlock: 6, fontWeight: 700 }}>
+                Đang làm mới dữ liệu
+              </Tag>
+            ) : null}
+            <Button type="primary" icon={<BulbOutlined />} loading={aiLoading} onClick={handleAIAnalysis}>
+              Phân tích AI
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        {statCards.map((s) => (
-          <Col key={s.title} xs={24} sm={12} xl={6}>
-            <Card style={{ borderRadius: 12, borderLeft: `4px solid ${s.color}` }}>
-              <Statistic title={s.title} value={s.isPrice ? undefined : s.value} formatter={s.isPrice ? () => s.value : undefined}
-                prefix={<span style={{ color: s.color }}>{s.icon}</span>} />
-            </Card>
-          </Col>
-        ))}
+      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+        <Col xs={24} md={12} xl={6}>
+          <MetricCard
+            title="Tổng doanh thu"
+            value={formatPrice(stats?.totalRevenue)}
+            icon={<DollarOutlined />}
+            accent={{ background: '#FFF4E8', color: '#E85D04' }}
+          />
+        </Col>
+        <Col xs={24} md={12} xl={6}>
+          <MetricCard
+            title="Đơn hàng"
+            value={stats?.totalOrders || 0}
+            icon={<ShoppingCartOutlined />}
+            accent={{ background: '#EEF6FF', color: '#2563EB' }}
+            extra={<Text type="secondary">AOV {formatPrice((stats?.totalRevenue || 0) / Math.max(stats?.totalOrders || 1, 1))}</Text>}
+          />
+        </Col>
+        <Col xs={24} md={12} xl={6}>
+          <MetricCard
+            title="Khách hàng"
+            value={stats?.totalUsers || 0}
+            icon={<TeamOutlined />}
+            accent={{ background: '#ECFDF5', color: '#15803D' }}
+          />
+        </Col>
+        <Col xs={24} md={12} xl={6}>
+          <MetricCard
+            title="Tăng trưởng tháng"
+            value={Math.abs(growthRate)}
+            suffix="%"
+            icon={Number(growthRate) >= 0 ? <RiseOutlined /> : <FallOutlined />}
+            accent={{ background: '#FEF3C7', color: '#D97706' }}
+            extra={
+              <Text style={{ color: Number(growthRate) >= 0 ? '#15803D' : '#DC2626', fontWeight: 700 }}>
+                {Number(growthRate) >= 0 ? 'Tăng so với tháng trước' : 'Giảm so với tháng trước'}
+              </Text>
+            }
+          />
+        </Col>
       </Row>
 
-      {aiAnalysis && (
-        <Card style={{ borderRadius: 12, marginBottom: 24, borderLeft: '4px solid #f97316' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <BulbOutlined style={{ color: '#f97316', fontSize: 20 }} />
+      {aiAnalysis ? (
+        <Card style={{ borderRadius: 24, border: '1px solid var(--border-color)', marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            <BulbOutlined style={{ color: '#E85D04', fontSize: 20 }} />
             <Title level={5} style={{ margin: 0 }}>Nhận xét AI về tình hình kinh doanh</Title>
-            <Tag color={aiAnalysis.source === 'openrouter' ? 'blue' : aiAnalysis.source === 'gemini' ? 'purple' : 'gold'}>
+            <Tag color={aiAnalysis.source === 'openrouter' ? 'blue' : aiAnalysis.source === 'gemini' ? 'purple' : 'default'}>
               {aiAnalysis.source === 'openrouter' ? 'OpenRouter' : aiAnalysis.source === 'gemini' ? 'Gemini' : 'Fallback'}
             </Tag>
           </div>
-          <Paragraph>{aiAnalysis.summary}</Paragraph>
-          <Row gutter={16}>
-            <Col xs={24} sm={12}>
-              <div style={{ marginBottom: 8 }}><Text strong style={{ color: '#52c41a' }}>Điểm mạnh:</Text></div>
-              <List size="small" dataSource={aiAnalysis.strengths || []}
-                renderItem={(item) => <List.Item style={{ padding: '4px 0' }}>✅ {item}</List.Item>} />
+
+          <Paragraph style={{ marginBottom: 18 }}>{aiAnalysis.summary}</Paragraph>
+
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={12}>
+              <Alert
+                type="success"
+                showIcon
+                message="Điểm mạnh"
+                description={(aiAnalysis.strengths || []).join(' • ') || 'Chưa có nhận xét chi tiết.'}
+              />
             </Col>
-            <Col xs={24} sm={12}>
-              <div style={{ marginBottom: 8 }}><Text strong style={{ color: '#fa8c16' }}>Cải thiện:</Text></div>
-              <List size="small" dataSource={aiAnalysis.improvements || []}
-                renderItem={(item) => <List.Item style={{ padding: '4px 0' }}>💡 {item}</List.Item>} />
+            <Col xs={24} md={12}>
+              <Alert
+                type="warning"
+                showIcon
+                message="Cần cải thiện"
+                description={(aiAnalysis.improvements || []).join(' • ') || 'Chưa có nhận xét chi tiết.'}
+              />
             </Col>
           </Row>
-          {aiAnalysis.recommendation && <Alert message={aiAnalysis.recommendation} type="info" showIcon style={{ marginTop: 16 }} />}
-          {aiAnalysis.note && <Alert message={aiAnalysis.note} type="warning" showIcon style={{ marginTop: 12 }} />}
-        </Card>
-      )}
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={16}>
-          <Card style={{ borderRadius: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Title level={5} style={{ margin: 0 }}>Doanh thu 12 tháng</Title>
-              <div>
-                <span style={{ color: growthRate >= 0 ? '#52c41a' : '#f5222d', fontWeight: 700 }}>
-                  {growthRate >= 0 ? <RiseOutlined /> : <FallOutlined />} {Math.abs(growthRate)}%
-                </span>
-                <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>so với tháng trước</Text>
+          {aiAnalysis.recommendation ? (
+            <Alert message={aiAnalysis.recommendation} type="info" showIcon style={{ marginTop: 16 }} />
+          ) : null}
+        </Card>
+      ) : null}
+
+      <Row gutter={[20, 20]}>
+        <Col xs={24} xl={14}>
+          <Card
+            style={{ borderRadius: 24, border: '1px solid var(--border-color)' }}
+            title={<span style={{ fontWeight: 800 }}>Doanh thu 12 tháng</span>}
+            extra={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <BarChartOutlined style={{ color: '#E85D04' }} />
+                <Text type="secondary">Theo tháng</Text>
               </div>
-            </div>
-            <BarChart data={monthlyRevenue || []} />
-            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between' }}>
-              <div>
-                <Text type="secondary" style={{ fontSize: 12 }}>Tháng này</Text>
-                <div style={{ fontWeight: 700, color: '#f97316' }}>{formatPrice(stats?.thisMonthRevenue)}</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>Tháng trước</Text>
-                <div style={{ fontWeight: 700 }}>{formatPrice(stats?.lastMonthRevenue)}</div>
-              </div>
-            </div>
+            }
+          >
+            {monthlyRevenue?.length > 0 ? (
+              <>
+                <Area {...revenueChartConfig} />
+                <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                  <Text type="secondary">Tháng này: <Text strong style={{ color: '#E85D04' }}>{formatPrice(stats?.thisMonthRevenue)}</Text></Text>
+                  <Text type="secondary">Tháng trước: <Text strong>{formatPrice(stats?.lastMonthRevenue)}</Text></Text>
+                </div>
+              </>
+            ) : (
+              <InsightEmptyState compact title="Chưa có dữ liệu doanh thu" description="Biểu đồ sẽ hiện xu hướng 12 tháng khi endpoint dashboard trả đủ dữ liệu." />
+            )}
           </Card>
         </Col>
-        <Col xs={24} lg={8}>
-          <Card style={{ borderRadius: 12 }}>
-            <Title level={5} style={{ margin: 0, marginBottom: 16 }}>Trạng thái đơn hàng</Title>
-            {ordersByStatus?.map((o) => {
-              const labels = { pending: 'Chờ xác nhận', confirmed: 'Đã xác nhận', shipping: 'Đang giao', delivered: 'Đã giao', cancelled: 'Đã hủy' };
-              const colors = { pending: '#fa8c16', confirmed: '#1890ff', shipping: '#13c2c2', delivered: '#52c41a', cancelled: '#f5222d' };
-              return (
-                <div key={o._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <Tag color={colors[o._id]}>{labels[o._id] || o._id}</Tag>
-                  <Text strong>{o.count} đơn</Text>
-                </div>
-              );
-            })}
+
+        <Col xs={24} xl={10}>
+          <Card
+            style={{ borderRadius: 24, border: '1px solid var(--border-color)' }}
+            title={<span style={{ fontWeight: 800 }}>Trạng thái đơn hàng</span>}
+            extra={<PieChartOutlined style={{ color: '#E85D04' }} />}
+          >
+            {ordersByStatus?.length > 0 ? (
+              <Pie {...orderStatusChartConfig} />
+            ) : (
+              <InsightEmptyState compact title="Chưa có dữ liệu trạng thái đơn" description="Khi có đơn hàng, biểu đồ phân bổ trạng thái sẽ xuất hiện tại đây." />
+            )}
           </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[20, 20]} style={{ marginTop: 20 }}>
+        <Col xs={24} xl={12}>
+          <Card
+            style={{ borderRadius: 24, border: '1px solid var(--border-color)' }}
+            title={<span style={{ fontWeight: 800 }}>AI CTR theo placement</span>}
+            extra={<Tag color="red">Mục tiêu ≥ 5%</Tag>}
+          >
+            {aiCtrByPlacement.length > 0 ? (
+              <Column {...ctrChartConfig} />
+            ) : (
+              <InsightEmptyState
+                compact
+                title="Backend chưa trả AI CTR theo placement"
+                description="UI đã sẵn sàng cho Homepage, PDP Similar, Cart FBT và Search. Khi endpoint analytics bổ sung dữ liệu, chart sẽ hiển thị ngay."
+              />
+            )}
+          </Card>
+        </Col>
+
+        <Col xs={24} xl={12}>
+          <Card
+            style={{ borderRadius: 24, border: '1px solid var(--border-color)' }}
+            title={<span style={{ fontWeight: 800 }}>RFM Segment</span>}
+            extra={<FireOutlined style={{ color: '#E85D04' }} />}
+          >
+            {rfmSegments.length > 0 ? (
+              <Pie {...rfmChartConfig} />
+            ) : (
+              <InsightEmptyState
+                compact
+                title="Chưa có dữ liệu phân khúc RFM"
+                description="Khu vực này đang ở trạng thái chart-ready. Khi dashboard API trả danh sách segment và số user, giao diện sẽ render donut chart ngay."
+              />
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[20, 20]} style={{ marginTop: 20 }}>
+        <Col span={24}>
+          <Alert
+            showIcon
+            type="info"
+            message="Ghi chú triển khai"
+            description="Do constraint hiện tại không thay đổi backend, dashboard đã được nâng cấp phần hiển thị và giữ empty state minh bạch cho AI CTR / RFM thay vì hiển thị số liệu giả."
+          />
         </Col>
       </Row>
     </div>

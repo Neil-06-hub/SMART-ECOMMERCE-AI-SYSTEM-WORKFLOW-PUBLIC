@@ -6,8 +6,10 @@ export const metadata = {
   description: 'Gợi ý sản phẩm thông minh và cá nhân hóa với Google Gemini AI.',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
-  // Lấy dữ liệu sản phẩm nổi bật thông qua cơ chế ISR của Next.js (Cache 1 tiếng)
+  // Homepage shell is rendered on demand; personalized AI cards hydrate on the client after auth state is known.
   const featuredProducts = await serverApi.getFeaturedProducts();
 
   return (
