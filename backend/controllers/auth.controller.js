@@ -78,9 +78,18 @@ const getMe = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { name, phone, address, preferences, avatar, dob, gender } = req.body;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (address !== undefined) updateData.address = address;
+    if (preferences !== undefined) updateData.preferences = preferences;
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (dob !== undefined) updateData.dob = dob;
+    if (gender !== undefined) updateData.gender = gender;
+    
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { name, phone, address, preferences, avatar, dob, gender },
+      updateData,
       { new: true, runValidators: true }
     ).select("-password");
     res.json({ success: true, user });

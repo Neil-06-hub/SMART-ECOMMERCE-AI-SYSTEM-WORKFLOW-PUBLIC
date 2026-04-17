@@ -1,17 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Form, Input, Button, Radio, Row, Col, Typography, message, Space, Tag } from 'antd';
 import { CreditCardOutlined, CarOutlined, WalletOutlined, CheckCircleOutlined, SafetyCertificateOutlined, TagOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { orderAPI, discountAPI } from '@/lib/api';
-import { useCartStore } from '@/store/useStore';
+import { useCartStore, useAuthStore } from '@/store/useStore';
 
 const { Title, Text } = Typography;
 
 export default function Checkout() {
   const [form] = Form.useForm();
   const { items, clearCart } = useCartStore();
+  const { isAuthenticated } = useAuthStore();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -24,6 +25,14 @@ export default function Checkout() {
   const shippingFee = subtotal >= 500000 ? 0 : 30000;
   const discountAmount = appliedDiscount?.discountAmount || 0;
   const total = subtotal + shippingFee - discountAmount;
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, router]);
+
+  if (!isAuthenticated) return null; // Bug 1 Fix: Client side guard
 
   const handleApplyDiscount = async () => {
     if (!discountCode.trim()) return message.warning('Vui lòng nhập mã giảm giá');

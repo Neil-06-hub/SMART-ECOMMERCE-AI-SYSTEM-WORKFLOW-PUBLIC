@@ -150,16 +150,22 @@ export default function AdminDiscounts() {
     {
       title: 'Trạng thái',
       dataIndex: 'isActive',
-      render: (active, record) => (
-        <Tag
-          style={{ cursor: 'pointer' }}
-          color={active ? 'green' : 'default'}
-          icon={active ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
-          onClick={() => toggleMutation.mutate(record._id)}
-        >
-          {active ? 'Đang bật' : 'Đã tắt'}
-        </Tag>
-      ),
+      render: (active, record) => {
+        const isExpired = record.expiresAt && new Date(record.expiresAt) < new Date();
+        if (isExpired) {
+          return <Tag color="red" icon={<CloseCircleOutlined />}>Hết hạn</Tag>;
+        }
+        return (
+          <Tag
+            style={{ cursor: 'pointer' }}
+            color={active ? 'green' : 'default'}
+            icon={active ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+            onClick={() => toggleMutation.mutate(record._id)}
+          >
+            {active ? 'Đang bật' : 'Đã tắt'}
+          </Tag>
+        );
+      },
     },
     {
       title: 'Thao tác',

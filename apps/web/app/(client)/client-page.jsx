@@ -256,7 +256,7 @@ function AIFeaturesSection() {
             </p>
             <div style={{ marginTop: 24 }}>
               <span className="text-gradient-ai" style={{ background: 'white', fontWeight: 700, fontSize: 14, padding: '8px 16px', borderRadius: 999, boxShadow: '0 2px 8px rgba(239, 68, 68, 0.15)' }}>
-                99.2% Accuracy
+                Powered by AI
               </span>
             </div>
           </div>
@@ -287,11 +287,11 @@ function AIFeaturesSection() {
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ background: 'var(--bg-main)', padding: '12px 16px', borderRadius: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 4 }}>Phân Bố Khách Hàng</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 4 }}>Phân Bố Khách Hàng (Minh họa)</div>
                 <Area {...demoConfig} />
               </div>
               <div style={{ background: 'var(--bg-main)', padding: '12px 16px', borderRadius: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 4 }}>Top 3 Bán Chạy</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', marginBottom: 4 }}>Top 3 Bán Chạy (Minh họa)</div>
                 <Area {...productConfig} />
               </div>
             </div>
@@ -312,6 +312,7 @@ function TestimonialsSection() {
         <h2 style={{ fontSize: 40, fontWeight: 900, color: 'var(--text-main)', margin: 0 }}>
           Trải Nghiệm Từ <span className="text-gradient-teal">Người Dùng</span>
         </h2>
+        <p style={{ marginTop: 8, color: 'var(--text-muted)' }}>(Các đánh giá minh họa từ người đùng bản Beta)</p>
       </div>
 
       <Row gutter={[24, 24]} justify="center">

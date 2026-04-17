@@ -1,9 +1,11 @@
 'use client';
+import { useEffect } from 'react';
 
 import { Button, Card, Col, Row, Space, Tag, Typography } from 'antd';
 import { HeartFilled, ShopOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/useStore';
 import { wishlistAPI } from '@/lib/api';
 import ProductCard from '@/components/product/ProductCard';
 import AIProductSkeleton from '@/components/feedback/AIProductSkeleton';
@@ -13,6 +15,13 @@ const { Paragraph, Text, Title } = Typography;
 
 export default function Wishlist() {
   const router = useRouter();
+  const { isAuthenticated } = useAuthStore();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, router]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['wishlist'],
@@ -20,6 +29,8 @@ export default function Wishlist() {
   });
 
   const wishlist = data || [];
+
+  if (!isAuthenticated) return null; // Bug 12 Fix: Client side guard
 
   return (
     <div style={{ background: 'var(--bg-main)', minHeight: '100vh', padding: '32px 24px 56px' }}>

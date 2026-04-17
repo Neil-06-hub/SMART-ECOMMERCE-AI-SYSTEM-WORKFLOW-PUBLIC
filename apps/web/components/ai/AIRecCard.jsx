@@ -118,50 +118,92 @@ export default function AIRecCard({
       bodyStyle={{ padding: 18, display: 'flex', flexDirection: 'column', height: '100%' }}
       onClick={handleNavigate}
     >
-      <div style={{ position: 'relative', marginBottom: 18 }}>
+      <div style={{ marginBottom: 18 }}>
         <div
           style={{
-            position: 'absolute',
-            top: 12,
-            left: 12,
-            zIndex: 2,
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 8,
-          }}
-        >
-          <Tag color="gold" style={{ margin: 0, borderRadius: 999, paddingInline: 12, paddingBlock: 4, fontWeight: 700 }}>
-            <RobotOutlined /> Dành riêng cho bạn
-          </Tag>
-          {discount > 0 ? (
-            <Tag color="red" style={{ margin: 0, borderRadius: 999, paddingInline: 10, paddingBlock: 4, fontWeight: 700 }}>
-              -{discount}%
-            </Tag>
-          ) : null}
-        </div>
-
-        <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}>
-          <Tooltip title={source === 'fallback' ? 'Đang dùng danh sách dự phòng' : 'Nguồn gợi ý hiện tại'}>
-            <Tag color={sourceInfo.color} style={{ margin: 0, borderRadius: 999, paddingInline: 10, paddingBlock: 4, fontWeight: 600 }}>
-              {sourceInfo.label}
-            </Tag>
-          </Tooltip>
-        </div>
-
-        <div
-          style={{
-            background: 'linear-gradient(180deg, #FFF7ED 0%, #FFFFFF 100%)',
             borderRadius: 20,
             overflow: 'hidden',
             border: '1px solid rgba(231, 217, 200, 0.85)',
+            background: 'linear-gradient(180deg, #FFF7ED 0%, #FFFFFF 100%)',
           }}
         >
+          {/* aspectRatio wrapper — badges live here so overflow:hidden clips them */}
           <div style={{ position: 'relative', aspectRatio: '4 / 4.2', background: '#FFF7ED' }}>
             <img
               src={product.image || 'https://placehold.co/800x900/f7f3ee/9a8b7a?text=Product'}
               alt={product.name}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
+
+            {/*
+              Single row spans full width (left:0 right:0).
+              Left group: flex:1 + minWidth:0 so it never pushes into right badge.
+              Right badge: flexShrink:0 so it always keeps its natural width.
+              → Overlap is structurally impossible.
+            */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0,
+                zIndex: 2,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: 6,
+                padding: '10px 10px 0',
+              }}
+            >
+              {/* Left: stacked badges — text clips with ellipsis if too narrow */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: '#D97706', color: 'white',
+                    borderRadius: 999, padding: '3px 10px',
+                    fontSize: 11, fontWeight: 700,
+                    overflow: 'hidden', whiteSpace: 'nowrap',
+                    maxWidth: '100%',
+                  }}
+                >
+                  <RobotOutlined style={{ flexShrink: 0, fontSize: 11 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Dành riêng cho bạn</span>
+                </div>
+                {discount > 0 && (
+                  <div
+                    style={{
+                      alignSelf: 'flex-start',
+                      display: 'inline-flex', alignItems: 'center',
+                      background: '#EF4444', color: 'white',
+                      borderRadius: 999, padding: '3px 10px',
+                      fontSize: 11, fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    -{discount}%
+                  </div>
+                )}
+              </div>
+
+              {/* Right: source badge — never shrinks */}
+              <Tooltip title={source === 'fallback' ? 'Đang dùng danh sách dự phòng' : 'Nguồn gợi ý hiện tại'}>
+                <div
+                  style={{
+                    flexShrink: 0,
+                    display: 'inline-flex', alignItems: 'center',
+                    background: 'rgba(255,255,255,0.92)',
+                    backdropFilter: 'blur(4px)',
+                    border: '1px solid rgba(0,0,0,0.08)',
+                    color: '#374151',
+                    borderRadius: 999, padding: '3px 10px',
+                    fontSize: 11, fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    cursor: 'default',
+                  }}
+                >
+                  {sourceInfo.label}
+                </div>
+              </Tooltip>
+            </div>
           </div>
         </div>
       </div>

@@ -8,13 +8,17 @@ import {
   Button,
   Card,
   Col,
+  Divider,
   Row,
   Skeleton,
+  Space,
+  Spin,
   Statistic,
   Tag,
   Typography,
 } from 'antd';
 import {
+  ArrowDownOutlined,
   ArrowUpOutlined,
   BarChartOutlined,
   BulbOutlined,
@@ -24,6 +28,7 @@ import {
   PieChartOutlined,
   RiseOutlined,
   ShoppingCartOutlined,
+  SyncOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
 import { adminAPI } from '@/lib/api';
@@ -35,8 +40,16 @@ const Area = dynamic(() => import('@ant-design/charts').then((m) => m.Area), { s
 const Column = dynamic(() => import('@ant-design/charts').then((m) => m.Column), { ssr: false });
 const Pie = dynamic(() => import('@ant-design/charts').then((m) => m.Pie), { ssr: false });
 
+/* ─── helpers ─────────────────────────────────────────────────────────── */
 function formatPrice(value) {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value || 0);
+}
+
+function formatShortPrice(value) {
+  if (!value) return '0đ';
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}T`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(0)}M`;
+  return `${(value / 1_000).toFixed(0)}K`;
 }
 
 function unwrapPayload(payload) {
@@ -44,74 +57,190 @@ function unwrapPayload(payload) {
   return payload;
 }
 
+/* ─── skeleton ─────────────────────────────────────────────────────────── */
 function DashboardSkeleton() {
   return (
-    <Row gutter={[20, 20]}>
-      {Array.from({ length: 4 }).map((_, index) => (
-        <Col key={index} xs={24} md={12} xl={6}>
-          <Card style={{ borderRadius: 24 }}>
-            <Skeleton active paragraph={{ rows: 2 }} />
-          </Card>
-        </Col>
-      ))}
-      <Col xs={24} xl={14}>
-        <Card style={{ borderRadius: 24 }}>
-          <Skeleton active paragraph={{ rows: 8 }} />
-        </Card>
-      </Col>
-      <Col xs={24} xl={10}>
-        <Card style={{ borderRadius: 24 }}>
-          <Skeleton active paragraph={{ rows: 8 }} />
-        </Card>
-      </Col>
-    </Row>
+    <div>
+      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Col key={i} xs={24} sm={12} xl={6}>
+            <Card style={{ borderRadius: 20, border: '1px solid #eee' }}>
+              <Skeleton active paragraph={{ rows: 2 }} />
+            </Card>
+          </Col>
+        ))}
+      </Row>
+      <Row gutter={[20, 20]}>
+        <Col xs={24} xl={14}><Card style={{ borderRadius: 20 }}><Skeleton active paragraph={{ rows: 8 }} /></Card></Col>
+        <Col xs={24} xl={10}><Card style={{ borderRadius: 20 }}><Skeleton active paragraph={{ rows: 8 }} /></Card></Col>
+      </Row>
+    </div>
   );
 }
 
-function MetricCard({ title, value, icon, accent, suffix, extra }) {
+/* ─── KPI card ─────────────────────────────────────────────────────────── */
+function KpiCard({ title, value, sub, icon, accentColor, delta, deltaLabel, prefix }) {
+  const isPositive = delta === null ? null : Number(delta) >= 0;
+
   return (
     <Card
+      bodyStyle={{ padding: 0, overflow: 'hidden' }}
       style={{
-        borderRadius: 24,
+        borderRadius: 20,
         border: '1px solid var(--border-color)',
-        boxShadow: '0 14px 28px rgba(131, 61, 7, 0.05)',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.05)',
+        transition: 'transform 0.2s, box-shadow 0.2s',
       }}
-      bodyStyle={{ padding: 22 }}
+      hoverable
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>{title}</div>
-          <Statistic value={value} suffix={suffix} valueStyle={{ fontSize: 28, fontWeight: 800, color: 'var(--text-main)' }} />
-          {extra ? <div style={{ marginTop: 8 }}>{extra}</div> : null}
-        </div>
-        <div
-          style={{
-            width: 50,
-            height: 50,
-            borderRadius: 16,
-            background: accent.background,
-            color: accent.color,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+      {/* colored top bar */}
+      <div style={{ height: 4, background: accentColor, borderRadius: '20px 20px 0 0' }} />
+
+      <div style={{ padding: '20px 22px 22px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
+              {title}
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: '#111827', lineHeight: 1.15, marginBottom: 10 }}>
+              {prefix && <span style={{ fontSize: 14, fontWeight: 600, color: '#6B7280', marginRight: 2 }}>{prefix}</span>}
+              {value}
+            </div>
+            {sub && (
+              <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 10 }}>{sub}</div>
+            )}
+            {delta !== null && delta !== undefined && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                background: isPositive ? '#DCFCE7' : '#FEE2E2',
+                color: isPositive ? '#15803D' : '#DC2626',
+                borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700,
+              }}>
+                {isPositive ? <ArrowUpOutlined style={{ fontSize: 10 }} /> : <ArrowDownOutlined style={{ fontSize: 10 }} />}
+                {Math.abs(delta)}% {deltaLabel}
+              </div>
+            )}
+          </div>
+
+          <div style={{
+            width: 52, height: 52, borderRadius: 16, flexShrink: 0, marginLeft: 12,
+            background: `${accentColor}18`,
+            color: accentColor,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 22,
-            flexShrink: 0,
-          }}
-        >
-          {icon}
+          }}>
+            {icon}
+          </div>
         </div>
       </div>
     </Card>
   );
 }
 
+/* ─── chart card ────────────────────────────────────────────────────────── */
+function ChartCard({ title, extra, children, style }) {
+  return (
+    <Card
+      style={{
+        borderRadius: 20,
+        border: '1px solid var(--border-color)',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.04)',
+        height: '100%',
+        ...style,
+      }}
+      bodyStyle={{ padding: '0 0 20px' }}
+    >
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '18px 22px 14px',
+        borderBottom: '1px solid #F3F4F6',
+      }}>
+        <Title level={5} style={{ margin: 0, fontWeight: 800, fontSize: 14 }}>{title}</Title>
+        {extra}
+      </div>
+      <div style={{ padding: '16px 20px 0' }}>
+        {children}
+      </div>
+    </Card>
+  );
+}
+
+/* ─── AI analysis panel ─────────────────────────────────────────────────── */
+function AIAnalysisPanel({ analysis }) {
+  return (
+    <Card
+      style={{
+        borderRadius: 20,
+        border: '1px solid #FED7AA',
+        background: 'linear-gradient(135deg, #FFFBF5 0%, #FFF7ED 100%)',
+        marginBottom: 24,
+      }}
+      bodyStyle={{ padding: '20px 24px' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10,
+          background: 'linear-gradient(135deg, #F97316, #EA580C)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <BulbOutlined style={{ color: '#fff', fontSize: 16 }} />
+        </div>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 14, color: '#111827' }}>Nhận xét AI về tình hình kinh doanh</div>
+          <Tag color={analysis.source === 'gemini' ? 'purple' : 'blue'} style={{ marginTop: 2, borderRadius: 999 }}>
+            {analysis.source === 'gemini' ? 'Gemini AI' : analysis.source === 'openrouter' ? 'OpenRouter' : 'Fallback'}
+          </Tag>
+        </div>
+      </div>
+
+      <Paragraph style={{ marginBottom: 16, color: '#374151', lineHeight: 1.7 }}>{analysis.summary}</Paragraph>
+
+      <Row gutter={[14, 14]}>
+        <Col xs={24} md={12}>
+          <div style={{
+            background: '#F0FDF4', border: '1px solid #BBF7D0',
+            borderRadius: 14, padding: '14px 16px',
+          }}>
+            <div style={{ fontWeight: 700, color: '#15803D', marginBottom: 8, fontSize: 13 }}>Điểm mạnh</div>
+            <div style={{ color: '#374151', fontSize: 13, lineHeight: 1.65 }}>
+              {(analysis.strengths || []).join(' • ') || 'Chưa có nhận xét chi tiết.'}
+            </div>
+          </div>
+        </Col>
+        <Col xs={24} md={12}>
+          <div style={{
+            background: '#FFFBEB', border: '1px solid #FDE68A',
+            borderRadius: 14, padding: '14px 16px',
+          }}>
+            <div style={{ fontWeight: 700, color: '#D97706', marginBottom: 8, fontSize: 13 }}>Cần cải thiện</div>
+            <div style={{ color: '#374151', fontSize: 13, lineHeight: 1.65 }}>
+              {(analysis.improvements || []).join(' • ') || 'Chưa có nhận xét chi tiết.'}
+            </div>
+          </div>
+        </Col>
+      </Row>
+
+      {analysis.recommendation && (
+        <div style={{
+          marginTop: 14, background: '#EFF6FF', border: '1px solid #BFDBFE',
+          borderRadius: 14, padding: '12px 16px',
+          color: '#1D4ED8', fontSize: 13, lineHeight: 1.65,
+        }}>
+          <strong>Khuyến nghị:</strong> {analysis.recommendation}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* ─── main page ─────────────────────────────────────────────────────────── */
 export default function Dashboard() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState(null);
 
   const { data: rawDashboard, isLoading, isFetching } = useQuery({
     queryKey: ['admin-dashboard'],
-    queryFn: () => adminAPI.getDashboard().then((response) => response.data),
+    queryFn: () => adminAPI.getDashboard().then((r) => r.data),
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
   });
@@ -123,48 +252,65 @@ export default function Dashboard() {
 
   const growthRate = stats?.lastMonthRevenue
     ? (((stats.thisMonthRevenue - stats.lastMonthRevenue) / stats.lastMonthRevenue) * 100).toFixed(1)
-    : 0;
+    : null;
 
+  const aov = (stats?.totalRevenue || 0) / Math.max(stats?.totalOrders || 1, 1);
+
+  /* chart configs */
   const revenueChartConfig = useMemo(() => ({
     data: monthlyRevenue || [],
     xField: 'month',
     yField: 'revenue',
     autoFit: true,
-    height: 300,
+    height: 260,
     smooth: true,
-    lineStyle: { stroke: '#E85D04', lineWidth: 3 },
-    areaStyle: { fill: 'l(270) 0:#FED7AA 1:#FFF7ED', fillOpacity: 0.9 },
-    point: { size: 4, shape: 'circle', style: { fill: '#E85D04', stroke: '#fff', lineWidth: 2 } },
+    lineStyle: { stroke: '#F97316', lineWidth: 2.5 },
+    areaStyle: { fill: 'l(270) 0:#FED7AA40 1:#F9731620', fillOpacity: 1 },
+    point: { size: 3.5, shape: 'circle', style: { fill: '#F97316', stroke: '#fff', lineWidth: 2 } },
     axis: {
-      y: {
-        labelFormatter: (value) => `${Math.round(Number(value) / 1000000)}M`,
-      },
+      y: { labelFormatter: (v) => `${Math.round(Number(v) / 1_000_000)}M` },
+      x: { tickLine: false },
     },
     tooltip: {
-      items: [{ channel: 'y', formatter: (value) => formatPrice(value) }],
+      items: [{ channel: 'y', formatter: (v) => formatPrice(v) }],
     },
   }), [monthlyRevenue]);
 
   const orderStatusChartConfig = useMemo(() => ({
-    data: (ordersByStatus || []).map((item) => ({
-      status: item._id,
-      count: item.count,
-    })),
+    data: (ordersByStatus || []).map((item) => ({ status: item._id, count: item.count })),
     angleField: 'count',
     colorField: 'status',
-    innerRadius: 0.62,
+    innerRadius: 0.65,
     autoFit: true,
-    height: 300,
-    legend: { color: { position: 'bottom' } },
-    labels: [
-      { text: 'status', style: { fontWeight: 700, fill: '#172033' } },
-      { text: 'count', style: { fontSize: 12, fill: '#6B7280' } },
-    ],
+    height: 260,
+    legend: { color: { position: 'bottom', layout: { justifyContent: 'center' } } },
+    label: false,
     scale: {
-      color: {
-        range: ['#F59E0B', '#3B82F6', '#14B8A6', '#16A34A', '#EF4444'],
-      },
+      color: { range: ['#F59E0B', '#3B82F6', '#14B8A6', '#16A34A', '#EF4444'] },
     },
+    annotations: [
+      {
+        type: 'text',
+        style: {
+          text: `${(ordersByStatus || []).reduce((s, x) => s + x.count, 0)}`,
+          x: '50%', y: '42%',
+          textAlign: 'center',
+          fontSize: 26,
+          fontWeight: 800,
+          fill: '#111827',
+        },
+      },
+      {
+        type: 'text',
+        style: {
+          text: 'Đơn hàng',
+          x: '50%', y: '56%',
+          textAlign: 'center',
+          fontSize: 12,
+          fill: '#9CA3AF',
+        },
+      },
+    ],
   }), [ordersByStatus]);
 
   const ctrChartConfig = useMemo(() => ({
@@ -172,40 +318,36 @@ export default function Dashboard() {
     xField: 'placement',
     yField: 'ctr',
     autoFit: true,
-    height: 300,
-    columnStyle: { radius: [10, 10, 0, 0] },
-    color: '#E85D04',
+    height: 240,
+    columnStyle: { radius: [8, 8, 0, 0] },
+    color: '#F97316',
     label: {
       position: 'top',
-      text: (item) => `${item.ctr}%`,
-      style: { fill: '#7C2D12', fontWeight: 700 },
+      text: (d) => `${d.ctr}%`,
+      style: { fill: '#7C2D12', fontWeight: 700, fontSize: 12 },
     },
     annotations: [
       {
         type: 'lineY',
         yField: 5,
         style: { stroke: '#DC2626', lineDash: [6, 4], lineWidth: 1.5 },
-        text: { content: 'Mục tiêu BG-02: 5%', position: 'right' },
+        text: { content: 'Mục tiêu 5%', position: 'right', style: { fill: '#DC2626', fontSize: 11 } },
       },
     ],
+    axis: { y: { labelFormatter: (v) => `${v}%` } },
   }), [aiCtrByPlacement]);
 
   const rfmChartConfig = useMemo(() => ({
     data: rfmSegments,
     angleField: 'users',
     colorField: 'segment',
-    innerRadius: 0.58,
+    innerRadius: 0.62,
     autoFit: true,
-    height: 300,
-    legend: { color: { position: 'bottom' } },
-    labels: [
-      { text: 'segment', style: { fontWeight: 700, fill: '#172033' } },
-      { text: 'users', style: { fontSize: 12, fill: '#6B7280' } },
-    ],
+    height: 240,
+    legend: { color: { position: 'bottom', layout: { justifyContent: 'center' } } },
+    label: false,
     scale: {
-      color: {
-        range: ['#E85D04', '#FB923C', '#2563EB', '#14B8A6', '#8B5CF6', '#E11D48'],
-      },
+      color: { range: ['#F97316', '#FB923C', '#2563EB', '#14B8A6', '#8B5CF6', '#E11D48'] },
     },
   }), [rfmSegments]);
 
@@ -214,8 +356,8 @@ export default function Dashboard() {
     try {
       const { data } = await adminAPI.getAIAnalysis();
       setAiAnalysis(data.analysis);
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
     } finally {
       setAiLoading(false);
     }
@@ -224,184 +366,176 @@ export default function Dashboard() {
   if (isLoading) return <DashboardSkeleton />;
 
   return (
-    <div>
-      <div
-        style={{
-          borderRadius: 28,
-          padding: 28,
-          background: 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 100%)',
-          border: '1px solid var(--border-color)',
-          marginBottom: 24,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
-          <div style={{ maxWidth: 760 }}>
-            <Tag color="gold" style={{ margin: 0, borderRadius: 999, paddingInline: 14, paddingBlock: 6, fontWeight: 700, marginBottom: 14 }}>
-              AI Performance Control Room
-            </Tag>
-            <Title level={3} style={{ margin: 0, fontWeight: 900 }}>Dashboard AI & Kinh doanh</Title>
-            <Paragraph style={{ margin: '8px 0 0', color: 'var(--text-muted)', maxWidth: 640 }}>
-              Giao diện tập trung hơn vào bức tranh điều hành: doanh thu, hành vi mua hàng, phân tích AI và trạng thái dữ liệu theo thời gian thực.
-            </Paragraph>
-          </div>
+    <div style={{ paddingBottom: 8 }}>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            {isFetching ? (
-              <Tag color="blue" style={{ margin: 0, borderRadius: 999, paddingInline: 14, paddingBlock: 6, fontWeight: 700 }}>
-                Đang làm mới dữ liệu
+      {/* ── Page header ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexWrap: 'wrap', gap: 12, marginBottom: 28,
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <Title level={3} style={{ margin: 0, fontWeight: 900, fontSize: 22 }}>
+              Dashboard
+            </Title>
+            {isFetching && (
+              <Tag icon={<SyncOutlined spin />} color="processing" style={{ borderRadius: 999 }}>
+                Đang cập nhật
               </Tag>
-            ) : null}
-            <Button type="primary" icon={<BulbOutlined />} loading={aiLoading} onClick={handleAIAnalysis}>
-              Phân tích AI
-            </Button>
+            )}
           </div>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Tổng quan kinh doanh & hiệu suất AI theo thời gian thực
+          </Text>
         </div>
+
+        <Button
+          type="primary"
+          icon={<BulbOutlined />}
+          loading={aiLoading}
+          onClick={handleAIAnalysis}
+          style={{
+            background: 'linear-gradient(135deg, #F97316, #EA580C)',
+            border: 'none',
+            borderRadius: 12,
+            height: 40,
+            fontWeight: 700,
+            boxShadow: '0 4px 12px rgba(249,115,22,0.35)',
+          }}
+        >
+          Phân tích AI
+        </Button>
       </div>
 
-      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
-        <Col xs={24} md={12} xl={6}>
-          <MetricCard
+      {/* ── KPI cards ── */}
+      <Row gutter={[18, 18]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} xl={6}>
+          <KpiCard
             title="Tổng doanh thu"
-            value={formatPrice(stats?.totalRevenue)}
+            value={formatShortPrice(stats?.totalRevenue)}
+            sub={formatPrice(stats?.totalRevenue)}
             icon={<DollarOutlined />}
-            accent={{ background: '#FFF4E8', color: '#E85D04' }}
+            accentColor="#F97316"
+            delta={null}
           />
         </Col>
-        <Col xs={24} md={12} xl={6}>
-          <MetricCard
+        <Col xs={24} sm={12} xl={6}>
+          <KpiCard
             title="Đơn hàng"
-            value={stats?.totalOrders || 0}
+            value={stats?.totalOrders?.toLocaleString('vi-VN') || '0'}
+            sub={`AOV ${formatShortPrice(aov)}`}
             icon={<ShoppingCartOutlined />}
-            accent={{ background: '#EEF6FF', color: '#2563EB' }}
-            extra={<Text type="secondary">AOV {formatPrice((stats?.totalRevenue || 0) / Math.max(stats?.totalOrders || 1, 1))}</Text>}
+            accentColor="#3B82F6"
+            delta={null}
           />
         </Col>
-        <Col xs={24} md={12} xl={6}>
-          <MetricCard
+        <Col xs={24} sm={12} xl={6}>
+          <KpiCard
             title="Khách hàng"
-            value={stats?.totalUsers || 0}
+            value={stats?.totalUsers?.toLocaleString('vi-VN') || '0'}
+            sub="Tài khoản đã đăng ký"
             icon={<TeamOutlined />}
-            accent={{ background: '#ECFDF5', color: '#15803D' }}
+            accentColor="#10B981"
+            delta={null}
           />
         </Col>
-        <Col xs={24} md={12} xl={6}>
-          <MetricCard
+        <Col xs={24} sm={12} xl={6}>
+          <KpiCard
             title="Tăng trưởng tháng"
-            value={Math.abs(growthRate)}
-            suffix="%"
+            value={growthRate !== null ? `${Math.abs(growthRate)}%` : '—'}
+            sub={`Tháng này ${formatShortPrice(stats?.thisMonthRevenue)}`}
             icon={Number(growthRate) >= 0 ? <RiseOutlined /> : <FallOutlined />}
-            accent={{ background: '#FEF3C7', color: '#D97706' }}
-            extra={
-              <Text style={{ color: Number(growthRate) >= 0 ? '#15803D' : '#DC2626', fontWeight: 700 }}>
-                {Number(growthRate) >= 0 ? 'Tăng so với tháng trước' : 'Giảm so với tháng trước'}
-              </Text>
-            }
+            accentColor="#F59E0B"
+            delta={growthRate}
+            deltaLabel="so tháng trước"
           />
         </Col>
       </Row>
 
-      {aiAnalysis ? (
-        <Card style={{ borderRadius: 24, border: '1px solid var(--border-color)', marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-            <BulbOutlined style={{ color: '#E85D04', fontSize: 20 }} />
-            <Title level={5} style={{ margin: 0 }}>Nhận xét AI về tình hình kinh doanh</Title>
-            <Tag color={aiAnalysis.source === 'openrouter' ? 'blue' : aiAnalysis.source === 'gemini' ? 'purple' : 'default'}>
-              {aiAnalysis.source === 'openrouter' ? 'OpenRouter' : aiAnalysis.source === 'gemini' ? 'Gemini' : 'Fallback'}
-            </Tag>
-          </div>
+      {/* ── AI analysis panel ── */}
+      {aiAnalysis && <AIAnalysisPanel analysis={aiAnalysis} />}
 
-          <Paragraph style={{ marginBottom: 18 }}>{aiAnalysis.summary}</Paragraph>
-
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={12}>
-              <Alert
-                type="success"
-                showIcon
-                message="Điểm mạnh"
-                description={(aiAnalysis.strengths || []).join(' • ') || 'Chưa có nhận xét chi tiết.'}
-              />
-            </Col>
-            <Col xs={24} md={12}>
-              <Alert
-                type="warning"
-                showIcon
-                message="Cần cải thiện"
-                description={(aiAnalysis.improvements || []).join(' • ') || 'Chưa có nhận xét chi tiết.'}
-              />
-            </Col>
-          </Row>
-
-          {aiAnalysis.recommendation ? (
-            <Alert message={aiAnalysis.recommendation} type="info" showIcon style={{ marginTop: 16 }} />
-          ) : null}
-        </Card>
-      ) : null}
-
-      <Row gutter={[20, 20]}>
-        <Col xs={24} xl={14}>
-          <Card
-            style={{ borderRadius: 24, border: '1px solid var(--border-color)' }}
-            title={<span style={{ fontWeight: 800 }}>Doanh thu 12 tháng</span>}
+      {/* ── Revenue + Order status ── */}
+      <Row gutter={[18, 18]} style={{ marginBottom: 18 }}>
+        <Col xs={24} xl={15}>
+          <ChartCard
+            title="Doanh thu 12 tháng"
             extra={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <BarChartOutlined style={{ color: '#E85D04' }} />
-                <Text type="secondary">Theo tháng</Text>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <BarChartOutlined style={{ color: '#F97316' }} />
+                <Text type="secondary" style={{ fontSize: 12 }}>Theo tháng</Text>
               </div>
             }
           >
             {monthlyRevenue?.length > 0 ? (
               <>
                 <Area {...revenueChartConfig} />
-                <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                  <Text type="secondary">Tháng này: <Text strong style={{ color: '#E85D04' }}>{formatPrice(stats?.thisMonthRevenue)}</Text></Text>
-                  <Text type="secondary">Tháng trước: <Text strong>{formatPrice(stats?.lastMonthRevenue)}</Text></Text>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap',
+                  marginTop: 12, paddingTop: 12, borderTop: '1px solid #F3F4F6',
+                  gap: 8,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#F97316' }} />
+                    <Text style={{ fontSize: 12 }}>
+                      Tháng này: <strong style={{ color: '#F97316' }}>{formatPrice(stats?.thisMonthRevenue)}</strong>
+                    </Text>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#D1D5DB' }} />
+                    <Text style={{ fontSize: 12 }}>
+                      Tháng trước: <strong>{formatPrice(stats?.lastMonthRevenue)}</strong>
+                    </Text>
+                  </div>
                 </div>
               </>
             ) : (
-              <InsightEmptyState compact title="Chưa có dữ liệu doanh thu" description="Biểu đồ sẽ hiện xu hướng 12 tháng khi endpoint dashboard trả đủ dữ liệu." />
+              <InsightEmptyState compact title="Chưa có dữ liệu doanh thu" description="Biểu đồ sẽ hiện xu hướng 12 tháng khi có dữ liệu." />
             )}
-          </Card>
+          </ChartCard>
         </Col>
 
-        <Col xs={24} xl={10}>
-          <Card
-            style={{ borderRadius: 24, border: '1px solid var(--border-color)' }}
-            title={<span style={{ fontWeight: 800 }}>Trạng thái đơn hàng</span>}
-            extra={<PieChartOutlined style={{ color: '#E85D04' }} />}
+        <Col xs={24} xl={9}>
+          <ChartCard
+            title="Trạng thái đơn hàng"
+            extra={<PieChartOutlined style={{ color: '#F97316' }} />}
           >
             {ordersByStatus?.length > 0 ? (
               <Pie {...orderStatusChartConfig} />
             ) : (
-              <InsightEmptyState compact title="Chưa có dữ liệu trạng thái đơn" description="Khi có đơn hàng, biểu đồ phân bổ trạng thái sẽ xuất hiện tại đây." />
+              <InsightEmptyState compact title="Chưa có dữ liệu" description="Khi có đơn hàng, biểu đồ phân bổ trạng thái sẽ xuất hiện." />
             )}
-          </Card>
+          </ChartCard>
         </Col>
       </Row>
 
-      <Row gutter={[20, 20]} style={{ marginTop: 20 }}>
+      {/* ── AI CTR + RFM ── */}
+      <Row gutter={[18, 18]}>
         <Col xs={24} xl={12}>
-          <Card
-            style={{ borderRadius: 24, border: '1px solid var(--border-color)' }}
-            title={<span style={{ fontWeight: 800 }}>AI CTR theo placement</span>}
-            extra={<Tag color="red">Mục tiêu ≥ 5%</Tag>}
+          <ChartCard
+            title="AI CTR theo placement"
+            extra={
+              <Tag color="red" style={{ borderRadius: 999, fontWeight: 700 }}>
+                Mục tiêu ≥ 5%
+              </Tag>
+            }
           >
             {aiCtrByPlacement.length > 0 ? (
               <Column {...ctrChartConfig} />
             ) : (
               <InsightEmptyState
                 compact
-                title="Backend chưa trả AI CTR theo placement"
-                description="UI đã sẵn sàng cho Homepage, PDP Similar, Cart FBT và Search. Khi endpoint analytics bổ sung dữ liệu, chart sẽ hiển thị ngay."
+                title="Chưa có dữ liệu AI CTR"
+                description="UI sẵn sàng cho Homepage, PDP, Cart và Search. Biểu đồ hiển thị khi backend cung cấp dữ liệu."
               />
             )}
-          </Card>
+          </ChartCard>
         </Col>
 
         <Col xs={24} xl={12}>
-          <Card
-            style={{ borderRadius: 24, border: '1px solid var(--border-color)' }}
-            title={<span style={{ fontWeight: 800 }}>RFM Segment</span>}
-            extra={<FireOutlined style={{ color: '#E85D04' }} />}
+          <ChartCard
+            title="Phân khúc RFM khách hàng"
+            extra={<FireOutlined style={{ color: '#F97316', fontSize: 16 }} />}
           >
             {rfmSegments.length > 0 ? (
               <Pie {...rfmChartConfig} />
@@ -409,21 +543,10 @@ export default function Dashboard() {
               <InsightEmptyState
                 compact
                 title="Chưa có dữ liệu phân khúc RFM"
-                description="Khu vực này đang ở trạng thái chart-ready. Khi dashboard API trả danh sách segment và số user, giao diện sẽ render donut chart ngay."
+                description="Donut chart sẽ render ngay khi dashboard API trả về danh sách segment."
               />
             )}
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[20, 20]} style={{ marginTop: 20 }}>
-        <Col span={24}>
-          <Alert
-            showIcon
-            type="info"
-            message="Ghi chú triển khai"
-            description="Do constraint hiện tại không thay đổi backend, dashboard đã được nâng cấp phần hiển thị và giữ empty state minh bạch cho AI CTR / RFM thay vì hiển thị số liệu giả."
-          />
+          </ChartCard>
         </Col>
       </Row>
     </div>

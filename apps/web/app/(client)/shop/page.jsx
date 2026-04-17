@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   App,
   Button,
@@ -65,6 +65,17 @@ export default function Shop() {
   const [gridView, setGridView] = useState(true);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [quickFilter, setQuickFilter] = useState('');
+  // Tách local state cho search và slider để debounce — tránh gọi API mỗi keystroke/drag
+  const [searchText, setSearchText] = useState(DEFAULT_FILTERS.search);
+  const [sliderValue, setSliderValue] = useState([DEFAULT_FILTERS.minPrice, DEFAULT_FILTERS.maxPrice]);
+
+  // Debounce search: chờ 350ms sau khi gõ xong mới trigger query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters((current) => ({ ...current, search: searchText, page: 1 }));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['products', filters],
@@ -103,6 +114,8 @@ export default function Shop() {
   const handleReset = () => {
     setFilters(DEFAULT_FILTERS);
     setQuickFilter('');
+    setSearchText(DEFAULT_FILTERS.search);
+    setSliderValue([DEFAULT_FILTERS.minPrice, DEFAULT_FILTERS.maxPrice]);
   };
 
   const products = useMemo(() => {
@@ -158,7 +171,9 @@ export default function Shop() {
                 <Col xs={12}>
                   <Card bodyStyle={{ padding: 18 }} style={{ borderRadius: 22, border: '1px solid var(--border-color)', height: '100%' }}>
                     <Text type="secondary">Sản phẩm đang hiển thị</Text>
-                    <div style={{ marginTop: 8, fontSize: 28, fontWeight: 800, color: 'var(--text-main)' }}>{totalProducts}</div>
+                    <div style={{ marginTop: 8, fontSize: 28, fontWeight: 800, color: 'var(--text-main)' }}>
+                      {isLoading ? '...' : totalProducts}
+                    </div>
                     <Text style={{ color: 'var(--text-muted)' }}>Kết quả theo bộ lọc hiện tại</Text>
                   </Card>
                 </Col>
@@ -166,7 +181,7 @@ export default function Shop() {
                   <Card bodyStyle={{ padding: 18 }} style={{ borderRadius: 22, border: '1px solid var(--border-color)', height: '100%' }}>
                     <Text type="secondary">AI đề xuất</Text>
                     <div style={{ marginTop: 8, fontSize: 28, fontWeight: 800, color: 'var(--brand-teal)' }}>
-                      {aiEnabled && isAuthenticated ? aiProducts.length : 0}
+                      {aiLoading ? '...' : (aiEnabled && isAuthenticated ? aiProducts.length : 0)}
                     </div>
                     <Text style={{ color: 'var(--text-muted)' }}>Danh sách ưu tiên theo hồ sơ</Text>
                   </Card>
@@ -196,8 +211,8 @@ export default function Shop() {
                 <Input
                   placeholder="Tên sản phẩm, chất liệu, mục đích..."
                   prefix={<SearchOutlined style={{ color: 'var(--text-muted)' }} />}
-                  value={filters.search}
-                  onChange={(event) => handleFilter('search', event.target.value)}
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
                   size="large"
                   style={{ marginTop: 12, borderRadius: 14 }}
                 />
@@ -240,8 +255,9 @@ export default function Shop() {
                     min={0}
                     max={100000000}
                     step={500000}
-                    value={[filters.minPrice, filters.maxPrice]}
-                    onChange={([minPrice, maxPrice]) => {
+                    value={sliderValue}
+                    onChange={setSliderValue}
+                    onChangeComplete={([minPrice, maxPrice]) => {
                       setFilters((current) => ({ ...current, minPrice, maxPrice, page: 1 }));
                     }}
                     tooltip={{ formatter: (value) => formatPrice(value) }}
@@ -261,8 +277,8 @@ export default function Shop() {
                     color: '#9A3412',
                   }}
                 >
-                  <span>{formatPrice(filters.minPrice)}</span>
-                  <span>{formatPrice(filters.maxPrice)}</span>
+                  <span>{formatPrice(sliderValue[0])}</span>
+                  <span>{formatPrice(sliderValue[1])}</span>
                 </div>
               </div>
 

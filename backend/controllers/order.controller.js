@@ -2,24 +2,65 @@ const Order = require("../models/Order");
 const Product = require("../models/Product");
 const Activity = require("../models/Activity");
 const User = require("../models/User");
+const DiscountCode = require("../models/DiscountCode");
 const { createNotification } = require("./notification.controller");
 
 // @desc  Tạo đơn hàng mới
 // @route POST /api/orders
 const createOrder = async (req, res) => {
+  // Bug 10 Fix: Biến ngoài try để catch block có thể rollback discount nếu order thất bại
+  let discountReserved = false;
+  let discountCodeNormalized = null;
+
   try {
-    const { items, shippingAddress, paymentMethod, note, discount } = req.body;
+    const { items, shippingAddress, paymentMethod, note, discount, discountCode } = req.body;
     if (!items || items.length === 0)
       return res.status(400).json({ success: false, message: "Giỏ hàng trống" });
 
-    // Kiểm tra tồn kho và tính tiền
     let subtotal = 0;
     const orderItems = [];
+
+    // Bug 10 Fix: Atomic reserve — check + increment trong 1 DB operation để tránh race condition
+    // findOneAndUpdate trả về null nếu filter không match → reject ngay, không thể vượt usageLimit
+    if (discountCode) {
+      discountCodeNormalized = discountCode.toUpperCase().trim();
+      const reserved = await DiscountCode.findOneAndUpdate(
+        {
+          code: discountCodeNormalized,
+          isActive: true,
+          $and: [
+            { $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] },
+            { $or: [{ usageLimit: 0 }, { $expr: { $lt: ["$usedCount", "$usageLimit"] } }] },
+          ],
+        },
+        { $inc: { usedCount: 1 } },
+        { new: false }
+      );
+      if (!reserved) {
+        return res.status(400).json({ success: false, message: "Mã giảm giá không hợp lệ, đã hết hạn hoặc hết lượt sử dụng" });
+      }
+      discountReserved = true;
+    }
+
     for (const item of items) {
       const product = await Product.findById(item.product);
-      if (!product) return res.status(404).json({ success: false, message: `Sản phẩm ${item.product} không tồn tại` });
-      if (product.stock < item.quantity)
-        return res.status(400).json({ success: false, message: `${product.name} không đủ hàng` });
+      if (!product) {
+        // Rollback discount reservation trước khi return lỗi
+        if (discountReserved) {
+          await DiscountCode.findOneAndUpdate({ code: discountCodeNormalized }, { $inc: { usedCount: -1 } });
+          discountReserved = false;
+        }
+        return res.status(404).json({ success: false, message: `Sản phẩm ${item.product} không tồn tại` });
+      }
+
+      // Bug 3 & 4 Fix: Chỉ kiểm tra, không trừ kho tại lúc khởi tạo (sẽ trừ khi admin confirm để tránh kẹt kho)
+      if (product.stock < item.quantity) {
+        if (discountReserved) {
+          await DiscountCode.findOneAndUpdate({ code: discountCodeNormalized }, { $inc: { usedCount: -1 } });
+          discountReserved = false;
+        }
+        return res.status(400).json({ success: false, message: `${product.name} không đủ hàng (còn ${product.stock})` });
+      }
 
       orderItems.push({
         product: product._id,
@@ -42,16 +83,13 @@ const createOrder = async (req, res) => {
       subtotal,
       shippingFee,
       discount: discount || 0,
+      discountCode: discountCode || "",
       totalAmount,
       note,
     });
 
-    // Trừ tồn kho và tăng sold
+    // Ghi activity purchase
     for (const item of orderItems) {
-      await Product.findByIdAndUpdate(item.product, {
-        $inc: { stock: -item.quantity, sold: item.quantity },
-      });
-      // Ghi activity purchase
       await Activity.create({ user: req.user._id, product: item.product, action: "purchase" });
     }
 
@@ -68,6 +106,13 @@ const createOrder = async (req, res) => {
 
     res.status(201).json({ success: true, message: "Đặt hàng thành công", order });
   } catch (err) {
+    // Rollback discount nếu order creation ném exception sau khi đã reserve
+    if (discountReserved && discountCodeNormalized) {
+      await DiscountCode.findOneAndUpdate(
+        { code: discountCodeNormalized },
+        { $inc: { usedCount: -1 } }
+      ).catch(() => {});
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -107,15 +152,21 @@ const cancelOrder = async (req, res) => {
     if (!order) return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
     if (order.user.toString() !== req.user._id.toString())
       return res.status(403).json({ success: false, message: "Không có quyền hủy đơn này" });
-    if (order.orderStatus !== "pending")
-      return res.status(400).json({ success: false, message: "Chỉ có thể hủy đơn hàng đang chờ duyệt" });
+    if (!["pending", "paid"].includes(order.orderStatus) && order.paymentStatus === "pending")
+      return res.status(400).json({ success: false, message: "Chỉ có thể hủy đơn hàng đang chờ thanh toán hoặc đang chờ duyệt" });
 
     order.orderStatus = "cancelled";
     await order.save();
 
-    // Hoàn trả tồn kho
-    for (const item of order.items) {
-      await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity, sold: -item.quantity } });
+    // Do chưa trừ kho lúc đặt nên user tự cancel sẽ không có thay đổi tồn kho (Trừ khi status là confirmed, nhưng policy không cho user tự cancel order đã confirmed. Nếu là "paid", admin chưa confirm thì kho cũng chưa trừ).
+
+
+    // Hoàn trả lượt dùng mã giảm giá nếu có
+    if (order.discountCode) {
+      await DiscountCode.findOneAndUpdate(
+        { code: order.discountCode.toUpperCase().trim(), usedCount: { $gt: 0 } },
+        { $inc: { usedCount: -1 } }
+      );
     }
 
     res.json({ success: true, message: "Hủy đơn hàng thành công" });

@@ -12,7 +12,12 @@ export default function Providers({ children }) {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { staleTime: 30 * 1000, retry: 1 },
+          queries: {
+            staleTime: 60 * 1000,        // 1 phút — tránh refetch quá thường xuyên
+            gcTime: 5 * 60 * 1000,       // giữ cache 5 phút sau khi unmount
+            retry: 1,
+            refetchOnWindowFocus: false, // tắt refetch mỗi khi chuyển tab quay lại
+          },
         },
       })
   );
