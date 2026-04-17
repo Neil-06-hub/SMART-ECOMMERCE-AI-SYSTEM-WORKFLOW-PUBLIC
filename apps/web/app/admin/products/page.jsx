@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, Select, Switch, Upload, message, Tag, Popconfirm, Image, Space } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { adminAPI } from '@/lib/api';
+import { adminAPI, productAPI } from '@/lib/api';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -16,11 +16,18 @@ export default function AdminProducts() {
   const [fileList, setFileList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-products', search],
-    queryFn: () => adminAPI.getProducts({ search }).then((r) => r.data),
+    queryKey: ['admin-products', search, page],
+    queryFn: () => adminAPI.getProducts({ search, page, limit: 20 }).then((r) => r.data),
+  });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => productAPI.getCategories().then((r) => r.data.categories || []),
+    staleTime: 5 * 60 * 1000,
   });
 
   const openCreate = () => {
@@ -102,7 +109,7 @@ export default function AdminProducts() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h3 style={{ fontWeight: 700, margin: 0 }}>Quản lý sản phẩm</h3>
         <Space>
-          <Input.Search placeholder="Tìm sản phẩm..." onSearch={setSearch} style={{ width: 240 }} allowClear />
+          <Input.Search placeholder="Tìm sản phẩm..." onSearch={(v) => { setSearch(v); setPage(1); }} style={{ width: 240 }} allowClear />
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
             style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', border: 'none' }}>
             Thêm sản phẩm
@@ -113,7 +120,13 @@ export default function AdminProducts() {
       <Table
         columns={columns} dataSource={data?.products} rowKey="_id"
         loading={isLoading} style={{ background: 'white', borderRadius: 12 }}
-        pagination={{ pageSize: 15, showTotal: (t) => `${t} sản phẩm` }}
+        pagination={{
+          current: page,
+          pageSize: 20,
+          total: data?.pagination?.total,
+          showTotal: (t) => `${t} sản phẩm`,
+          onChange: (p) => setPage(p),
+        }}
       />
 
       <Modal
@@ -149,7 +162,7 @@ export default function AdminProducts() {
             </Form.Item>
             <Form.Item name="category" label="Danh mục" rules={[{ required: true }]}>
               <Select placeholder="Chọn danh mục" allowClear>
-                {['Điện tử', 'Thời trang', 'Gia dụng', 'Sách', 'Thể thao', 'Mỹ phẩm', 'Đồ chơi', 'Thực phẩm'].map((c) => (
+                {categories.map((c) => (
                   <Option key={c} value={c}>{c}</Option>
                 ))}
               </Select>

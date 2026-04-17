@@ -1,22 +1,31 @@
 'use client';
 
 import { useState } from 'react';
-import { Popover, Badge, Button, Spin, Empty, message } from 'antd';
-import { HeartFilled, HeartOutlined, DeleteOutlined, ShoppingCartOutlined, ArrowRightOutlined } from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { App, Badge, Button, Empty, Popover, Skeleton, Tag } from 'antd';
+import {
+  ArrowRightOutlined,
+  DeleteOutlined,
+  HeartFilled,
+  HeartOutlined,
+  ShoppingCartOutlined,
+} from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { wishlistAPI } from '@/lib/api';
-import { useWishlistStore, useCartStore } from '@/store/useStore';
+import { useCartStore, useWishlistStore } from '@/store/useStore';
 
-const WishlistContent = ({ onClose }) => {
+const formatPrice = (value) => `${new Intl.NumberFormat('vi-VN').format(value || 0)}đ`;
+
+function WishlistContent({ onClose }) {
   const router = useRouter();
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
   const { removeItem } = useWishlistStore();
   const { addItem } = useCartStore();
 
   const { data, isLoading } = useQuery({
     queryKey: ['wishlist'],
-    queryFn: () => wishlistAPI.get().then((r) => r.data.wishlist),
+    queryFn: () => wishlistAPI.get().then((response) => response.data.wishlist),
   });
 
   const removeMutation = useMutation({
@@ -24,29 +33,42 @@ const WishlistContent = ({ onClose }) => {
     onSuccess: (_, productId) => {
       removeItem(productId);
       queryClient.invalidateQueries({ queryKey: ['wishlist'] });
+      queryClient.invalidateQueries({ queryKey: ['wishlistIds'] });
     },
   });
 
-  const formatPrice = (price) => new Intl.NumberFormat('vi-VN').format(price) + 'đ';
   const wishlist = data || [];
 
   if (isLoading) {
     return (
-      <div style={{ width: 340, display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-        <Spin />
+      <div style={{ width: 360, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <Skeleton.Image active style={{ width: 64, height: 64, borderRadius: 14 }} />
+            <Skeleton active title={{ width: '80%' }} paragraph={{ rows: 2, width: ['95%', '55%'] }} style={{ flex: 1 }} />
+          </div>
+        ))}
       </div>
     );
   }
 
   if (wishlist.length === 0) {
     return (
-      <div style={{ width: 340 }}>
+      <div style={{ width: 360 }}>
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={<span style={{ color: '#94A3B8', fontSize: 13 }}>Chưa có sản phẩm yêu thích</span>}
-          style={{ margin: '28px 0' }}
+          description="Chưa có sản phẩm nào trong wishlist."
+          style={{ margin: '18px 0 12px' }}
         >
-          <Button size="small" onClick={() => { onClose(); router.push('/shop'); }} style={{ borderColor: '#EF4444', color: '#EF4444' }}>
+          <Button
+            type="primary"
+            size="large"
+            onClick={() => {
+              onClose();
+              router.push('/shop');
+            }}
+            style={{ borderRadius: 12, fontWeight: 700 }}
+          >
             Khám phá cửa hàng
           </Button>
         </Empty>
@@ -55,55 +77,114 @@ const WishlistContent = ({ onClose }) => {
   }
 
   return (
-    <div style={{ width: 340 }}>
-      <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+    <div style={{ width: 360 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 380, overflowY: 'auto', paddingRight: 4 }}>
         {wishlist.slice(0, 5).map((product) => (
-          <div key={product._id} style={{ display: 'flex', gap: 12, padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
+          <div
+            key={product._id}
+            style={{
+              display: 'flex',
+              gap: 12,
+              padding: 12,
+              borderRadius: 18,
+              border: '1px solid var(--border-color)',
+              background: '#FFFBF5',
+            }}
+          >
             <img
-              src={product.image || 'https://placehold.co/60x60/f1f5f9/a1a1aa?text=SP'}
+              src={product.image || 'https://placehold.co/80x80/f8fafc/a1a1aa?text=SP'}
               alt={product.name}
-              style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10, flexShrink: 0, cursor: 'pointer', border: '1px solid #F1F5F9' }}
-              onClick={() => { onClose(); router.push(`/products/${product._id}`); }}
+              style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 14, flexShrink: 0, cursor: 'pointer' }}
+              onClick={() => {
+                onClose();
+                router.push(`/products/${product._id}`);
+              }}
             />
+
             <div style={{ flex: 1, minWidth: 0 }}>
               <div
-                style={{ fontWeight: 600, fontSize: 13, color: '#0F172A', cursor: 'pointer', lineHeight: 1.4, marginBottom: 4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
-                onClick={() => { onClose(); router.push(`/products/${product._id}`); }}
+                style={{
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: 'var(--text-main)',
+                  lineHeight: 1.45,
+                  marginBottom: 6,
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  onClose();
+                  router.push(`/products/${product._id}`);
+                }}
               >
                 {product.name}
               </div>
-              <div style={{ color: '#EA580C', fontWeight: 700, fontSize: 14 }}>{formatPrice(product.price)}</div>
-              {product.stock === 0 && <span style={{ fontSize: 11, color: '#EF4444', fontWeight: 600 }}>Hết hàng</span>}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
-              <Button size="small" type="primary" icon={<ShoppingCartOutlined />} disabled={product.stock === 0}
-                onClick={() => { addItem(product); message.success('Đã thêm vào giỏ hàng!'); }}
-                style={{ background: '#0F172A', borderColor: '#0F172A', borderRadius: 8 }} />
-              <Button size="small" danger icon={<DeleteOutlined />}
-                loading={removeMutation.isPending && removeMutation.variables === product._id}
-                onClick={() => removeMutation.mutate(product._id)}
-                style={{ borderRadius: 8 }} />
+
+              <div style={{ color: 'var(--brand-teal)', fontWeight: 800, marginBottom: 8 }}>
+                {formatPrice(product.price)}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {product.stock === 0 ? (
+                  <Tag color="red" style={{ margin: 0, borderRadius: 999 }}>Hết hàng</Tag>
+                ) : (
+                  <Tag color="green" style={{ margin: 0, borderRadius: 999 }}>Sẵn sàng mua</Tag>
+                )}
+
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<ShoppingCartOutlined />}
+                  disabled={product.stock === 0}
+                  onClick={() => {
+                    addItem(product);
+                    message.success('Đã thêm sản phẩm vào giỏ hàng.');
+                  }}
+                  style={{ borderRadius: 10 }}
+                >
+                  Thêm
+                </Button>
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={removeMutation.isPending && removeMutation.variables === product._id}
+                  onClick={() => removeMutation.mutate(product._id)}
+                  style={{ borderRadius: 10 }}
+                />
+              </div>
             </div>
           </div>
         ))}
-        {wishlist.length > 5 && (
-          <div style={{ padding: '8px 0', textAlign: 'center', color: '#94A3B8', fontSize: 12 }}>
-            +{wishlist.length - 5} sản phẩm khác
-          </div>
-        )}
       </div>
-      <div style={{ paddingTop: 12, borderTop: '1px solid #F1F5F9' }}>
-        <Button type="primary" block icon={<ArrowRightOutlined />}
-          onClick={() => { onClose(); router.push('/wishlist'); }}
-          style={{ background: '#EF4444', borderColor: '#EF4444', borderRadius: 8, fontWeight: 600 }}>
-          Xem tất cả ({wishlist.length} sản phẩm)
-        </Button>
-      </div>
+
+      {wishlist.length > 5 ? (
+        <div style={{ marginTop: 10, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+          +{wishlist.length - 5} sản phẩm khác trong danh sách
+        </div>
+      ) : null}
+
+      <Button
+        type="primary"
+        block
+        size="large"
+        icon={<ArrowRightOutlined />}
+        onClick={() => {
+          onClose();
+          router.push('/wishlist');
+        }}
+        style={{ marginTop: 16, borderRadius: 12, fontWeight: 700 }}
+      >
+        Xem toàn bộ wishlist
+      </Button>
     </div>
   );
-};
+}
 
-const WishlistDropdown = () => {
+export default function WishlistDropdown() {
   const [open, setOpen] = useState(false);
   const { items: wishlistIds } = useWishlistStore();
 
@@ -113,25 +194,28 @@ const WishlistDropdown = () => {
       onOpenChange={setOpen}
       content={<WishlistContent onClose={() => setOpen(false)} />}
       title={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
-          <HeartFilled style={{ color: '#EF4444' }} />
-          <span style={{ fontWeight: 700, fontSize: 15 }}>Yêu thích</span>
-          {wishlistIds.length > 0 && <Badge count={wishlistIds.length} style={{ background: '#EF4444' }} />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+          <HeartFilled style={{ color: '#DC2626' }} />
+          <span style={{ fontWeight: 800, fontSize: 15 }}>Wishlist</span>
+          {wishlistIds.length > 0 ? <Badge count={wishlistIds.length} style={{ background: '#DC2626' }} /> : null}
         </div>
       }
       trigger="click"
       placement="bottomRight"
       arrow={false}
-      overlayInnerStyle={{ padding: '14px 16px', borderRadius: 16, boxShadow: '0 8px 30px rgba(0,0,0,0.12)', minWidth: 372 }}
-      overlayStyle={{ paddingTop: 8 }}
+      overlayInnerStyle={{
+        padding: '16px 18px',
+        borderRadius: 20,
+        boxShadow: '0 24px 48px rgba(15, 23, 42, 0.14)',
+        minWidth: 392,
+      }}
+      overlayStyle={{ paddingTop: 10 }}
     >
       <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-        <Badge count={wishlistIds.length} style={{ background: '#EF4444' }} offset={[2, -4]}>
-          <HeartOutlined style={{ fontSize: 26, color: wishlistIds.length > 0 ? '#EF4444' : '#0F172A', transition: 'color 0.2s' }} />
+        <Badge count={wishlistIds.length} style={{ background: '#DC2626' }} offset={[2, -4]}>
+          <HeartOutlined style={{ fontSize: 26, color: wishlistIds.length > 0 ? '#DC2626' : '#0F172A', transition: 'color 0.2s' }} />
         </Badge>
       </div>
     </Popover>
   );
-};
-
-export default WishlistDropdown;
+}

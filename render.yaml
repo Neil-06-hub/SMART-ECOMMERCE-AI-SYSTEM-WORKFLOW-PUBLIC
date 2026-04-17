@@ -1,0 +1,66 @@
+services:
+  # ── Express.js API ──────────────────────────────────────────────────────────
+  - type: web
+    name: smart-ecommerce-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: CLIENT_URL
+        sync: false
+      - key: FASTAPI_URL
+        sync: false
+      - key: INTERNAL_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+
+  # ── FastAPI AI Service ──────────────────────────────────────────────────────
+  - type: web
+    name: smart-ecommerce-ai
+    runtime: python
+    rootDir: apps/ai-service
+    buildCommand: pip install --no-cache-dir "setuptools<70.0.0" wheel Cython "numpy==1.26.4" && pip install --no-cache-dir lightfm==1.17 && pip install -e .
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    healthCheckPath: /health
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB_NAME
+        value: smart-ecommerce
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY
+        sync: false
+      - key: R2_SECRET_KEY
+        sync: false
+      - key: R2_BUCKET
+        value: models
+      - key: FASTAPI_URL
+        sync: false
+      - key: INTERNAL_SECRET
+        sync: false

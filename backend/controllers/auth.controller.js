@@ -78,9 +78,18 @@ const getMe = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { name, phone, address, preferences, avatar, dob, gender } = req.body;
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (address !== undefined) updateData.address = address;
+    if (preferences !== undefined) updateData.preferences = preferences;
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (dob !== undefined) updateData.dob = dob;
+    if (gender !== undefined) updateData.gender = gender;
+    
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { name, phone, address, preferences, avatar, dob, gender },
+      updateData,
       { new: true, runValidators: true }
     ).select("-password");
     res.json({ success: true, user });
@@ -106,4 +115,24 @@ const changePassword = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe, updateProfile, changePassword };
+// @desc  Thêm địa chỉ giao hàng
+// @route POST /api/auth/addresses
+const addAddress = async (req, res) => {
+  try {
+    const { fullName, phone, street, city, isDefault } = req.body;
+    const user = await User.findById(req.user._id);
+    
+    if (isDefault) {
+      user.addresses.forEach(addr => addr.isDefault = false);
+    }
+    
+    user.addresses.push({ fullName, phone, street, city, isDefault });
+    await user.save();
+    
+    res.status(201).json({ success: true, addresses: user.addresses });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { register, login, getMe, updateProfile, changePassword, addAddress };

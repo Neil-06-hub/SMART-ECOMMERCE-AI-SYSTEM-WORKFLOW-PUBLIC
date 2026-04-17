@@ -1,10 +1,11 @@
+const dotenv = require("dotenv");
+dotenv.config(); // Phải chạy trước mọi import khác để env vars sẵn sàng
+
 const express = require("express");
 const cors = require("cors");
-const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const { initMarketingJobs } = require("./jobs/marketing.cron");
-
-dotenv.config();
+const { errorHandler } = require("./middleware/errorMiddleware");
 
 const app = express();
 
@@ -31,19 +32,28 @@ app.use("/api/admin", require("./routes/admin.routes"));
 app.use("/api/wishlist", require("./routes/wishlist.routes"));
 app.use("/api/notifications", require("./routes/notification.routes"));
 app.use("/api/admin/discounts", require("./routes/discount.routes"));
+app.use("/api/discounts", require("./routes/discount.public.routes"));
 
 // Health check
 app.get("/api/health", (req, res) => res.json({ status: "OK", message: "Smart Ecommerce API is running" }));
 
 // Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({ success: false, message: err.message || "Internal Server Error" });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+
+  // Kiem tra OpenRouter API key luc khoi dong
+  const openRouterKey = (process.env.OPENROUTER_API_KEY || "").trim().replace(/^["']|["']$/g, "");
+  const openRouterModel = (process.env.OPENROUTER_MODEL || "openrouter/free").trim();
+  if (openRouterKey.length >= 10) {
+    console.log(`✅ OpenRouter API Key: ...${openRouterKey.slice(-6)} (${openRouterKey.length} chars)`);
+    console.log(`✅ OpenRouter Model: ${openRouterModel}`);
+  } else {
+    console.warn("⚠️  OpenRouter API Key chua cau hinh (OPENROUTER_API_KEY trong .env)");
+  }
+
   // Init cron jobs after server starts
   initMarketingJobs();
 });

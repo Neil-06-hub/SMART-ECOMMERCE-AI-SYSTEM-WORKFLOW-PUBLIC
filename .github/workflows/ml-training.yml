@@ -1,0 +1,32 @@
+name: Daily ML Training Pipeline
+on:
+  schedule:
+    - cron: '0 19 * * *'   # 19:00 UTC = 02:00 ICT
+  workflow_dispatch:         # Manual trigger
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: Install deps
+        run: pip install -e apps/ai-service/
+      - name: Run training pipeline
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          FASTAPI_URL: ${{ secrets.FASTAPI_URL }}
+          INTERNAL_SECRET: ${{ secrets.INTERNAL_SECRET }}
+        run: python apps/ai-service/scripts/train_pipeline.py
+      - name: Upload training logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-logs-${{ github.run_id }}
+          path: training_results.json

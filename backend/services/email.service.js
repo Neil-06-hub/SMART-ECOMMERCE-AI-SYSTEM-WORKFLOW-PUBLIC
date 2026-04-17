@@ -13,6 +13,10 @@ const createTransporter = () =>
  * Gửi email với template HTML đẹp
  */
 const sendEmail = async ({ to, subject, html }) => {
+  if (!process.env.EMAIL_USER || process.env.EMAIL_USER === "your-email@gmail.com") {
+    console.log(`[MOCK EMAIL] To: ${to} | Subject: ${subject}`);
+    return Promise.resolve(true);
+  }
   const transporter = createTransporter();
   const mailOptions = {
     from: `"Smart Ecommerce" <${process.env.EMAIL_USER}>`,

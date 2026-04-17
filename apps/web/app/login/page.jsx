@@ -44,6 +44,9 @@ export default function Login() {
           <Form.Item name="password" rules={[{ required: true, message: 'Vui lòng nhập mật khẩu' }]}>
             <Input.Password prefix={<LockOutlined />} placeholder="Mật khẩu" />
           </Form.Item>
+          <div style={{ textAlign: 'right', marginBottom: 24, marginTop: -12 }}>
+            <Link href="/forgot-password" style={{ color: '#667eea', fontSize: 14 }}>Quên mật khẩu?</Link>
+          </div>
           <Form.Item>
             <Button type="primary" htmlType="submit" block style={{
               height: 44, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none', fontWeight: 600,

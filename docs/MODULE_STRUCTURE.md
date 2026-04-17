@@ -1,11 +1,138 @@
 # Module Structure & Code Organization
 
 **Project:** SMART ECOMMERCE AI SYSTEM
-**Version:** 2.0.0
-**Date:** 2026-04-01
+**Version:** 2.1.0
+**Date:** 2026-04-15
 **Author:** Senior Backend Engineer
-**Status:** Approved
-**References:** `docs/ARCHITECTURE.md` v2.0.0 · `docs/TECH_STACK.md` v2.0.0
+**Status:** Implemented
+**References:** `docs/ARCHITECTURE.md` v2.1.0 · `docs/TECH_STACK.md` v2.1.0
+
+---
+
+## Actual Project Structure (As Built)
+
+> The structure below reflects the **implemented codebase**. Section 1 onward describes the original design spec (some deviations apply — see ARCHITECTURE.md §Implementation Status).
+
+```
+SMART-ECOMMERCE-AI-SYSTEM/
+│
+├── backend/                               ← Express.js 4 + JavaScript (port 5000)
+│   ├── server.js                          ← Entry: Express init, MongoDB, routes, cron
+│   ├── config/
+│   │   ├── db.js                          ← Mongoose connect
+│   │   └── cloudinary.js                  ← Cloudinary SDK init
+│   ├── middleware/
+│   │   ├── authMiddleware.js              ← protect() + adminOnly()
+│   │   └── errorMiddleware.js             ← global error handler
+│   ├── models/                            ← 10 Mongoose schemas
+│   │   ├── User.js                        ← role, isBlocked, wishlist, preferences
+│   │   ├── Product.js                     ← isActive (soft delete), tags, reviews
+│   │   ├── Order.js                       ← orderStatus FSM, items snapshot
+│   │   ├── Activity.js                    ← view/add_cart/purchase (marketing cron)
+│   │   ├── BehavioralEvent.js             ← eventType, weight (ML training)
+│   │   ├── FeatureSnapshot.js             ← RFM scores, recentViews (AI features)
+│   │   ├── ModelVersion.js                ← CF/CBF version registry
+│   │   ├── DiscountCode.js                ← percent/fixed, usageLimit
+│   │   ├── Notification.js                ← in-app notifications
+│   │   └── MarketingLog.js                ← email campaign audit log
+│   ├── controllers/                       ← 8 controllers
+│   │   ├── auth.controller.js             ← register, login, getMe, updateProfile
+│   │   ├── product.controller.js          ← CRUD + reviews + search
+│   │   ├── order.controller.js            ← create, list, cancel, admin status
+│   │   ├── ai.controller.js               ← opossum circuit breaker + BehavioralEvent
+│   │   ├── admin.controller.js            ← dashboard, analytics, user mgmt
+│   │   ├── discount.controller.js         ← CRUD discount codes
+│   │   ├── wishlist.controller.js         ← add/remove/list
+│   │   └── notification.controller.js     ← list, mark read
+│   ├── routes/                            ← 9 route files
+│   │   ├── auth.routes.js                 ← /api/auth
+│   │   ├── product.routes.js              ← /api/products
+│   │   ├── order.routes.js                ← /api/orders
+│   │   ├── ai.routes.js                   ← /api/ai (recommendations + track)
+│   │   ├── admin.routes.js                ← /api/admin
+│   │   ├── wishlist.routes.js             ← /api/wishlist
+│   │   ├── notification.routes.js         ← /api/notifications
+│   │   ├── discount.routes.js             ← /api/admin/discounts
+│   │   └── discount.public.routes.js      ← /api/discounts (public validate)
+│   ├── services/
+│   │   ├── recommendation.service.js      ← MongoDB content-based fallback
+│   │   ├── gemini.service.js              ← Google Gemini AI client
+│   │   ├── email.service.js               ← Nodemailer Gmail SMTP
+│   │   └── marketing.service.js           ← Gemini-generated email copy
+│   ├── jobs/
+│   │   └── marketing.cron.js             ← node-cron: abandoned cart + newsletter
+│   ├── seeds/
+│   │   ├── 05-behavior-history.js         ← exports seedBehavioralEvents()
+│   │   └── 06-feature-snapshots.js        ← exports seedFeatureSnapshots()
+│   ├── seed.js                            ← master seeder (products→users→05→06)
+│   ├── Dockerfile
+│   ├── package.json
+│   └── .env.example
+│
+├── apps/ai-service/                       ← FastAPI 0.111 + Python 3.11 (port 8000)
+│   ├── app/
+│   │   ├── main.py                        ← FastAPI app, lifespan (load model on start)
+│   │   ├── config.py                      ← pydantic-settings + alpha weights
+│   │   ├── dependencies.py                ← shared DI (ModelRegistry, MongoDB)
+│   │   ├── api/
+│   │   │   ├── recommend.py               ← POST /recommend
+│   │   │   ├── features.py                ← POST /features/update
+│   │   │   ├── internal.py                ← POST /internal/reload-model
+│   │   │   └── health.py                  ← GET /health
+│   │   ├── ml/
+│   │   │   ├── features.py                ← fetch_training_data() from MongoDB
+│   │   │   ├── train_cf.py                ← LightFM WARP, 128 dims, 50 epochs
+│   │   │   ├── train_cbf.py               ← TF-IDF + category/price one-hot
+│   │   │   ├── evaluate.py                ← precision@10, recall@10
+│   │   │   └── hybrid.py                  ← α×CF + (1-α)×CBF inference
+│   │   └── services/
+│   │       ├── model_registry.py          ← in-memory singleton + asyncio.Lock
+│   │       ├── r2_client.py               ← boto3 S3-compat (Cloudflare R2)
+│   │       └── mongo_client.py            ← Motor async MongoDB
+│   ├── scripts/
+│   │   └── train_pipeline.py              ← GitHub Actions entry point
+│   ├── Dockerfile
+│   ├── pyproject.toml
+│   └── .env.example
+│
+├── apps/web/                              ← Next.js 15 + React 18 (port 3000)
+│   ├── app/
+│   │   ├── (client)/
+│   │   │   ├── page.jsx                   ← Home: ISR + AI recommendations
+│   │   │   ├── shop/page.jsx              ← CSR: product grid + filters
+│   │   │   ├── products/[id]/page.jsx     ← ISR: PDP + similar items
+│   │   │   ├── cart/page.jsx              ← CSR: cart management
+│   │   │   ├── checkout/page.jsx          ← CSR: payment + address
+│   │   │   ├── orders/page.jsx            ← SSR: order history
+│   │   │   ├── wishlist/page.jsx          ← CSR: saved products
+│   │   │   ├── profile/page.jsx           ← SSR: user profile
+│   │   │   ├── ai-suggest/page.jsx        ← CSR: AI demo page
+│   │   │   └── client-page.jsx            ← shared client wrapper
+│   │   ├── admin/
+│   │   │   ├── dashboard/page.jsx         ← analytics charts (Ant Design Charts)
+│   │   │   ├── products/page.jsx          ← product CRUD
+│   │   │   ├── orders/page.jsx            ← order management + status
+│   │   │   ├── users/page.jsx             ← user management + blocking
+│   │   │   ├── discounts/page.jsx         ← discount code management
+│   │   │   └── marketing/page.jsx         ← campaign + RFM segmentation
+│   │   ├── login/page.jsx, register/page.jsx
+│   │   ├── layout.jsx, providers.jsx
+│   │   └── admin/layout.jsx
+│   ├── Dockerfile
+│   ├── package.json
+│   └── .env.example
+│
+├── .github/workflows/
+│   ├── ml-training.yml                    ← daily 02:00 ICT training cron
+│   ├── pr-gate.yml                        ← CI on every PR
+│   ├── deploy-api.yml                     ← deploy backend to Render
+│   ├── deploy-ai.yml                      ← deploy FastAPI to Render
+│   └── deploy-web.yml                     ← Vercel auto-deploy trigger log
+│
+├── docker-compose.yml                     ← local dev: mongodb + backend + ai + web
+├── render.yaml                            ← Render.com multi-service config
+└── docs/                                  ← design & architecture documentation
+```
 
 ---
 

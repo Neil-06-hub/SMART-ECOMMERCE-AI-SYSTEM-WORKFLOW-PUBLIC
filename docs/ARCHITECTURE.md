@@ -1,11 +1,47 @@
 # Architecture Design Document
 
 **Project:** SMART ECOMMERCE AI SYSTEM
-**Version:** 2.0.0
-**Date:** 2026-04-01
+**Version:** 2.1.0
+**Date:** 2026-04-15
 **Author:** Senior Software Architect
-**Status:** Approved
+**Status:** Implemented
 **References:** `docs/TECH_STACK.md` v2.0.0 · `docs/REQUIREMENTS.md` v2.2.0
+
+---
+
+## Implementation Status (As Built — 2026-04-15)
+
+> This document describes the **target architecture** (v2.0.0). The table below records **what was actually built** and where it differs from the original design.
+
+| Component | Designed | As Built | Notes |
+|---|---|---|---|
+| Backend framework | NestJS 10 + TypeScript | **Express.js 4 + JavaScript** | Simpler DX for 1-person team; same REST contracts |
+| Backend path | `apps/api/` | **`backend/`** | Flat monorepo layout |
+| Background jobs | BullMQ + Redis | **node-cron** (in-process) | Eliminated Redis dependency; same outcome |
+| ML job scheduler | Celery Beat | **GitHub Actions cron** | `0 19 * * *` UTC = 02:00 ICT; no Celery worker needed |
+| Cache layer | Upstash Redis | **Not implemented** | Eliminated to stay under 512MB Render RAM; MongoDB queries are fast enough for current scale |
+| Search | Meilisearch Cloud | **MongoDB text search** | 100k doc limit not a concern at current catalog size |
+| Payment gateway | VNPay + COD | **COD only** | VNPay sandbox integration deferred; order model supports future payment fields |
+| UI library | shadcn/ui + Tailwind | **Ant Design 5** | Better Vietnamese locale support |
+| Shared TS library | `libs/shared/` | **Not created** | JS backend eliminated the need for shared TS types |
+| Circuit breaker | opossum in RecommendationModule | **opossum in `ai.controller.js`** | Same library, same config; placed in controller for simplicity |
+| Event bus | EventEmitter2 | **Not implemented** | Direct function calls; cron job handles cross-module email triggers |
+| BehavioralEvent write | Redis stream → Celery batch | **Direct MongoDB insert** in controller | Simpler; acceptable for current load |
+| Model hot-reload | POST /internal/reload-model | ✅ **Implemented** | asyncio.Lock atomic swap in ModelRegistry |
+| Cloudflare R2 | ML artifact storage | ✅ **Implemented** | boto3 S3-compat; fallback to local disk if not configured |
+
+**Fully implemented as designed:**
+- LightFM CF (WARP loss, 128 components, 50 epochs)
+- TF-IDF CBF matrix (5000 vocab, category/price one-hot, top-50 precomputed)
+- Hybrid α×CF + (1-α)×CBF scoring with placement-specific alpha
+- ModelRegistry (in-memory singleton + asyncio.Lock)
+- GitHub Actions daily training pipeline
+- opossum circuit breaker (timeout=500ms, reset=60s)
+- JWT auth + bcryptjs + RBAC (customer/admin roles)
+- Cloudinary image uploads
+- Nodemailer Gmail SMTP
+- Google Gemini AI email copy generation
+- MongoDB soft-delete pattern
 
 ---
 
@@ -131,19 +167,20 @@ Since ADR-004 (removing the Cloudflare CDN proxy), SSL/TLS is handled directly b
 
 No manual SSL configuration is needed. Cloudflare does not need to act as an SSL termination proxy.
 
-### 2.2 Request Flow Summary
+### 2.2 Request Flow Summary (As Built)
 
 | Flow | Path |
 |---|---|
-| **Page load (SSR)** | Browser → Vercel Edge CDN → Next.js RSC → Express.js API (if server data is needed) |
-| **API call** | Browser → Express.js `/api/v1/*` (HTTPS direct, TLS via Render) |
-| **Search** | Browser → Express.js → MongoDB Atlas Search → response |
-| **AI Recommendation** | Browser → Express.js RecommendationModule → Redis cache check → (miss) → FastAPI → Redis feature store → LightFM+CBF → Express.js cache → response |
-| **Behavioral Event** | Browser → Express.js → async MongoDB insert (fire-and-forget) |
-| **Training pipeline** | GitHub Actions cron 02:00 ICT → fetch MongoDB → train LightFM → evaluate → promote → upload R2 → hot-reload FastAPI |
-| **Payment** | Browser → Express.js → VNPay → webhook callback → Express.js HMAC verify → update order |
-| **Email** | Express.js → BullMQ `email-queue` → nodemailer → Gmail SMTP → inbox |
-| **Error logging** | Express.js AllExceptionsFilter → async MongoDB `error_logs` insert (fire-and-forget) |
+| **Page load (SSR/ISR)** | Browser → Vercel Edge CDN → Next.js → response |
+| **API call** | Browser → Express.js `:5000/api/*` (HTTPS, TLS via Render) |
+| **Search** | Browser → Express.js → MongoDB text search on products → response |
+| **AI Recommendation (auth)** | Browser → `GET /api/ai/recommendations` → opossum circuit breaker → FastAPI `/recommend` → LightFM CF + TF-IDF CBF hybrid → MongoDB product hydration → response |
+| **AI Recommendation (fallback)** | Circuit breaker OPEN → `Product.find({ featured: true })` → response |
+| **Behavioral Event (auth)** | Browser → `POST /api/ai/track` → MongoDB insert (Activity + BehavioralEvent) |
+| **Behavioral Event (anon)** | Browser → `POST /api/ai/track-public` → MongoDB insert (BehavioralEvent only) |
+| **Training pipeline** | GitHub Actions cron 02:00 ICT → `train_pipeline.py` → fetch 90d events from MongoDB → train LightFM → evaluate precision@10/recall@10 → promote if better → build CBF matrix → upload artifacts to R2 → POST `/internal/reload-model` → hot-swap in FastAPI memory |
+| **Email (cron)** | node-cron hourly → find users with cartAbandonedAt >24h ago → Gemini AI generates email copy → nodemailer Gmail SMTP send |
+| **Email (order)** | Order created → `email.service.js` → nodemailer → Gmail SMTP |
 
 ---
 

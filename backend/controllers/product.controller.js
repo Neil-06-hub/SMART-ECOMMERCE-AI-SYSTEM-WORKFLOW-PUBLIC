@@ -1,5 +1,6 @@
 const Product = require("../models/Product");
 const Activity = require("../models/Activity");
+const Order = require("../models/Order");
 const { getContentBasedRecommendations } = require("../services/recommendation.service");
 
 // @desc  Lấy danh sách sản phẩm (có filter + phân trang)
@@ -13,8 +14,9 @@ const getProducts = async (req, res) => {
     if (search) filter.name = { $regex: search, $options: "i" };
     if (minPrice || maxPrice) {
       filter.price = {};
-      if (minPrice) filter.price.$gte = Number(minPrice);
-      if (maxPrice) filter.price.$lte = Number(maxPrice);
+      if (minPrice && !isNaN(Number(minPrice))) filter.price.$gte = Number(minPrice);
+      if (maxPrice && !isNaN(Number(maxPrice))) filter.price.$lte = Number(maxPrice);
+      if (Object.keys(filter.price).length === 0) delete filter.price;
     }
 
     const sortOptions = {
@@ -93,6 +95,16 @@ const addReview = async (req, res) => {
     const { rating, comment } = req.body;
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm" });
+
+    // Bug 7 Fix: Chỉ người dùng đã mua hàng (và đơn hàng được giao) mới được đánh giá
+    const hasBought = await Order.findOne({ 
+      user: req.user._id, 
+      "items.product": req.params.id, 
+      orderStatus: "delivered" 
+    });
+    if (!hasBought) {
+      return res.status(403).json({ success: false, message: "Bạn cần mua sản phẩm này trước khi đánh giá" });
+    }
 
     const alreadyReviewed = product.reviews.find(
       (r) => r.user.toString() === req.user._id.toString()

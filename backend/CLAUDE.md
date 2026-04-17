@@ -1,12 +1,16 @@
 # Backend — Claude Context
 
 > Stack: **Node.js 20 + Express 4 + MongoDB (Mongoose) + JWT**
+> Language: **JavaScript (CommonJS)** — not TypeScript
 > Entry: `server.js` (Express init, MongoDB connect, mount routes, start cron jobs)
+> Port: **5000**
 
 ## Quick Commands
 ```bash
-npm run dev     # nodemon server.js — port 5000
-node seed.js    # Reset DB + seed sample data (hữu ích khi demo)
+npm run dev       # nodemon server.js — hot reload, port 5000
+npm run start     # node server.js — production
+npm run seed      # Reset DB + seed ALL data (products → users → behavioral events → feature snapshots)
+npm run seed:ai   # Only seeds 05-behavior-history + 06-feature-snapshots (standalone)
 ```
 
 ## Route → Controller Map
@@ -16,15 +20,21 @@ node seed.js    # Reset DB + seed sample data (hữu ích khi demo)
 | `routes/auth.routes.js` | `auth.controller.js` | `/api/auth` | Public/Protected |
 | `routes/product.routes.js` | `product.controller.js` | `/api/products` | Public + Admin |
 | `routes/order.routes.js` | `order.controller.js` | `/api/orders` | User |
-| `routes/ai.routes.js` | `ai.controller.js` | `/api/ai` | User |
+| `routes/ai.routes.js` | `ai.controller.js` | `/api/ai` | Mixed (see below) |
 | `routes/admin.routes.js` | `admin.controller.js` | `/api/admin` | Admin only |
 | `routes/wishlist.routes.js` | `wishlist.controller.js` | `/api/wishlist` | User |
 | `routes/notification.routes.js` | `notification.controller.js` | `/api/notifications` | User |
 | `routes/discount.routes.js` | `discount.controller.js` | `/api/admin/discounts` | Admin only |
+| `routes/discount.public.routes.js` | `discount.controller.js` | `/api/discounts` | Public |
 
-→ Chi tiết middleware: `middleware/CLAUDE.md`
+### AI Route Details (`/api/ai`)
+| Method | Endpoint | Auth | Purpose |
+|--------|----------|------|---------|
+| GET | `/api/ai/recommendations` | User (JWT) | Personalized AI recommendations via FastAPI |
+| POST | `/api/ai/track` | User (JWT) | Track events → Activity + BehavioralEvent |
+| POST | `/api/ai/track-public` | **Public** (no auth) | Anonymous event tracking → BehavioralEvent only |
 
-## Controller Pattern Chuẩn
+## Controller Pattern
 ```js
 // controllers/example.controller.js
 const Example = require('../models/Example');
@@ -37,27 +47,18 @@ exports.getAll = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-exports.create = async (req, res) => {
-  try {
-    const item = await Example.create(req.body);
-    res.status(201).json({ success: true, data: item });
-  } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
 ```
 
-## HTTP Status Code Conventions
-| Code | Khi nào dùng |
-|------|-------------|
-| 200 | GET/PUT thành công |
-| 201 | POST tạo mới thành công |
+## HTTP Status Codes
+| Code | When |
+|------|------|
+| 200 | GET/PUT success |
+| 201 | POST create success |
 | 400 | Validation error, bad request |
-| 401 | Chưa đăng nhập (no/invalid token) |
-| 403 | Không đủ quyền (isBlocked, not admin) |
-| 404 | Resource không tìm thấy |
-| 500 | Lỗi server không lường trước |
+| 401 | No/invalid JWT token |
+| 403 | Insufficient role (isBlocked, not admin) |
+| 404 | Resource not found |
+| 500 | Unexpected server error |
 
 ## Response Format
 ```js
@@ -68,78 +69,99 @@ exports.create = async (req, res) => {
 { success: false, message: 'Mô tả lỗi cụ thể' }
 ```
 
-## Models Summary
-→ Chi tiết đầy đủ: `models/CLAUDE.md`
+## Models (10 Mongoose schemas)
 
-| Model | Key Business Fields |
-|-------|-------------------|
-| `User` | role(customer/admin), **isBlocked**, wishlist[], preferences[] |
-| `Product` | **isActive** (soft delete), tags[], featured, stock |
-| `Order` | orderStatus(pending/confirmed/shipping/delivered/cancelled), paymentMethod |
-| `Activity` | action(view/add_cart/purchase/remove_cart) — dùng cho AI |
-| `MarketingLog` | type, status, aiGenerated |
-| `Notification` | type(order/wishlist/promotion/system/new_product/ai), isRead |
-| `DiscountCode` | type(percent/fixed), usageLimit, usedCount, expiresAt |
+| Model | Key Business Fields | Soft Delete |
+|-------|-------------------|-------------|
+| `User` | role(customer/admin), **isBlocked**, wishlist[], preferences[], cartAbandonedAt | deletedAt |
+| `Product` | **isActive** (soft delete), tags[], featured, stock, sold | isActive flag |
+| `Order` | orderStatus(pending/confirmed/shipping/delivered/cancelled), paymentMethod | deletedAt |
+| `Activity` | action(view/add_cart/purchase/remove_cart) — for marketing cron | deletedAt |
+| `BehavioralEvent` | eventType, weight, userId, productId, metadata — **for ML training** | TTL 90 days |
+| `FeatureSnapshot` | rfmScores, recentViews, purchasedCategories — **for AI features** | TTL 180 days |
+| `ModelVersion` | modelType(cf/cbf), version(YYYY-MM-DD), isActive, metrics, artifactUrl | — |
+| `DiscountCode` | type(percent/fixed), usageLimit, usedCount, expiresAt | deletedAt |
+| `Notification` | type(order/wishlist/promotion/system/new_product/ai), isRead | deletedAt |
+| `MarketingLog` | type, status, aiGenerated — email audit log | — |
 
 ## Key Business Rules
 ```js
-// Soft delete — không xóa thật
+// Soft delete — never hard delete products
 await Product.findByIdAndUpdate(id, { isActive: false });
-// Query phải filter: Product.find({ isActive: true })
+Product.find({ isActive: true })  // always filter
 
-// Notification helper — dùng ở bất kỳ controller nào
-const { createNotification } = require('./notification.controller');
-await createNotification(userId, {
-  type: 'order',      // 'order'|'wishlist'|'promotion'|'system'|'new_product'|'ai'
-  title: 'Tiêu đề',
-  message: 'Nội dung thông báo',
-  link: '/orders/abc123'
+// BehavioralEvent tracking (ML training pipeline reads this)
+await BehavioralEvent.create({
+  userId, productId,
+  eventType: 'view',  // view | click | add_to_cart | purchase | rec_click
+  weight: 1,          // view=1, click=1.5, add_to_cart=2, purchase=5, rec_click=1.5
+  metadata: { placement: 'homepage' }
 });
 
-// User blocking — protect middleware tự xử lý
-// Nếu user.isBlocked === true → 403 Forbidden (admin exempt)
+// AI circuit breaker (ai.controller.js)
+// opossum: timeout=500ms, errorThreshold=50%, resetTimeout=60s
+// Fallback: Product.find({ isActive: true, featured: true }).limit(n)
+
+// Notification helper
+const { createNotification } = require('./notification.controller');
+await createNotification(userId, {
+  type: 'order',   // 'order'|'wishlist'|'promotion'|'system'|'new_product'|'ai'
+  title: 'Tiêu đề', message: 'Nội dung', link: '/orders/abc123'
+});
 ```
 
 ## Middleware
-→ Chi tiết: `middleware/CLAUDE.md`
 ```
-protect     → verify JWT, attach req.user (check isBlocked)
-adminOnly   → check req.user.role === 'admin'
-upload      → multer memory storage → Cloudinary stream
+protect     → verify JWT → attach req.user → check isBlocked (403 if blocked, admin exempt)
+adminOnly   → check req.user.role === 'admin' → 403 if not
+upload      → multer memory storage → Cloudinary stream upload
 ```
 
 ## Services
-→ Chi tiết: `services/CLAUDE.md`
 
-| Service | Chức năng |
-|---------|----------|
-| `gemini.service.js` | Gọi Gemini API, strip markdown, parse JSON |
-| `recommendation.service.js` | Content-based (tags) + Collaborative (activity) |
-| `marketing.service.js` | AI-generated email subject + HTML body |
-| `email.service.js` | Gửi qua Nodemailer Gmail SMTP |
+| Service | Purpose |
+|---------|---------|
+| `gemini.service.js` | Google Gemini 1.5 Flash — strip markdown, parse JSON response |
+| `recommendation.service.js` | MongoDB content-based fallback (tag similarity + category match) |
+| `marketing.service.js` | Gemini-generated email subject + HTML body |
+| `email.service.js` | Nodemailer Gmail SMTP transport |
 
 ## Cron Jobs (`jobs/marketing.cron.js`)
+
 | Schedule | Task |
 |----------|------|
-| `0 * * * *` | Abandoned cart emails (cart không empty + last activity >24h) |
-| `0 9 * * 1` | Weekly newsletter hàng tuần (Thứ Hai 9:00 AM) |
+| `0 * * * *` | Abandoned cart detection (cartAbandonedAt >24h ago → send email) |
+| `0 9 * * 1` | Weekly newsletter (Monday 9:00 AM) |
 
-## Environment Variables
-→ Template đầy đủ: `.env.example`
+## Seed Pipeline
+```bash
+node seed.js
+# Step 1: Clear products + users
+# Step 2: Insert 100+ Vietnamese tech products
+# Step 3: Create admin (admin@smartshop.com / admin123456)
+# Step 4: Create 8 customers (customer@smartshop.com / customer123456)
+# Step 5: seedBehavioralEvents() — ~2000 events for all users
+# Step 6: seedFeatureSnapshots() — RFM + recentViews per user
+```
+
+Seeds 05-06 are also callable standalone:
+```bash
+node seeds/05-behavior-history.js
+node seeds/06-feature-snapshots.js
+```
+
+## Environment Variables (see `.env.example`)
 ```
 PORT=5000
-CLIENT_URL=http://localhost:5173
+CLIENT_URL=http://localhost:3000
 MONGO_URI=mongodb://localhost:27017/smart-ecommerce
+MONGODB_URI=mongodb+srv://...   # Atlas (production)
 JWT_SECRET=<random 32+ chars>
 JWT_EXPIRE=7d
+FASTAPI_URL=http://localhost:8000
+INTERNAL_SECRET=<random secret>
 GEMINI_API_KEY=<from Google AI Studio>
 CLOUDINARY_CLOUD_NAME / _API_KEY / _API_SECRET
 EMAIL_USER=<gmail>
-EMAIL_PASS=<16-char app password từ Google Account Settings>
+EMAIL_PASS=<16-char app password>
 ```
-
-## Config Files
-| File | Nội dung |
-|------|---------|
-| `config/db.js` | MongoDB connect với Mongoose |
-| `config/cloudinary.js` | Cloudinary SDK init |

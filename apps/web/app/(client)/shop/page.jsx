@@ -1,204 +1,565 @@
 'use client';
 
-import { useState } from 'react';
-import { Row, Col, Select, Slider, Button, Spin, Pagination, Empty, Switch, Tag, Input } from 'antd';
-import { AppstoreOutlined, BarsOutlined, HomeOutlined, ThunderboltFilled, SearchOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  App,
+  Button,
+  Card,
+  Col,
+  Divider,
+  Input,
+  Pagination,
+  Row,
+  Select,
+  Slider,
+  Space,
+  Switch,
+  Tag,
+  Typography,
+} from 'antd';
+import {
+  AppstoreOutlined,
+  BarsOutlined,
+  HomeOutlined,
+  LoginOutlined,
+  RobotOutlined,
+  SearchOutlined,
+  ShoppingOutlined,
+  ThunderboltFilled,
+} from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { productAPI, aiAPI } from '@/lib/api';
-import { useAuthStore } from '@/store/useStore';
+import { aiAPI, productAPI } from '@/lib/api';
 import ProductCard from '@/components/product/ProductCard';
+import AIRecCard from '@/components/ai/AIRecCard';
+import AIProductSkeleton from '@/components/feedback/AIProductSkeleton';
+import InsightEmptyState from '@/components/feedback/InsightEmptyState';
+import { useAuthStore } from '@/store/useStore';
 
 const { Option } = Select;
+const { Paragraph, Text, Title } = Typography;
+
+const DEFAULT_FILTERS = {
+  page: 1,
+  limit: 12,
+  search: '',
+  category: '',
+  sort: 'newest',
+  minPrice: 0,
+  maxPrice: 100000000,
+};
+
+const QUICK_FILTERS = [
+  { label: 'Đang giảm giá', value: 'discount' },
+  { label: 'Bán chạy', value: 'popular' },
+  { label: 'Mới về', value: 'newest' },
+];
+
+const formatPrice = (value) => `${new Intl.NumberFormat('vi-VN').format(value || 0)}đ`;
 
 export default function Shop() {
-  const { isAuthenticated } = useAuthStore();
   const router = useRouter();
-  const [filters, setFilters] = useState({ page: 1, limit: 12, search: '', category: '', sort: 'newest', minPrice: 0, maxPrice: 10000000 });
+  const { message } = App.useApp();
+  const { isAuthenticated } = useAuthStore();
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [gridView, setGridView] = useState(true);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [quickFilter, setQuickFilter] = useState('');
+  // Tách local state cho search và slider để debounce — tránh gọi API mỗi keystroke/drag
+  const [searchText, setSearchText] = useState(DEFAULT_FILTERS.search);
+  const [sliderValue, setSliderValue] = useState([DEFAULT_FILTERS.minPrice, DEFAULT_FILTERS.maxPrice]);
+
+  // Debounce search: chờ 350ms sau khi gõ xong mới trigger query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters((current) => ({ ...current, search: searchText, page: 1 }));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['products', filters],
-    queryFn: () => productAPI.getAll(filters).then((r) => r.data),
+    queryFn: () => productAPI.getAll(filters).then((response) => response.data),
   });
 
   const { data: categoriesData } = useQuery({
     queryKey: ['categories'],
-    queryFn: () => productAPI.getCategories().then((r) => r.data.categories),
+    queryFn: () => productAPI.getCategories().then((response) => response.data.categories),
   });
 
   const { data: aiData, isLoading: aiLoading } = useQuery({
     queryKey: ['ai-recommendations-shop'],
-    queryFn: () => aiAPI.getRecommendations().then((r) => r.data),
-    enabled: !!(isAuthenticated && aiEnabled),
+    queryFn: () => aiAPI.getRecommendations().then((response) => response.data),
+    enabled: isAuthenticated && aiEnabled,
+    staleTime: 60000,
   });
 
-  const handleFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value, page: 1 }));
-  const handleReset = () => {
-    setFilters({ page: 1, limit: 12, search: '', category: '', sort: 'newest', minPrice: 0, maxPrice: 10000000 });
-    setQuickFilter('');
+  const handleFilter = (key, value) => {
+    setFilters((current) => ({ ...current, [key]: value, page: 1 }));
   };
 
-  const quickFilters = ['Giảm giá', 'Bán chạy', 'Mới nhất'];
+  const handleQuickFilter = (value) => {
+    const nextValue = quickFilter === value ? '' : value;
+    setQuickFilter(nextValue);
+
+    if (value === 'popular') {
+      handleFilter('sort', nextValue ? 'popular' : 'newest');
+    }
+
+    if (value === 'newest') {
+      handleFilter('sort', 'newest');
+    }
+  };
+
+  const handleReset = () => {
+    setFilters(DEFAULT_FILTERS);
+    setQuickFilter('');
+    setSearchText(DEFAULT_FILTERS.search);
+    setSliderValue([DEFAULT_FILTERS.minPrice, DEFAULT_FILTERS.maxPrice]);
+  };
+
+  const products = useMemo(() => {
+    const rawProducts = data?.products || [];
+
+    if (quickFilter === 'discount') {
+      return rawProducts.filter((product) => product.originalPrice > product.price);
+    }
+
+    return rawProducts;
+  }, [data?.products, quickFilter]);
+
+  const aiProducts = aiData?.products || [];
+  const aiSource = aiData?.meta?.source || aiData?.source || 'model';
+  const totalProducts = quickFilter === 'discount'
+    ? products.length
+    : data?.pagination?.total || products.length;
 
   return (
-    <div style={{ background: 'var(--bg-main)', minHeight: '100vh', padding: '40px 24px' }}>
+    <div style={{ background: 'var(--bg-main)', minHeight: '100vh', padding: '32px 24px 56px' }}>
       <div className="container" style={{ maxWidth: 1440 }}>
+        <div
+          style={{
+            marginBottom: 24,
+            borderRadius: 28,
+            padding: '28px 28px 24px',
+            background: 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 58%, #F8FAFC 100%)',
+            border: '1px solid rgba(231, 217, 200, 0.9)',
+            boxShadow: '0 24px 48px rgba(131, 61, 7, 0.06)',
+          }}
+        >
+          <Row gutter={[24, 24]} align="middle">
+            <Col xs={24} xl={15}>
+              <Space size={10} wrap style={{ marginBottom: 14 }}>
+                <Tag color="orange" style={{ borderRadius: 999, paddingInline: 12, paddingBlock: 5, fontWeight: 700 }}>
+                  <HomeOutlined /> Cửa hàng thông minh
+                </Tag>
+                <Tag color="gold" style={{ borderRadius: 999, paddingInline: 12, paddingBlock: 5, fontWeight: 700 }}>
+                  <RobotOutlined /> AI merchandising
+                </Tag>
+              </Space>
+
+              <Title level={1} style={{ margin: 0, fontSize: 'clamp(2rem, 4vw, 3.2rem)', lineHeight: 1.08 }}>
+                Khám phá catalog theo ngữ cảnh mua sắm, không chỉ theo danh mục.
+              </Title>
+              <Paragraph style={{ margin: '14px 0 0', maxWidth: 760, fontSize: 16, color: 'var(--text-muted)' }}>
+                Bộ lọc bên trái giúp thu hẹp nhu cầu nhanh. Khu vực AI bên phải ưu tiên những sản phẩm có khả năng chuyển đổi tốt với hồ sơ và hành vi duyệt hiện tại của bạn.
+              </Paragraph>
+            </Col>
+
+            <Col xs={24} xl={9}>
+              <Row gutter={[12, 12]}>
+                <Col xs={12}>
+                  <Card bodyStyle={{ padding: 18 }} style={{ borderRadius: 22, border: '1px solid var(--border-color)', height: '100%' }}>
+                    <Text type="secondary">Sản phẩm đang hiển thị</Text>
+                    <div style={{ marginTop: 8, fontSize: 28, fontWeight: 800, color: 'var(--text-main)' }}>
+                      {isLoading ? '...' : totalProducts}
+                    </div>
+                    <Text style={{ color: 'var(--text-muted)' }}>Kết quả theo bộ lọc hiện tại</Text>
+                  </Card>
+                </Col>
+                <Col xs={12}>
+                  <Card bodyStyle={{ padding: 18 }} style={{ borderRadius: 22, border: '1px solid var(--border-color)', height: '100%' }}>
+                    <Text type="secondary">AI đề xuất</Text>
+                    <div style={{ marginTop: 8, fontSize: 28, fontWeight: 800, color: 'var(--brand-teal)' }}>
+                      {aiLoading ? '...' : (aiEnabled && isAuthenticated ? aiProducts.length : 0)}
+                    </div>
+                    <Text style={{ color: 'var(--text-muted)' }}>Danh sách ưu tiên theo hồ sơ</Text>
+                  </Card>
+                </Col>
+              </Row>
+            </Col>
+          </Row>
+        </div>
+
         <Row gutter={[24, 24]}>
-          {/* Sidebar Filter */}
-          <Col xs={24} lg={5}>
-            <div style={{ background: 'white', borderRadius: 20, padding: 24, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', position: 'sticky', top: 80, border: '1px solid var(--border-color)' }}>
-              <p style={{ color: 'var(--text-main)', fontSize: 13, fontWeight: 800, letterSpacing: 0.5, marginBottom: 16, textTransform: 'uppercase' }}>Tìm Kiếm</p>
-              <Input
-                placeholder="Tên sản phẩm..."
-                prefix={<SearchOutlined style={{ color: 'var(--text-muted)' }} />}
-                value={filters.search}
-                onChange={(e) => handleFilter('search', e.target.value)}
-                style={{ marginBottom: 28, borderRadius: 12, height: 44 }}
-              />
-
-              <p style={{ color: 'var(--text-main)', fontSize: 13, fontWeight: 800, letterSpacing: 0.5, marginBottom: 16, textTransform: 'uppercase' }}>Danh Mục</p>
-              <div style={{ marginBottom: 28 }}>
-                <button onClick={() => handleFilter('category', '')} style={{ width: '100%', textAlign: 'left', padding: '10px 16px', borderRadius: 12, border: 'none', cursor: 'pointer', marginBottom: 6, fontWeight: 600, fontSize: 14, background: !filters.category ? 'var(--brand-teal)' : 'transparent', color: !filters.category ? 'white' : 'var(--text-muted)', transition: 'all 0.2s' }}>Tất cả sản phẩm</button>
-                {categoriesData?.map((cat) => (
-                  <button key={cat} onClick={() => handleFilter('category', cat)} style={{ width: '100%', textAlign: 'left', padding: '10px 16px', borderRadius: 12, border: 'none', cursor: 'pointer', marginBottom: 6, fontWeight: 500, fontSize: 14, background: filters.category === cat ? 'var(--brand-teal)' : 'transparent', color: filters.category === cat ? 'white' : 'var(--text-muted)', transition: 'all 0.2s' }}>{cat}</button>
-                ))}
-              </div>
-
-              <p style={{ color: 'var(--text-main)', fontSize: 13, fontWeight: 800, letterSpacing: 0.5, marginBottom: 16, textTransform: 'uppercase' }}>Khoảng Giá</p>
-              <div style={{ padding: '0 8px' }}>
-                <Slider
-                  range min={0} max={10000000} step={100000}
-                  value={[filters.minPrice, filters.maxPrice]}
-                  onChange={([min, max]) => setFilters((f) => ({ ...f, minPrice: min, maxPrice: max, page: 1 }))}
-                  tooltip={{ formatter: (v) => v.toLocaleString('vi-VN') + 'đ' }}
+          <Col xs={24} lg={6} xl={5}>
+            <div
+              style={{
+                background: 'white',
+                borderRadius: 24,
+                padding: 24,
+                border: '1px solid var(--border-color)',
+                boxShadow: '0 18px 36px rgba(15, 23, 42, 0.05)',
+                position: 'sticky',
+                top: 88,
+              }}
+            >
+              <div style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Tìm kiếm nhanh
+                </Text>
+                <Input
+                  placeholder="Tên sản phẩm, chất liệu, mục đích..."
+                  prefix={<SearchOutlined style={{ color: 'var(--text-muted)' }} />}
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  size="large"
+                  style={{ marginTop: 12, borderRadius: 14 }}
                 />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 28, fontWeight: 500 }}>
-                <span>0đ</span>
-                <span style={{ color: 'var(--brand-teal)', fontWeight: 700 }}>{filters.maxPrice.toLocaleString('vi-VN')}đ</span>
+
+              <div style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Danh mục
+                </Text>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                  <Button
+                    type={!filters.category ? 'primary' : 'default'}
+                    block
+                    style={{ height: 42, borderRadius: 12, justifyContent: 'flex-start' }}
+                    onClick={() => handleFilter('category', '')}
+                  >
+                    Tất cả sản phẩm
+                  </Button>
+                  {(categoriesData || []).map((category) => (
+                    <Button
+                      key={category}
+                      block
+                      type={filters.category === category ? 'primary' : 'default'}
+                      style={{ height: 42, borderRadius: 12, justifyContent: 'flex-start' }}
+                      onClick={() => handleFilter('category', category)}
+                    >
+                      {category}
+                    </Button>
+                  ))}
+                </div>
               </div>
 
-              <p style={{ color: 'var(--text-main)', fontSize: 13, fontWeight: 800, letterSpacing: 0.5, marginBottom: 16, textTransform: 'uppercase' }}>Lọc Nhanh</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 28 }}>
-                {quickFilters.map((q) => (
-                  <button key={q} onClick={() => setQuickFilter(q === quickFilter ? '' : q)} style={{ padding: '6px 16px', borderRadius: 999, border: '1px solid var(--border-color)', cursor: 'pointer', background: quickFilter === q ? 'var(--text-main)' : 'white', color: quickFilter === q ? 'white' : 'var(--text-muted)', fontSize: 13, fontWeight: 500, transition: 'all 0.2s' }}>{q}</button>
-                ))}
+              <div style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Khoảng giá
+                </Text>
+                <div style={{ marginTop: 14, paddingInline: 6 }}>
+                  <Slider
+                    range
+                    min={0}
+                    max={100000000}
+                    step={500000}
+                    value={sliderValue}
+                    onChange={setSliderValue}
+                    onChangeComplete={([minPrice, maxPrice]) => {
+                      setFilters((current) => ({ ...current, minPrice, maxPrice, page: 1 }));
+                    }}
+                    tooltip={{ formatter: (value) => formatPrice(value) }}
+                  />
+                </div>
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: '12px 14px',
+                    borderRadius: 14,
+                    background: '#FFF7ED',
+                    border: '1px solid #F5E4D3',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    fontWeight: 700,
+                    color: '#9A3412',
+                  }}
+                >
+                  <span>{formatPrice(sliderValue[0])}</span>
+                  <span>{formatPrice(sliderValue[1])}</span>
+                </div>
               </div>
 
-              <button onClick={handleReset} style={{ width: '100%', background: 'none', border: '1px dashed var(--border-color)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, fontWeight: 600, padding: '10px', borderRadius: 12, transition: 'all 0.2s' }}>Xóa Bộ Lọc</button>
+              <div style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 12, fontWeight: 800, letterSpacing: 1.2, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Lọc nhanh
+                </Text>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
+                  {QUICK_FILTERS.map((item) => (
+                    <Button
+                      key={item.value}
+                      type={quickFilter === item.value ? 'primary' : 'default'}
+                      shape="round"
+                      onClick={() => handleQuickFilter(item.value)}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <Button block onClick={handleReset} style={{ height: 44, borderRadius: 12 }}>
+                Làm mới bộ lọc
+              </Button>
             </div>
           </Col>
 
-          {/* Product Grid */}
-          <Col xs={24} lg={13} xl={14}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12, background: 'white', padding: '16px 20px', borderRadius: 16, border: '1px solid var(--border-color)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text-muted)' }}>
-                <HomeOutlined /><span>/</span>
-                <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>Cửa hàng</span>
-                {data && <span>— <b style={{ color: 'var(--brand-teal)', fontWeight: 700 }}>{data.pagination?.total || 0}</b> sản phẩm</span>}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Select value={filters.sort} style={{ width: 160 }} onChange={(v) => handleFilter('sort', v)} size="middle" variant="filled">
-                  <Option value="newest">Mới nhất</Option>
-                  <Option value="popular">Bán chạy nhất</Option>
-                  <Option value="price_asc">Giá tăng dần</Option>
-                  <Option value="price_desc">Giá giảm dần</Option>
-                  <Option value="rating">Đánh giá cao</Option>
-                </Select>
-                <div style={{ display: 'flex', background: 'var(--bg-main)', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border-color)', padding: 2 }}>
-                  <button onClick={() => setGridView(true)} style={{ padding: '6px 10px', border: 'none', borderRadius: 6, background: gridView ? 'white' : 'transparent', color: gridView ? 'var(--text-main)' : 'var(--text-muted)', cursor: 'pointer' }}><AppstoreOutlined style={{ fontSize: 16 }} /></button>
-                  <button onClick={() => setGridView(false)} style={{ padding: '6px 10px', border: 'none', borderRadius: 6, background: !gridView ? 'white' : 'transparent', color: !gridView ? 'var(--text-main)' : 'var(--text-muted)', cursor: 'pointer' }}><BarsOutlined style={{ fontSize: 16 }} /></button>
+          <Col xs={24} lg={12} xl={13}>
+            <Card
+              bodyStyle={{ padding: 18 }}
+              style={{ marginBottom: 20, borderRadius: 22, border: '1px solid var(--border-color)' }}
+            >
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 14 }}>
+                <div>
+                  <Space size={8} wrap>
+                    <HomeOutlined style={{ color: 'var(--brand-teal)' }} />
+                    <Text type="secondary">Cửa hàng</Text>
+                    <Text strong style={{ color: 'var(--text-main)' }}>
+                      {totalProducts} sản phẩm
+                    </Text>
+                  </Space>
+                  <Paragraph style={{ margin: '8px 0 0', color: 'var(--text-muted)' }}>
+                    Ưu tiên những mặt hàng có tín hiệu mua tốt và dễ so sánh giá trị.
+                  </Paragraph>
                 </div>
-              </div>
-            </div>
 
-            {(filters.category || quickFilter) && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-                {filters.category && <Tag closable color="cyan" style={{ padding: '4px 10px', borderRadius: 6, fontSize: 13 }} onClose={() => handleFilter('category', '')}>{filters.category}</Tag>}
-                {quickFilter && <Tag closable style={{ background: 'var(--text-main)', color: 'white', padding: '4px 10px', borderRadius: 6, fontSize: 13, border: 'none' }} onClose={() => setQuickFilter('')}>{quickFilter}</Tag>}
+                <Space size={12} wrap>
+                  <Select
+                    value={filters.sort}
+                    style={{ width: 180 }}
+                    size="large"
+                    onChange={(value) => handleFilter('sort', value)}
+                  >
+                    <Option value="newest">Mới nhất</Option>
+                    <Option value="popular">Bán chạy</Option>
+                    <Option value="price_asc">Giá tăng dần</Option>
+                    <Option value="price_desc">Giá giảm dần</Option>
+                    <Option value="rating">Đánh giá cao</Option>
+                  </Select>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 14,
+                      padding: 4,
+                      background: '#FFF7ED',
+                    }}
+                  >
+                    <Button
+                      type={gridView ? 'primary' : 'text'}
+                      icon={<AppstoreOutlined />}
+                      onClick={() => setGridView(true)}
+                    />
+                    <Button
+                      type={!gridView ? 'primary' : 'text'}
+                      icon={<BarsOutlined />}
+                      onClick={() => setGridView(false)}
+                    />
+                  </div>
+                </Space>
               </div>
-            )}
+
+              {(filters.category || quickFilter) ? (
+                <>
+                  <Divider style={{ margin: '18px 0 14px' }} />
+                  <Space size={[8, 8]} wrap>
+                    {filters.category ? (
+                      <Tag closable color="orange" onClose={() => handleFilter('category', '')}>
+                        {filters.category}
+                      </Tag>
+                    ) : null}
+                    {quickFilter ? (
+                      <Tag closable color="gold" onClose={() => setQuickFilter('')}>
+                        {QUICK_FILTERS.find((item) => item.value === quickFilter)?.label}
+                      </Tag>
+                    ) : null}
+                  </Space>
+                </>
+              ) : null}
+            </Card>
 
             {isLoading ? (
-              <div style={{ textAlign: 'center', padding: 100 }}><Spin size="large" /></div>
-            ) : data?.products?.length === 0 ? (
-              <Empty description="Không tìm thấy sản phẩm phù hợp" style={{ padding: 80, background: 'white', borderRadius: 20, border: '1px solid var(--border-color)' }} />
+              <AIProductSkeleton count={gridView ? 6 : 4} />
+            ) : products.length === 0 ? (
+              <InsightEmptyState
+                title="Không tìm thấy sản phẩm phù hợp"
+                description="Hãy nới rộng khoảng giá, đổi danh mục hoặc tắt bớt lọc nhanh để hệ thống trả về nhiều lựa chọn hơn."
+                actionLabel="Đặt lại bộ lọc"
+                onAction={handleReset}
+                icon={<SearchOutlined />}
+                accentColor="#0F766E"
+                accentBackground="rgba(13, 148, 136, 0.12)"
+              />
             ) : (
               <>
                 <Row gutter={[20, 20]}>
-                  {data?.products?.map((product) => (
+                  {products.map((product) => (
                     <Col key={product._id} xs={24} sm={gridView ? 12 : 24} xl={gridView ? 8 : 24}>
                       <ProductCard product={product} />
                     </Col>
                   ))}
                 </Row>
-                <div style={{ textAlign: 'center', marginTop: 40 }}>
+
+                <div style={{ marginTop: 36, display: 'flex', justifyContent: 'center' }}>
                   <Pagination
-                    current={filters.page} total={data?.pagination?.total} pageSize={filters.limit}
-                    onChange={(page) => setFilters((f) => ({ ...f, page }))} showSizeChanger={false}
+                    current={filters.page}
+                    total={data?.pagination?.total || products.length}
+                    pageSize={filters.limit}
+                    showSizeChanger={false}
+                    onChange={(page) => setFilters((current) => ({ ...current, page }))}
                   />
                 </div>
               </>
             )}
           </Col>
 
-          {/* AI Sidebar */}
-          <Col xs={24} lg={6} xl={5}>
-            <div style={{ background: 'white', borderRadius: 20, padding: 20, border: '1px solid var(--border-color)', position: 'sticky', top: 80 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div className="bg-gradient-ai" style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 16 }}>
+          <Col xs={24} lg={6} xl={6}>
+            <div
+              style={{
+                background: 'white',
+                borderRadius: 24,
+                padding: 20,
+                border: '1px solid var(--border-color)',
+                boxShadow: '0 18px 36px rgba(15, 23, 42, 0.05)',
+                position: 'sticky',
+                top: 88,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div
+                    className="bg-gradient-ai"
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: 18,
+                    }}
+                  >
                     <ThunderboltFilled />
                   </div>
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-main)' }}>Dành Cho Bạn</div>
-                    <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Phân tích bởi AI</div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)' }}>AI mua sắm</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                      Gợi ý theo hồ sơ và tín hiệu duyệt trang
+                    </div>
                   </div>
                 </div>
-                <Switch checked={aiEnabled} onChange={setAiEnabled} size="small" />
+                <Switch checked={aiEnabled} onChange={setAiEnabled} />
               </div>
 
-              <div style={{ borderTop: '1px solid var(--border-color)', marginTop: 8, paddingTop: 16 }}>
-                {!aiEnabled ? (
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Bật AI để nhận gợi ý mua sắm cá nhân hóa.</p>
-                ) : !isAuthenticated ? (
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
-                    Vui lòng <a href="/login" style={{ color: 'var(--ai-purple)', fontWeight: 600 }}>đăng nhập</a> để AI phân tích sở thích.
-                  </p>
-                ) : aiLoading ? (
-                  <div style={{ textAlign: 'center', padding: 30 }}><Spin /></div>
-                ) : aiData?.products?.length > 0 ? (
-                  aiData.products.slice(0, 5).map((product, i) => {
-                    const match = [98, 94, 89, 87, 82][i] || 80;
-                    return (
-                      <div key={product._id} onClick={() => router.push(`/products/${product._id}`)} style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, cursor: 'pointer', padding: 8, borderRadius: 12, transition: 'background 0.2s' }}>
-                        <img src={product.image || 'https://placehold.co/100x100'} alt={product.name} style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-color)' }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', marginBottom: 2 }}>{product.name}</div>
-                          <div style={{ color: 'var(--brand-teal)', fontWeight: 800, fontSize: 14, marginBottom: 4 }}>{new Intl.NumberFormat('vi-VN').format(product.price)}đ</div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ background: 'var(--bg-main)', borderRadius: 999, height: 6, flex: 1, overflow: 'hidden' }}>
-                              <div className="bg-gradient-ai" style={{ borderRadius: 999, height: '100%', width: match + '%' }} />
-                            </div>
-                            <span className="text-gradient-ai" style={{ fontSize: 11, fontWeight: 800 }}>{match}%</span>
-                          </div>
-                        </div>
+              {!aiEnabled ? (
+                <InsightEmptyState
+                  compact
+                  title="AI đang tạm tắt"
+                  description="Bật lại để xem các sản phẩm có khả năng phù hợp cao với nhu cầu hiện tại."
+                />
+              ) : !isAuthenticated ? (
+                <InsightEmptyState
+                  compact
+                  title="Đăng nhập để cá nhân hóa"
+                  description="Hệ thống cần lịch sử duyệt và hành vi trước đó để ưu tiên gợi ý chính xác hơn."
+                  actionLabel="Đăng nhập"
+                  onAction={() => router.push('/login')}
+                  icon={<LoginOutlined />}
+                  accentColor="#7C3AED"
+                  accentBackground="rgba(124, 58, 237, 0.12)"
+                />
+              ) : aiLoading ? (
+                <AIProductSkeleton count={1} />
+              ) : aiProducts.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <AIRecCard
+                    product={aiProducts[0]}
+                    placement="shop_sidebar"
+                    matchPercent={96}
+                    source={aiSource}
+                    reasonTitle="Tín hiệu AI đang ưu tiên"
+                    reasons={[
+                      'Khả năng nhấp cao ở ngữ cảnh hiện tại',
+                      'Mức giá gần với lịch sử mua sắm',
+                      'Phù hợp với danh mục bạn vừa xem',
+                    ]}
+                  />
+
+                  {aiProducts.slice(1, 4).map((product, index) => (
+                    <button
+                      key={product._id}
+                      type="button"
+                      onClick={() => router.push(`/products/${product._id}`)}
+                      style={{
+                        padding: 14,
+                        borderRadius: 18,
+                        border: '1px solid var(--border-color)',
+                        background: '#FFFBF5',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                        <Text strong style={{ color: 'var(--text-main)' }}>{product.name}</Text>
+                        <Tag color="gold" style={{ margin: 0, borderRadius: 999 }}>
+                          {93 - (index * 3)}%
+                        </Tag>
                       </div>
-                    );
-                  })
-                ) : (
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>Chưa có đủ dữ liệu. Hãy duyệt thêm sản phẩm!</p>
-                )}
-              </div>
+                      <div style={{ color: 'var(--brand-teal)', fontWeight: 800, marginBottom: 8 }}>
+                        {formatPrice(product.price)}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: 13 }}>
+                        Đồng giá trị, dễ cân nhắc cùng phiên mua sắm hiện tại.
+                      </Text>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <InsightEmptyState
+                  compact
+                  title="Chưa đủ tín hiệu AI"
+                  description="Duyệt thêm sản phẩm hoặc tương tác với wishlist, giỏ hàng để hệ thống hiểu rõ hơn gu của bạn."
+                />
+              )}
 
-              <div className="bg-gradient-ai" style={{ marginTop: 16, padding: '20px', borderRadius: 16, color: 'white', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-                <h4 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 800, color: 'white' }}>Khuyến mãi AI Mới</h4>
-                <p style={{ margin: '0 0 16px', fontSize: 13, color: 'rgba(255,255,255,0.9)', lineHeight: 1.4 }}>Dùng thử hệ sinh thái gợi ý tuần này với mã giảm giá đặc biệt.</p>
-                <Button shape="round" style={{ width: '100%', fontWeight: 700, color: 'var(--ai-purple)', border: 'none' }}>Lấy Mã Ngay</Button>
-              </div>
+              <Card
+                bodyStyle={{ padding: 18 }}
+                style={{
+                  marginTop: 18,
+                  borderRadius: 22,
+                  background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+                  border: 'none',
+                  color: 'white',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <ShoppingOutlined style={{ color: '#FDBA74', fontSize: 18 }} />
+                  <Text style={{ color: 'white', fontWeight: 800 }}>Mẹo tăng tỷ lệ chốt</Text>
+                </div>
+                <Paragraph style={{ marginBottom: 16, color: 'rgba(255,255,255,0.76)' }}>
+                  Thêm sản phẩm vào wishlist hoặc giỏ hàng để AI đẩy ranking chính xác hơn ở lần quay lại tiếp theo.
+                </Paragraph>
+                <Button
+                  block
+                  size="large"
+                  onClick={() => {
+                    if (isAuthenticated) {
+                      router.push('/ai-suggest');
+                      return;
+                    }
+
+                    message.info('Đăng nhập để mở hồ sơ gợi ý AI chuyên sâu.');
+                    router.push('/login');
+                  }}
+                  style={{ borderRadius: 14, height: 46, fontWeight: 700 }}
+                >
+                  Mở AI Suggest
+                </Button>
+              </Card>
             </div>
           </Col>
         </Row>

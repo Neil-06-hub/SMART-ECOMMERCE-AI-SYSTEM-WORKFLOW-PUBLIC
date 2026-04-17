@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { getAll, create, update, remove, toggleActive } = require("../controllers/discount.controller");
-const { protect, adminOnly } = require("../middleware/auth");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
 
 router.use(protect, adminOnly);
 

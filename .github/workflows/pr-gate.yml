@@ -1,0 +1,54 @@
+name: PR Gate — Lint & Test
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  backend:
+    name: Backend (Node.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check syntax
+        run: node --check server.js
+
+  ai-service:
+    name: AI Service (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install build dependencies
+        run: |
+          pip install --no-cache-dir "setuptools<70.0.0" wheel Cython "numpy==1.26.4"
+          pip install --no-cache-dir lightfm==1.17
+
+      - name: Install package
+        run: pip install -e apps/ai-service/
+
+      - name: Run pytest
+        run: |
+          if [ -d "apps/ai-service/tests" ] && [ "$(ls -A apps/ai-service/tests)" ]; then
+            python -m pytest apps/ai-service/tests/ -v --tb=short
+          else
+            echo "No tests found — skipping"
+          fi

@@ -1,11 +1,33 @@
 # Tech Stack Decision Record
 
 **Project:** SMART ECOMMERCE AI SYSTEM
-**Version:** 2.0.0
-**Date:** 2026-04-01
+**Version:** 2.1.0
+**Date:** 2026-04-15
 **Author:** Solutions Architect
-**Status:** Approved
+**Status:** Implemented
 **References:** `docs/REQUIREMENTS.md` v2.1.0
+
+---
+
+## As-Built Quick Reference (2026-04-15)
+
+| Layer | Designed | **Actually Used** |
+|---|---|---|
+| Backend framework | Express.js 10 + TypeScript | **Express.js 4 + JavaScript** |
+| Backend language | TypeScript 5 | **JavaScript (CommonJS)** |
+| UI library | shadcn/ui + Tailwind CSS | **Ant Design 5** |
+| Cache | Upstash Redis 7 | **Not used** (eliminated) |
+| Background jobs | BullMQ 5 | **node-cron 3** (in-process) |
+| ML job scheduler | Celery Beat | **GitHub Actions cron** |
+| Search | Meilisearch Cloud | **MongoDB text search** |
+| Payment | VNPay sandbox | **COD only** (deferred) |
+| Shared lib | `libs/shared/` TypeScript | **Not created** |
+| Circuit breaker | opossum | **opossum 8** ✅ |
+| AI (CF) | LightFM 1.17 | **lightfm-next** ✅ |
+| AI (CBF) | scikit-learn 1.4 | **scikit-learn 1.4** ✅ |
+| Object storage | Cloudflare R2 | **Cloudflare R2** ✅ |
+| Image CDN | Cloudflare R2 | **Cloudinary** (free tier) |
+| AI copy generation | — | **Google Gemini 1.5 Flash** |
 
 ---
 

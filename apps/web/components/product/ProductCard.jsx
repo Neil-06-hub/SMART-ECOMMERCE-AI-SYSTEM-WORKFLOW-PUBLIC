@@ -68,36 +68,65 @@ const ProductCard = ({ product, matchPercent }) => {
           style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s ease' }}
         />
 
-        {/* Badges */}
-        <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Badges — capped width to never collide with wishlist button (36px + 12px*2 = 60px) */}
+        <div
+          style={{
+            position: 'absolute', top: 10, left: 10, zIndex: 2,
+            display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6,
+            maxWidth: 'calc(100% - 62px)',
+          }}
+        >
           {matchPercent ? (
             <Tooltip title="AI khuyên dùng dựa trên sở thích của bạn">
-              <div className="bg-gradient-ai" style={{ color: 'white', fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: 4, boxShadow: '0 4px 10px rgba(249, 115, 22, 0.3)' }}>
+              <div
+                className="bg-gradient-ai"
+                style={{
+                  color: 'white', fontSize: 12, fontWeight: 700,
+                  padding: '4px 10px', borderRadius: 999,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  boxShadow: '0 4px 10px rgba(249,115,22,0.3)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 <ThunderboltFilled /> {matchPercent}% Phù hợp
               </div>
             </Tooltip>
-          ) : product.rating >= 4.8 && (
-            <div style={{ background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(4px)', color: '#EAB308', border: '1px solid rgba(234, 179, 8, 0.2)', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999, display: 'inline-flex', width: 'fit-content' }}>
+          ) : product.rating >= 4.8 ? (
+            <div
+              style={{
+                background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)',
+                color: '#EAB308', border: '1px solid rgba(234,179,8,0.2)',
+                fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
+                whiteSpace: 'nowrap',
+              }}
+            >
               ⭐ Top Rated
             </div>
-          )}
+          ) : null}
           {discount > 0 && (
-            <div style={{ background: '#EF4444', color: 'white', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999, display: 'inline-flex', width: 'fit-content' }}>
+            <div
+              style={{
+                background: '#EF4444', color: 'white',
+                fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
+                whiteSpace: 'nowrap',
+              }}
+            >
               -{discount}%
             </div>
           )}
         </div>
 
-        {/* Wishlist */}
+        {/* Wishlist button — always top-right, never overlaps badges */}
         <Tooltip title={wishlisted ? 'Xóa khỏi yêu thích' : 'Thêm vào yêu thích'}>
           <div
             onClick={handleWishlist}
             style={{
-              position: 'absolute', top: 12, right: 12,
+              position: 'absolute', top: 10, right: 10, zIndex: 2,
               width: 36, height: 36, borderRadius: '50%',
               background: 'white', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', cursor: 'pointer',
-              transition: 'all 0.2s ease', color: wishlisted ? '#EF4444' : 'var(--text-muted)',
+              justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              cursor: 'pointer', transition: 'all 0.2s ease',
+              flexShrink: 0,
             }}
           >
             {wishlisted

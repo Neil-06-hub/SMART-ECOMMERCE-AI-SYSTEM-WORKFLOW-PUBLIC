@@ -47,6 +47,14 @@ const getDashboardStats = async (req, res) => {
       });
     }
 
+    // Bug 15 Fix: Tránh chia cho 0 khi tính phần trăm doanh thu
+    let revenueGrowth = 0;
+    if (lastMonthRevenue === 0) {
+      revenueGrowth = thisMonthRevenue > 0 ? 100 : 0;
+    } else {
+      revenueGrowth = ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
+    }
+
     // Trạng thái đơn hàng
     const ordersByStatus = await Order.aggregate([
       { $group: { _id: "$orderStatus", count: { $sum: 1 } } },
@@ -54,7 +62,7 @@ const getDashboardStats = async (req, res) => {
 
     res.json({
       success: true,
-      stats: { totalUsers, totalProducts, totalOrders, totalRevenue, thisMonthRevenue, lastMonthRevenue },
+      stats: { totalUsers, totalProducts, totalOrders, totalRevenue, thisMonthRevenue, lastMonthRevenue, revenueGrowth },
       monthlyRevenue,
       ordersByStatus,
     });
@@ -208,13 +216,48 @@ const getAllOrders = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const { orderStatus, paymentStatus } = req.body;
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
-      { ...(orderStatus && { orderStatus }), ...(paymentStatus && { paymentStatus }) },
-      { new: true }
-    ).populate("user", "name email");
+    const order = await Order.findById(req.params.id).populate("user", "name email");
 
     if (!order) return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
+
+    // Bug 5 Fix: Validation matrix cho phép transition hợp lệ
+    if (orderStatus && orderStatus !== order.orderStatus) {
+      const allowedTransitions = {
+        "pending": ["confirmed", "cancelled", "paid"],
+        "paid": ["confirmed", "cancelled"], 
+        "confirmed": ["shipping", "cancelled"],
+        "shipping": ["delivered"],
+        "delivered": [],
+        "cancelled": []
+      };
+      if (!allowedTransitions[order.orderStatus]?.includes(orderStatus)) {
+        return res.status(400).json({ success: false, message: `Không thể chuyển trạng thái từ ${order.orderStatus} sang ${orderStatus}` });
+      }
+
+      // Bug 3 & 4 Fix: Trừ kho khi trạng thái chuuyển sang confirmed
+      if (orderStatus === "confirmed") {
+        const deducted = [];
+        for (const item of order.items) {
+          const updated = await Product.findOneAndUpdate(
+            { _id: item.product, stock: { $gte: item.quantity } },
+            { $inc: { stock: -item.quantity, sold: item.quantity } },
+            { new: true }
+          );
+          if (!updated) {
+            // Rollback
+            for (const dp of deducted) {
+              await Product.findByIdAndUpdate(dp.product, { $inc: { stock: dp.quantity, sold: -dp.quantity } });
+            }
+            return res.status(400).json({ success: false, message: `Sản phẩm ${item.name} không đủ tồn kho để xác nhận!` });
+          }
+          deducted.push({ product: item.product, quantity: item.quantity });
+        }
+      }
+    }
+
+    if (orderStatus) order.orderStatus = orderStatus;
+    if (paymentStatus) order.paymentStatus = paymentStatus;
+    await order.save();
 
     // Thông báo cho người dùng về trạng thái đơn hàng
     const statusLabels = { pending: "Chờ xử lý", processing: "Đang xử lý", shipped: "Đang giao hàng", delivered: "Đã giao hàng", cancelled: "Đã hủy" };
@@ -250,10 +293,10 @@ const getAllUsers = async (req, res) => {
 // @route PUT /api/admin/users/:id
 const updateUser = async (req, res) => {
   try {
-    const { name, email, phone, address, role } = req.body;
+    const { name, email, phone, address } = req.body; // Bug 18 Fix: Loại bỏ khả năng sửa role tùy tiện
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { name, email, phone, address, role },
+      { name, email, phone, address },
       { new: true, runValidators: true }
     ).select("-password");
     if (!user) return res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
@@ -270,7 +313,11 @@ const deleteUser = async (req, res) => {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
     if (user.role === "admin") return res.status(400).json({ success: false, message: "Không thể xóa tài khoản Admin" });
-    await user.deleteOne();
+    
+    // Bug 9 Fix: Soft delete thay vì Hard delete
+    user.deletedAt = new Date();
+    user.isBlocked = true;
+    await user.save();
     res.json({ success: true, message: "Đã xóa tài khoản người dùng" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
