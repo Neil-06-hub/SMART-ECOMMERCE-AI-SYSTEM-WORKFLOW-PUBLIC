@@ -54,6 +54,9 @@ export const useCartStore = create(
   persist(
     (set, get) => ({
       items: [],
+      _hasHydrated: false,
+
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
 
       addItem: (product, quantity = 1) => {
         const items = get().items;
@@ -86,14 +89,16 @@ export const useCartStore = create(
 
       clearCart: () => set({ items: [] }),
 
-      get totalItems() {
-        return get().items.reduce((sum, i) => sum + i.quantity, 0);
-      },
-      get totalPrice() {
-        return get().items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-      },
+      totalItems: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
+      totalPrice: () => get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
     }),
-    { name: 'cart-storage' }
+    {
+      name: 'cart-storage',
+      partialize: (state) => ({ items: state.items }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
+    }
   )
 );
 

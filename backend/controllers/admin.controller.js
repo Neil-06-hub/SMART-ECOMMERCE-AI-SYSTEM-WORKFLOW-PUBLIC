@@ -178,9 +178,11 @@ const getAIAnalysis = async (req, res) => {
 // @route GET /api/admin/products
 const getAllProducts = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search } = req.query;
+    const { page = 1, limit = 20, search, category, isActive } = req.query;
     const filter = {};
     if (search) filter.name = { $regex: search, $options: "i" };
+    if (category) filter.category = category;
+    if (isActive !== undefined && isActive !== "") filter.isActive = isActive === "true";
 
     const total = await Product.countDocuments(filter);
     const products = await Product.find(filter)

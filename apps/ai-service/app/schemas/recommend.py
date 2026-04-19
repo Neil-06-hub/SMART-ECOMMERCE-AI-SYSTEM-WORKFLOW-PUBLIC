@@ -17,6 +17,8 @@ class RecommendRequest(BaseModel):
     )
     n: int = Field(default=12, ge=1, le=50)
     filters: RecommendFilters = Field(default_factory=RecommendFilters)
+    preferences: list[str] = Field(default_factory=list)
+    keywords: Optional[str] = None
 
 
 class RecommendResponse(BaseModel):

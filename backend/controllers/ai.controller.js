@@ -25,7 +25,7 @@ const ACTION_TO_EVENT_TYPE = {
 };
 
 // ── FastAPI caller ────────────────────────────────────────────────────────────
-async function callFastAPI(userId, placement, n) {
+async function callFastAPI(userId, placement, n, filters = {}, preferences = [], keywords = null) {
   const fastApiUrl = process.env.FASTAPI_URL || "http://127.0.0.1:8000";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 500);
@@ -37,7 +37,9 @@ async function callFastAPI(userId, placement, n) {
         userId: userId ? userId.toString() : null,
         placement,
         n,
-        filters: { excludeOos: false },
+        filters: { excludeOos: false, ...filters },
+        preferences,
+        keywords,
       }),
       signal: controller.signal,
     });
@@ -59,7 +61,7 @@ const breakerOptions = {
 const breaker = new CircuitBreaker(callFastAPI, breakerOptions);
 
 // Fallback: featured products when circuit is open
-breaker.fallback(async (userId, placement, n) => {
+breaker.fallback(async (userId, placement, n, filters, preferences, keywords) => {
   const products = await Product.find({ isActive: true, featured: true }).limit(n);
   return {
     productIds: products.map((p) => p._id.toString()),
@@ -82,7 +84,16 @@ const getPersonalizedRecommendations = async (req, res) => {
     const placement = req.query.placement || "homepage";
     const n = parseInt(req.query.n) || 8;
 
-    const data = await breaker.fire(userId, placement, n);
+    const filters = {};
+    if (req.query.minPrice) filters.minPrice = parseFloat(req.query.minPrice);
+    if (req.query.maxPrice) filters.maxPrice = parseFloat(req.query.maxPrice);
+
+    const preferences = req.query.preferences
+      ? req.query.preferences.split(',').filter(Boolean)
+      : [];
+    const keywords = req.query.keywords || null;
+
+    const data = await breaker.fire(userId, placement, n, filters, preferences, keywords);
 
     // Hydrate product details from MongoDB
     const products = await Product.find({ _id: { $in: data.productIds }, isActive: true });

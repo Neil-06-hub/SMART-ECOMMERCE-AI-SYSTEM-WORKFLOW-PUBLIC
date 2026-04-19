@@ -232,11 +232,13 @@ export default function NotificationDropdown() {
       trigger="click"
       placement="bottomRight"
       arrow={false}
-      overlayInnerStyle={{
-        padding: '16px 18px',
-        borderRadius: 20,
-        boxShadow: '0 24px 48px rgba(15, 23, 42, 0.14)',
-        minWidth: 420,
+      styles={{
+        body: {
+          padding: '16px 18px',
+          borderRadius: 20,
+          boxShadow: '0 24px 48px rgba(15, 23, 42, 0.14)',
+          minWidth: 420,
+        },
       }}
       overlayStyle={{ paddingTop: 10 }}
     >
