@@ -211,7 +211,6 @@ export default function NotificationDropdown() {
   const { data, isLoading } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => notificationAPI.getAll().then((response) => response.data),
-    enabled: open,
     refetchInterval: open ? 30000 : false,
     staleTime: 20000,
   });

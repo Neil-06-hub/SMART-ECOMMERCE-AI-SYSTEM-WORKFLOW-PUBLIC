@@ -2,6 +2,9 @@ const Product = require("../models/Product");
 const Order = require("../models/Order");
 const User = require("../models/User");
 const MarketingLog = require("../models/MarketingLog");
+const Notification = require("../models/Notification");
+const BehavioralEvent = require("../models/BehavioralEvent");
+const FeatureSnapshot = require("../models/FeatureSnapshot");
 const { cloudinary, upload } = require("../config/cloudinary");
 const { analyzeBusinessWithAI } = require("../services/gemini.service");
 const { triggerMarketingCampaign } = require("../services/marketing.service");
@@ -18,11 +21,87 @@ const getDashboardStats = async (req, res) => {
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
-    const [totalUsers, totalProducts, totalOrders, allOrders] = await Promise.all([
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [totalUsers, totalProducts, totalOrders, allOrders, ctrRaw, rfmRaw] = await Promise.all([
       User.countDocuments({ role: "customer" }),
       Product.countDocuments({ isActive: true }),
       Order.countDocuments(),
       Order.find({ orderStatus: { $ne: "cancelled" } }).select("totalAmount createdAt orderStatus"),
+      BehavioralEvent.aggregate([
+        {
+          $match: {
+            "metadata.placement": { $exists: true, $ne: null },
+            timestamp: { $gte: thirtyDaysAgo },
+          },
+        },
+        {
+          $group: {
+            _id: "$metadata.placement",
+            views:  { $sum: { $cond: [{ $eq: ["$eventType", "view"] },      1, 0] } },
+            clicks: { $sum: { $cond: [{ $eq: ["$eventType", "rec_click"] }, 1, 0] } },
+          },
+        },
+        {
+          $project: {
+            placement: "$_id",
+            _id: 0,
+            ctr: {
+              $cond: [
+                { $gt: ["$views", 0] },
+                { $round: [{ $multiply: [{ $divide: ["$clicks", "$views"] }, 100] }, 1] },
+                0,
+              ],
+            },
+          },
+        },
+        { $sort: { placement: 1 } },
+      ]),
+      FeatureSnapshot.aggregate([
+        { $sort: { userId: 1, snapshotDate: -1 } },
+        {
+          $group: {
+            _id: "$userId",
+            r: { $first: "$rfmScores.r" },
+            f: { $first: "$rfmScores.f" },
+            m: { $first: "$rfmScores.m" },
+          },
+        },
+        {
+          $project: {
+            segment: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $and: [{ $gte: ["$r", 5] }, { $gte: ["$f", 4] }, { $gte: ["$m", 4] }] },
+                    then: "Champions",
+                  },
+                  {
+                    case: { $and: [{ $gte: ["$r", 4] }, { $gte: ["$f", 3] }, { $gte: ["$m", 3] }] },
+                    then: "Loyal Customers",
+                  },
+                  {
+                    case: { $and: [{ $gte: ["$r", 3] }, { $gte: ["$f", 2] }, { $gte: ["$m", 2] }] },
+                    then: "Potential Loyalist",
+                  },
+                  {
+                    case: { $and: [{ $gte: ["$r", 4] }, { $lte: ["$f", 1] }] },
+                    then: "New Customers",
+                  },
+                  {
+                    case: { $and: [{ $lte: ["$r", 2] }, { $gte: ["$f", 3] }] },
+                    then: "At Risk",
+                  },
+                ],
+                default: "Dormant",
+              },
+            },
+          },
+        },
+        { $group: { _id: "$segment", users: { $sum: 1 } } },
+        { $project: { segment: "$_id", users: 1, _id: 0 } },
+        { $sort: { users: -1 } },
+      ]),
     ]);
 
     const totalRevenue = allOrders.reduce((sum, o) => sum + o.totalAmount, 0);
@@ -65,6 +144,8 @@ const getDashboardStats = async (req, res) => {
       stats: { totalUsers, totalProducts, totalOrders, totalRevenue, thisMonthRevenue, lastMonthRevenue, revenueGrowth },
       monthlyRevenue,
       ordersByStatus,
+      aiCtrByPlacement: ctrRaw,
+      rfmSegments: rfmRaw,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -156,9 +237,16 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   try {
     const { name, description, price, originalPrice, category, tags, stock, featured, isActive } = req.body;
+
+    const currentProduct = await Product.findById(req.params.id);
+    if (!currentProduct) return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm" });
+
+    const newPrice = Number(price);
+    const oldPrice = currentProduct.price;
+
     const updateData = {
       name, description,
-      price: Number(price),
+      price: newPrice,
       originalPrice: Number(originalPrice) || 0,
       category,
       tags: typeof tags === "string" ? tags.split(",").map((t) => t.trim()) : tags || [],
@@ -169,7 +257,34 @@ const updateProduct = async (req, res) => {
     if (req.file) updateData.image = req.file.path;
 
     const product = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
-    if (!product) return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm" });
+
+    // Gửi thông báo AI khi giảm giá — chỉ 1 lần/sản phẩm/user (dedup theo link)
+    if (newPrice < oldPrice) {
+      const discountPercent = Math.round((1 - newPrice / oldPrice) * 100);
+      const productTags = updateData.tags;
+      const interestedUsers = await User.find({
+        role: "customer",
+        deletedAt: null,
+        $or: [{ wishlist: product._id }, { preferences: { $in: productTags } }],
+      }).select("_id");
+
+      for (const u of interestedUsers) {
+        const alreadyNotified = await Notification.exists({
+          user: u._id,
+          type: "ai",
+          link: `/products/${product._id}`,
+        });
+        if (alreadyNotified) continue;
+
+        createNotification(u._id, {
+          type: "ai",
+          title: `Sản phẩm bạn quan tâm đang giảm giá! 🤖`,
+          message: `"${product.name}" vừa giảm ${discountPercent}% còn ${new Intl.NumberFormat("vi-VN").format(newPrice)}đ. Đừng bỏ lỡ!`,
+          link: `/products/${product._id}`,
+        });
+      }
+    }
+
     res.json({ success: true, message: "Cập nhật thành công", product });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -194,9 +309,16 @@ const deleteProduct = async (req, res) => {
 // @route GET /api/admin/orders
 const getAllOrders = async (req, res) => {
   try {
-    const { page = 1, limit = 20, status } = req.query;
+    const { page = 1, limit = 20, status, paymentMethod, paymentStatus, dateFrom, dateTo } = req.query;
     const filter = {};
     if (status) filter.orderStatus = status;
+    if (paymentMethod) filter.paymentMethod = paymentMethod;
+    if (paymentStatus) filter.paymentStatus = paymentStatus;
+    if (dateFrom || dateTo) {
+      filter.createdAt = {};
+      if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+      if (dateTo) filter.createdAt.$lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+    }
 
     const total = await Order.countDocuments(filter);
     const orders = await Order.find(filter)
@@ -234,7 +356,7 @@ const updateOrderStatus = async (req, res) => {
         return res.status(400).json({ success: false, message: `Không thể chuyển trạng thái từ ${order.orderStatus} sang ${orderStatus}` });
       }
 
-      // Bug 3 & 4 Fix: Trừ kho khi trạng thái chuuyển sang confirmed
+      // Trừ kho khi chuyển sang confirmed
       if (orderStatus === "confirmed") {
         const deducted = [];
         for (const item of order.items) {
@@ -253,6 +375,15 @@ const updateOrderStatus = async (req, res) => {
           deducted.push({ product: item.product, quantity: item.quantity });
         }
       }
+
+      // Hoàn trả kho khi admin hủy đơn đã confirmed (kho đã bị trừ lúc confirm)
+      if (orderStatus === "cancelled" && order.orderStatus === "confirmed") {
+        for (const item of order.items) {
+          await Product.findByIdAndUpdate(item.product, {
+            $inc: { stock: item.quantity, sold: -item.quantity },
+          });
+        }
+      }
     }
 
     if (orderStatus) order.orderStatus = orderStatus;
@@ -260,7 +391,7 @@ const updateOrderStatus = async (req, res) => {
     await order.save();
 
     // Thông báo cho người dùng về trạng thái đơn hàng
-    const statusLabels = { pending: "Chờ xử lý", processing: "Đang xử lý", shipped: "Đang giao hàng", delivered: "Đã giao hàng", cancelled: "Đã hủy" };
+    const statusLabels = { pending: "Chờ xác nhận", paid: "Đã thanh toán", confirmed: "Đã xác nhận", shipping: "Đang giao hàng", delivered: "Đã giao hàng", cancelled: "Đã hủy" };
     if (orderStatus && order.user) {
       createNotification(order.user._id, {
         type: "order",

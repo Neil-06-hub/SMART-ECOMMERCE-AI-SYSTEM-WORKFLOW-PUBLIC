@@ -99,8 +99,9 @@ export default function AdminDiscounts() {
     {
       title: 'Mã',
       dataIndex: 'code',
+      width: 170,
       render: (code) => (
-        <Space>
+        <Space style={{ flexWrap: 'nowrap' }}>
           <Typography.Text strong style={{ fontFamily: 'monospace', fontSize: 15, color: '#0F172A' }}>{code}</Typography.Text>
           <Tooltip title="Sao chép">
             <CopyOutlined
@@ -114,12 +115,14 @@ export default function AdminDiscounts() {
     {
       title: 'Loại',
       dataIndex: 'type',
+      width: 150,
       render: (t) => <Tag color={t === 'percent' ? 'blue' : 'orange'}>{t === 'percent' ? 'Phần trăm' : 'Số tiền cố định'}</Tag>,
     },
     {
       title: 'Giá trị',
+      width: 170,
       render: (_, r) => (
-        <Typography.Text strong style={{ color: '#f97316' }}>
+        <Typography.Text strong style={{ color: '#f97316', whiteSpace: 'nowrap' }}>
           {r.type === 'percent' ? `${r.value}%` : formatPrice(r.value)}
           {r.maxDiscount && r.type === 'percent' && <span style={{ color: '#94A3B8', fontWeight: 400, fontSize: 12 }}> (tối đa {formatPrice(r.maxDiscount)})</span>}
         </Typography.Text>
@@ -128,12 +131,14 @@ export default function AdminDiscounts() {
     {
       title: 'Đơn tối thiểu',
       dataIndex: 'minOrderAmount',
-      render: (v) => v > 0 ? formatPrice(v) : <span style={{ color: '#94A3B8' }}>Không giới hạn</span>,
+      width: 150,
+      render: (v) => <span style={{ whiteSpace: 'nowrap' }}>{v > 0 ? formatPrice(v) : <span style={{ color: '#94A3B8' }}>Không giới hạn</span>}</span>,
     },
     {
       title: 'Đã dùng',
+      width: 100,
       render: (_, r) => (
-        <span style={{ color: r.usageLimit > 0 && r.usedCount >= r.usageLimit ? '#EF4444' : '#0F172A' }}>
+        <span style={{ color: r.usageLimit > 0 && r.usedCount >= r.usageLimit ? '#EF4444' : '#0F172A', whiteSpace: 'nowrap' }}>
           {r.usedCount} / {r.usageLimit === 0 ? '∞' : r.usageLimit}
         </span>
       ),
@@ -141,6 +146,7 @@ export default function AdminDiscounts() {
     {
       title: 'Hết hạn',
       dataIndex: 'expiresAt',
+      width: 130,
       render: (d) => {
         if (!d) return <span style={{ color: '#94A3B8' }}>Không giới hạn</span>;
         const expired = new Date(d) < new Date();
@@ -150,6 +156,7 @@ export default function AdminDiscounts() {
     {
       title: 'Trạng thái',
       dataIndex: 'isActive',
+      width: 110,
       render: (active, record) => {
         const isExpired = record.expiresAt && new Date(record.expiresAt) < new Date();
         if (isExpired) {
@@ -169,6 +176,7 @@ export default function AdminDiscounts() {
     },
     {
       title: 'Thao tác',
+      width: 100,
       render: (_, record) => (
         <Space size={4}>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>Sửa</Button>
@@ -203,6 +211,7 @@ export default function AdminDiscounts() {
       <Table
         columns={columns} dataSource={data} rowKey="_id" loading={isLoading}
         style={{ background: 'white', borderRadius: 16 }}
+        scroll={{ x: 1080 }}
         pagination={{ pageSize: 15, showTotal: (t) => `${t} mã giảm giá` }}
       />
 

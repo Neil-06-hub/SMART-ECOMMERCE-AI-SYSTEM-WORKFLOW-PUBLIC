@@ -64,6 +64,7 @@ export default function AdminMarketing() {
     {
       title: 'Loại',
       dataIndex: 'type',
+      width: 120,
       render: (t) => (
         <Tag color={typeConfig[t]?.color} icon={typeConfig[t]?.icon}>
           {typeConfig[t]?.text || t}
@@ -72,10 +73,11 @@ export default function AdminMarketing() {
     },
     {
       title: 'Người nhận',
+      width: 200,
       render: (_, r) => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{r.recipientName || '-'}</div>
-          <div style={{ fontSize: 12, color: '#999' }}>{r.recipient}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.recipientName || '-'}</div>
+          <div style={{ fontSize: 12, color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.recipient}</div>
         </div>
       ),
     },
@@ -83,6 +85,7 @@ export default function AdminMarketing() {
     {
       title: 'Trạng thái',
       dataIndex: 'status',
+      width: 130,
       render: (s) => (
         <Tag color={s === 'success' ? 'green' : s === 'failed' ? 'red' : 'orange'}
           icon={s === 'success' ? <CheckCircleOutlined /> : s === 'failed' ? <CloseCircleOutlined /> : null}>
@@ -93,12 +96,14 @@ export default function AdminMarketing() {
     {
       title: 'Mã giảm giá',
       dataIndex: 'discountCode',
+      width: 130,
       render: (c) => c ? <Tag color="gold">{c}</Tag> : '-',
     },
     {
       title: 'Thời gian',
       dataIndex: 'createdAt',
-      render: (d) => new Date(d).toLocaleString('vi-VN'),
+      width: 160,
+      render: (d) => <span style={{ whiteSpace: 'nowrap' }}>{new Date(d).toLocaleString('vi-VN')}</span>,
     },
   ];
 
@@ -161,6 +166,7 @@ export default function AdminMarketing() {
       <Table
         columns={columns} dataSource={logsData?.logs} rowKey="_id"
         loading={isLoading} style={{ background: 'white', borderRadius: 12 }}
+        scroll={{ x: 940 }}
         pagination={{ pageSize: 10, total: logsData?.pagination?.total }}
         expandable={{
           expandedRowRender: (record) => (

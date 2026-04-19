@@ -11,6 +11,7 @@ const createOrder = async (req, res) => {
   // Bug 10 Fix: Biến ngoài try để catch block có thể rollback discount nếu order thất bại
   let discountReserved = false;
   let discountCodeNormalized = null;
+  let reservedDiscount = null;
 
   try {
     const { items, shippingAddress, paymentMethod, note, discount, discountCode } = req.body;
@@ -24,7 +25,7 @@ const createOrder = async (req, res) => {
     // findOneAndUpdate trả về null nếu filter không match → reject ngay, không thể vượt usageLimit
     if (discountCode) {
       discountCodeNormalized = discountCode.toUpperCase().trim();
-      const reserved = await DiscountCode.findOneAndUpdate(
+      reservedDiscount = await DiscountCode.findOneAndUpdate(
         {
           code: discountCodeNormalized,
           isActive: true,
@@ -36,7 +37,7 @@ const createOrder = async (req, res) => {
         { $inc: { usedCount: 1 } },
         { new: false }
       );
-      if (!reserved) {
+      if (!reservedDiscount) {
         return res.status(400).json({ success: false, message: "Mã giảm giá không hợp lệ, đã hết hạn hoặc hết lượt sử dụng" });
       }
       discountReserved = true;
@@ -72,8 +73,27 @@ const createOrder = async (req, res) => {
       subtotal += product.price * item.quantity;
     }
 
+    // Tính lại discount server-side — không tin giá trị discount từ frontend
+    let serverDiscount = 0;
+    if (discountReserved && reservedDiscount) {
+      if (reservedDiscount.minOrderAmount > 0 && subtotal < reservedDiscount.minOrderAmount) {
+        await DiscountCode.findOneAndUpdate({ code: discountCodeNormalized }, { $inc: { usedCount: -1 } });
+        discountReserved = false;
+        return res.status(400).json({
+          success: false,
+          message: `Đơn hàng tối thiểu ${new Intl.NumberFormat("vi-VN").format(reservedDiscount.minOrderAmount)}đ để dùng mã này`,
+        });
+      }
+      if (reservedDiscount.type === "percent") {
+        serverDiscount = Math.round(subtotal * (reservedDiscount.value / 100));
+        if (reservedDiscount.maxDiscount > 0) serverDiscount = Math.min(serverDiscount, reservedDiscount.maxDiscount);
+      } else {
+        serverDiscount = reservedDiscount.value;
+      }
+    }
+
     const shippingFee = subtotal >= 500000 ? 0 : 30000;
-    const totalAmount = subtotal + shippingFee - (discount || 0);
+    const totalAmount = Math.max(0, subtotal + shippingFee - serverDiscount);
 
     const order = await Order.create({
       user: req.user._id,
@@ -82,8 +102,8 @@ const createOrder = async (req, res) => {
       paymentMethod,
       subtotal,
       shippingFee,
-      discount: discount || 0,
-      discountCode: discountCode || "",
+      discount: serverDiscount,
+      discountCode: discountCode || null,
       totalAmount,
       note,
     });
@@ -152,14 +172,18 @@ const cancelOrder = async (req, res) => {
     if (!order) return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng" });
     if (order.user.toString() !== req.user._id.toString())
       return res.status(403).json({ success: false, message: "Không có quyền hủy đơn này" });
-    if (!["pending", "paid"].includes(order.orderStatus) && order.paymentStatus === "pending")
-      return res.status(400).json({ success: false, message: "Chỉ có thể hủy đơn hàng đang chờ thanh toán hoặc đang chờ duyệt" });
+    if (!["pending", "paid"].includes(order.orderStatus))
+      return res.status(400).json({ success: false, message: "Chỉ có thể hủy đơn hàng đang chờ xác nhận hoặc đang chờ thanh toán" });
 
     order.orderStatus = "cancelled";
     await order.save();
 
-    // Do chưa trừ kho lúc đặt nên user tự cancel sẽ không có thay đổi tồn kho (Trừ khi status là confirmed, nhưng policy không cho user tự cancel order đã confirmed. Nếu là "paid", admin chưa confirm thì kho cũng chưa trừ).
-
+    createNotification(req.user._id, {
+      type: "order",
+      title: "Đơn hàng đã được hủy",
+      message: `Đơn hàng #${order._id.toString().slice(-8).toUpperCase()} của bạn đã được hủy thành công.`,
+      link: `/orders/${order._id}`,
+    });
 
     // Hoàn trả lượt dùng mã giảm giá nếu có
     if (order.discountCode) {

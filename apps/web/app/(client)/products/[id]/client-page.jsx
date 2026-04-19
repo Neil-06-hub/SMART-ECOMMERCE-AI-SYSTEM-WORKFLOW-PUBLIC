@@ -95,7 +95,7 @@ function buildSimilarReasons(baseProduct, similarProduct) {
 export default function ClientProductDetail({ initialProductData, id }) {
   const router = useRouter();
   const [form] = Form.useForm();
-  const { addItem } = useCartStore();
+  const { addItem, items: cartItems } = useCartStore();
   const { isAuthenticated } = useAuthStore();
   const [qty, setQty] = useState(1);
 
@@ -134,6 +134,11 @@ export default function ClientProductDetail({ initialProductData, id }) {
     : 0;
 
   const handleAddToCart = () => {
+    const inCart = cartItems.find((i) => i._id === product._id)?.quantity || 0;
+    if (inCart + qty > product.stock) {
+      message.warning(`Chỉ còn ${product.stock} sản phẩm (bạn đã có ${inCart} trong giỏ)`);
+      return;
+    }
     addItem(product, qty);
     message.success(`Đã thêm ${qty} "${product.name}" vào giỏ hàng`);
 

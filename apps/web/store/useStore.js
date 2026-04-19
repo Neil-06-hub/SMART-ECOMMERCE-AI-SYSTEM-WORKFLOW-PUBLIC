@@ -10,6 +10,9 @@ export const useAuthStore = create(
       user: null,
       token: null,
       isAuthenticated: false,
+      _hasHydrated: false,
+
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
 
       setAuth: (user, token) => {
         if (typeof window !== 'undefined') {
@@ -23,9 +26,9 @@ export const useAuthStore = create(
       logout: () => {
         if (typeof window !== 'undefined') {
           localStorage.removeItem('token');
-          // Clear cookie
           document.cookie = 'auth_token=; path=/; max-age=0';
         }
+        useWishlistStore.getState().clearWishlist();
         set({ user: null, token: null, isAuthenticated: false });
       },
 
@@ -37,7 +40,11 @@ export const useAuthStore = create(
         user: state.user,
         token: state.token,
         isAuthenticated: state.isAuthenticated,
+        // _hasHydrated is intentionally excluded — always resets to false on fresh load
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

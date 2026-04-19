@@ -84,17 +84,18 @@ export default function AdminProducts() {
   const formatPrice = (p) => p ? p.toLocaleString('vi-VN') + 'đ' : '-';
 
   const columns = [
-    { title: 'Ảnh', dataIndex: 'image', render: (img) => <Image src={img} width={50} height={50} style={{ objectFit: 'cover', borderRadius: 6 }} /> },
+    { title: 'Ảnh', dataIndex: 'image', width: 70, render: (img) => <Image src={img} width={50} height={50} style={{ objectFit: 'cover', borderRadius: 6 }} /> },
     { title: 'Tên sản phẩm', dataIndex: 'name', ellipsis: true, width: 200 },
-    { title: 'Danh mục', dataIndex: 'category', render: (c) => <Tag color="orange">{c}</Tag> },
-    { title: 'Giá', dataIndex: 'price', render: formatPrice },
-    { title: 'Tồn kho', dataIndex: 'stock', render: (s) => <Tag color={s > 0 ? 'green' : 'red'}>{s}</Tag> },
-    { title: 'Đã bán', dataIndex: 'sold', render: (s) => s || 0 },
-    { title: 'Trạng thái', dataIndex: 'isActive', render: (v) => <Tag color={v ? 'green' : 'default'}>{v ? 'Active' : 'Ẩn'}</Tag> },
+    { title: 'Danh mục', dataIndex: 'category', width: 150, render: (c) => <Tag color="orange">{c}</Tag> },
+    { title: 'Giá', dataIndex: 'price', width: 130, render: (p) => <span style={{ whiteSpace: 'nowrap' }}>{formatPrice(p)}</span> },
+    { title: 'Tồn kho', dataIndex: 'stock', width: 90, render: (s) => <Tag color={s > 0 ? 'green' : 'red'}>{s}</Tag> },
+    { title: 'Đã bán', dataIndex: 'sold', width: 80, render: (s) => s || 0 },
+    { title: 'Trạng thái', dataIndex: 'isActive', width: 100, render: (v) => <Tag color={v ? 'green' : 'default'}>{v ? 'Active' : 'Ẩn'}</Tag> },
     {
       title: 'Thao tác',
+      width: 140,
       render: (_, record) => (
-        <Space>
+        <Space size={4}>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>Sửa</Button>
           <Popconfirm title="Ẩn sản phẩm này?" onConfirm={() => handleDelete(record._id)} okText="Ẩn" cancelText="Hủy">
             <Button size="small" danger icon={<DeleteOutlined />}>Ẩn</Button>
@@ -120,6 +121,7 @@ export default function AdminProducts() {
       <Table
         columns={columns} dataSource={data?.products} rowKey="_id"
         loading={isLoading} style={{ background: 'white', borderRadius: 12 }}
+        scroll={{ x: 960 }}
         pagination={{
           current: page,
           pageSize: 20,

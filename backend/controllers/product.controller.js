@@ -93,6 +93,8 @@ const getCategories = async (req, res) => {
 const addReview = async (req, res) => {
   try {
     const { rating, comment } = req.body;
+    if (!rating || Number(rating) < 1 || Number(rating) > 5)
+      return res.status(400).json({ success: false, message: "Đánh giá phải từ 1 đến 5 sao" });
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm" });
 

@@ -58,29 +58,45 @@ export default function AdminUsers() {
   const columns = [
     {
       title: 'Khách hàng',
+      width: 220,
       render: (_, u) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Avatar src={u.avatar} icon={!u.avatar && <UserOutlined />}
-            style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }} />
-          <div>
-            <div style={{ fontWeight: 600 }}>{u.name}</div>
-            <div style={{ fontSize: 12, color: '#999' }}>{u.email}</div>
+            style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', flexShrink: 0 }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
+            <div style={{ fontSize: 12, color: '#999', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
           </div>
         </div>
       ),
     },
-    { title: 'Điện thoại', dataIndex: 'phone', render: (p) => p || '-' },
-    { title: 'Địa chỉ', dataIndex: 'address', render: (a) => a || '-', ellipsis: true },
+    {
+      title: 'Điện thoại',
+      dataIndex: 'phone',
+      width: 130,
+      render: (p) => <span style={{ whiteSpace: 'nowrap' }}>{p || '-'}</span>,
+    },
+    {
+      title: 'Địa chỉ',
+      dataIndex: 'address',
+      width: 160,
+      ellipsis: true,
+      render: (a) => a || '-',
+    },
     {
       title: 'Sở thích (AI)',
       dataIndex: 'preferences',
+      width: 170,
       render: (tags) => tags?.length
-        ? tags.slice(0, 3).map((t) => <Tag key={t} color="orange" style={{ fontSize: 11 }}>{t}</Tag>)
+        ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {tags.slice(0, 3).map((t) => <Tag key={t} color="orange" style={{ fontSize: 11, margin: 0 }}>{t}</Tag>)}
+          </div>
         : '-',
     },
     {
       title: 'Trạng thái',
       dataIndex: 'isBlocked',
+      width: 120,
       render: (blocked) => blocked
         ? <Tag color="red" icon={<LockOutlined />}>Đã khóa</Tag>
         : <Tag color="green" icon={<UnlockOutlined />}>Hoạt động</Tag>,
@@ -88,13 +104,15 @@ export default function AdminUsers() {
     {
       title: 'Ngày tạo',
       dataIndex: 'createdAt',
-      render: (d) => new Date(d).toLocaleDateString('vi-VN'),
+      width: 110,
+      render: (d) => <span style={{ whiteSpace: 'nowrap' }}>{new Date(d).toLocaleDateString('vi-VN')}</span>,
       sorter: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
     },
     {
       title: 'Thao tác',
+      width: 190,
       render: (_, record) => (
-        <Space size={4}>
+        <Space size={4} style={{ flexWrap: 'nowrap' }}>
           <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>Sửa</Button>
           <Popconfirm
             title={record.isBlocked ? 'Mở khóa tài khoản này?' : 'Khóa tài khoản này?'}
@@ -141,6 +159,7 @@ export default function AdminUsers() {
       <Table
         columns={columns} dataSource={data} rowKey="_id"
         loading={isLoading} style={{ background: 'white', borderRadius: 12 }}
+        scroll={{ x: 1100 }}
         pagination={{ pageSize: 15, showTotal: (t) => `${t} khách hàng` }}
       />
 

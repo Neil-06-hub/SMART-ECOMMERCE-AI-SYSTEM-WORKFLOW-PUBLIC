@@ -9,7 +9,7 @@ const createNotification = async (userId, { type, title, message, link = "" }) =
   }
 };
 
-// @desc  Lấy thông báo của người dùng (20 mới nhất)
+// @desc  Lấy thông báo của người dùng (30 mới nhất)
 // @route GET /api/notifications
 const getNotifications = async (req, res) => {
   try {
@@ -39,7 +39,8 @@ const readAllNotifications = async (req, res) => {
 // @route PUT /api/notifications/:id/read
 const readOneNotification = async (req, res) => {
   try {
-    await Notification.findOneAndUpdate({ _id: req.params.id, user: req.user._id }, { isRead: true });
+    const result = await Notification.findOneAndUpdate({ _id: req.params.id, user: req.user._id }, { isRead: true });
+    if (!result) return res.status(404).json({ success: false, message: "Không tìm thấy thông báo" });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -50,7 +51,8 @@ const readOneNotification = async (req, res) => {
 // @route DELETE /api/notifications/:id
 const deleteNotification = async (req, res) => {
   try {
-    await Notification.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    const result = await Notification.findOneAndDelete({ _id: req.params.id, user: req.user._id });
+    if (!result) return res.status(404).json({ success: false, message: "Không tìm thấy thông báo" });
     res.json({ success: true, message: "Đã xóa thông báo" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

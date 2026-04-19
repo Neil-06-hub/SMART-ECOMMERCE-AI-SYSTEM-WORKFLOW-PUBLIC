@@ -12,7 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { wishlistAPI } from '@/lib/api';
-import { useCartStore, useWishlistStore } from '@/store/useStore';
+import { useAuthStore, useCartStore, useWishlistStore } from '@/store/useStore';
 
 const formatPrice = (value) => `${new Intl.NumberFormat('vi-VN').format(value || 0)}đ`;
 
@@ -186,7 +186,20 @@ function WishlistContent({ onClose }) {
 
 export default function WishlistDropdown() {
   const [open, setOpen] = useState(false);
-  const { items: wishlistIds } = useWishlistStore();
+  const { items: wishlistIds, setItems } = useWishlistStore();
+  const { isAuthenticated } = useAuthStore();
+
+  // Sync wishlist store từ server sau khi login (hoặc khi data stale)
+  useQuery({
+    queryKey: ['wishlistIds'],
+    queryFn: async () => {
+      const res = await wishlistAPI.getIds();
+      setItems(res.data.wishlistIds);
+      return res.data.wishlistIds;
+    },
+    enabled: isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+  });
 
   return (
     <Popover
