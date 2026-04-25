@@ -40,6 +40,8 @@ def get_recommendations(
     all_products: list[dict],
     user_recent_views: list[str] | None = None,
     user_interaction_count: int = 0,
+    preferences: list[str] | None = None,
+    keywords: str | None = None,
 ) -> tuple[list[str], list[float]]:
     """
     Compute hybrid recommendations for a user.
@@ -142,6 +144,37 @@ def get_recommendations(
         # Explicit exclusion
         if str(prod.get("_id", "")) in exclude_ids:
             hybrid[i] = -1.0
+
+    # ── Preference tag boost (style/color matching) ────────────────────────
+    PREF_BOOST_WEIGHT = 0.15
+    if preferences:
+        prefs_set = {p.lower() for p in preferences}
+        for i, prod in enumerate(all_products):
+            if hybrid[i] < 0:
+                continue
+            prod_tags = {t.lower() for t in prod.get("tags", [])}
+            prod_features = prod_tags | {prod.get("category", "").lower()}
+            overlap = len(prefs_set & prod_features)
+            if overlap > 0:
+                boost = (overlap / len(prefs_set)) * PREF_BOOST_WEIGHT
+                hybrid[i] = min(hybrid[i] + boost, 1.0)
+
+    # ── Keyword boost (context/need matching) ──────────────────────────────
+    KW_BOOST_WEIGHT = 0.10
+    if keywords and keywords.strip():
+        kw_tokens = set(keywords.lower().split())
+        for i, prod in enumerate(all_products):
+            if hybrid[i] < 0:
+                continue
+            prod_text = (
+                f"{prod.get('name', '')} "
+                f"{prod.get('category', '')} "
+                f"{' '.join(prod.get('tags', []))}"
+            ).lower()
+            match_count = sum(1 for kw in kw_tokens if kw in prod_text)
+            if match_count > 0:
+                boost = (match_count / len(kw_tokens)) * KW_BOOST_WEIGHT
+                hybrid[i] = min(hybrid[i] + boost, 1.0)
 
     # ── Top-N ──────────────────────────────────────────────────────────────
     valid_indices = np.where(hybrid >= 0)[0]

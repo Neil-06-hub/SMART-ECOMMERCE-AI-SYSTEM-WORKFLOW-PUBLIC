@@ -10,6 +10,7 @@ import {
   Progress,
   Row,
   Space,
+  Spin,
   Table,
   Tag,
   Typography,
@@ -36,7 +37,15 @@ export default function Cart() {
   const router = useRouter();
   const { message } = App.useApp();
   const { isAuthenticated } = useAuthStore();
-  const { items, removeItem, updateQuantity, clearCart } = useCartStore();
+  const { items, removeItem, updateQuantity, clearCart, _hasHydrated } = useCartStore();
+
+  if (!_hasHydrated) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shippingFee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : 30000;
@@ -183,7 +192,7 @@ export default function Cart() {
                 <Col xs={12}>
                   <Card bodyStyle={{ padding: 18 }} style={{ borderRadius: 22, border: '1px solid var(--border-color)' }}>
                     <Text type="secondary">Tổng tạm tính</Text>
-                    <div style={{ marginTop: 8, fontSize: 28, fontWeight: 800, color: 'var(--brand-teal)' }}>{formatPrice(subtotal)}</div>
+                    <div style={{ marginTop: 8, fontSize: 'clamp(14px, 2vw, 22px)', fontWeight: 800, color: 'var(--brand-teal)', wordBreak: 'break-word', lineHeight: 1.2 }}>{formatPrice(subtotal)}</div>
                     <Text style={{ color: 'var(--text-muted)' }}>Chưa gồm phí giao hàng</Text>
                   </Card>
                 </Col>

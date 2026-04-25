@@ -6,14 +6,22 @@ const initMarketingJobs = () => {
   // Chạy lúc phút 0 của mỗi giờ: "0 * * * *"
   cron.schedule("0 * * * *", async () => {
     console.log("🕐 [CRON] Checking abandoned carts...");
-    await sendCartAbandonedEmails();
+    try {
+      await sendCartAbandonedEmails();
+    } catch (err) {
+      console.error("[CRON] sendCartAbandonedEmails failed:", err.message);
+    }
   });
 
   // Trigger 3: Gửi Newsletter mỗi thứ Hai lúc 9:00 sáng
   // "0 9 * * 1" = lúc 9h sáng mỗi thứ Hai
   cron.schedule("0 9 * * 1", async () => {
     console.log("📰 [CRON] Sending weekly newsletter...");
-    await sendWeeklyNewsletter();
+    try {
+      await sendWeeklyNewsletter();
+    } catch (err) {
+      console.error("[CRON] sendWeeklyNewsletter failed:", err.message);
+    }
   });
 
   console.log("✅ Marketing Cron Jobs initialized");

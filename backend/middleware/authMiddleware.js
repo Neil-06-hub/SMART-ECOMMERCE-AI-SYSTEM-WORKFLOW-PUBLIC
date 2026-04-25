@@ -10,7 +10,7 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select("-password");
+    req.user = await User.findById(decoded.id).select("-password").where({ deletedAt: null });
     if (!req.user) return res.status(401).json({ success: false, message: "Người dùng không tồn tại" });
     if (req.user.isBlocked) return res.status(403).json({ success: false, message: "Tài khoản của bạn đã bị khóa" });
     next();

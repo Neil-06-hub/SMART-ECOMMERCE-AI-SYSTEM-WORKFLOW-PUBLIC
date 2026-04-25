@@ -8,11 +8,12 @@ import { orderAPI } from '@/lib/api';
 const { Title, Text } = Typography;
 
 const statusConfig = {
-  pending: { color: 'orange', text: 'Chờ xác nhận' },
-  confirmed: { color: 'blue', text: 'Đã xác nhận' },
-  shipping: { color: 'cyan', text: 'Đang giao hàng' },
-  delivered: { color: 'green', text: 'Đã giao hàng' },
-  cancelled: { color: 'red', text: 'Đã hủy' },
+  pending:   { color: 'orange', text: 'Chờ xác nhận' },
+  paid:      { color: 'purple', text: 'Đã thanh toán' },
+  confirmed: { color: 'blue',   text: 'Đã xác nhận' },
+  shipping:  { color: 'cyan',   text: 'Đang giao hàng' },
+  delivered: { color: 'green',  text: 'Đã giao hàng' },
+  cancelled: { color: 'red',    text: 'Đã hủy' },
 };
 
 export default function OrderHistory() {

@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     R2_SECRET_KEY: str = ""
     R2_BUCKET: str = "models"
 
-    # Internal auth for /internal/* endpoints
-    INTERNAL_SECRET: str = "super-secret-key"
+    # Internal auth for /internal/* endpoints — must be set via env var, no default
+    INTERNAL_SECRET: str
 
     # Self-reference (for GitHub Actions hot-reload trigger)
     FASTAPI_URL: str = "http://localhost:8000"

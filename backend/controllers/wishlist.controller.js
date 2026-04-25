@@ -53,8 +53,13 @@ const removeFromWishlist = async (req, res) => {
 // @route GET /api/wishlist/ids
 const getWishlistIds = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("wishlist");
-    res.json({ success: true, wishlistIds: (user.wishlist || []).map((id) => id.toString()) });
+    const user = await User.findById(req.user._id)
+      .select("wishlist")
+      .populate("wishlist", "_id isActive");
+    const activeIds = (user.wishlist || [])
+      .filter((p) => p && p.isActive !== false)
+      .map((p) => p._id.toString());
+    res.json({ success: true, wishlistIds: activeIds });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

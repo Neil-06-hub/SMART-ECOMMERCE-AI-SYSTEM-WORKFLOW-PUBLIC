@@ -8,6 +8,7 @@ import {
   OrderedListOutlined, DashboardOutlined, HeartOutlined,
 } from '@ant-design/icons';
 import { useAuthStore, useCartStore } from '@/store/useStore';
+import { useQueryClient } from '@tanstack/react-query';
 import WishlistDropdown from './WishlistDrawer';
 import NotificationDropdown from './NotificationDrawer';
 
@@ -16,6 +17,7 @@ const Navbar = () => {
   const { items } = useCartStore();
   const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
 
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
 
@@ -39,7 +41,7 @@ const Navbar = () => {
       icon: <LogoutOutlined />,
       label: 'Đăng xuất',
       danger: true,
-      onClick: () => { logout(); router.push('/'); },
+      onClick: () => { logout(); queryClient.clear(); router.push('/'); },
     },
   ];
 

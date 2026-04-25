@@ -10,6 +10,7 @@ import {
   ShopOutlined, TagOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store/useStore';
+import { useQueryClient } from '@tanstack/react-query';
 
 const { Header, Sider, Content } = Layout;
 
@@ -24,23 +25,28 @@ const menuItems = [
 
 export default function AdminLayout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
-  const { user, logout, isAuthenticated } = useAuthStore();
+  const { user, logout, isAuthenticated, _hasHydrated } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const { token: { colorBgContainer } } = theme.useToken();
 
-  // Client-side admin guard
+  // Wait for Zustand persist rehydration before checking auth —
+  // otherwise the store starts with isAuthenticated=false and redirects on every F5.
   useEffect(() => {
+    if (!_hasHydrated) return;
     if (!isAuthenticated) { router.push('/login'); return; }
     if (user?.role !== 'admin') { router.push('/'); }
-  }, [isAuthenticated, user, router]);
+  }, [_hasHydrated, isAuthenticated, user, router]);
+
+  if (!_hasHydrated) return null;
 
   const userMenu = {
     items: [
       { key: 'home', icon: <ShopOutlined />, label: <Link href="/">Về trang chủ</Link> },
       {
         key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true,
-        onClick: () => { logout(); router.push('/login'); },
+        onClick: () => { logout(); queryClient.clear(); router.push('/login'); },
       },
     ],
   };

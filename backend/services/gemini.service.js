@@ -257,6 +257,12 @@ const runOpenRouterJSON = async (prompt) => {
       activateCooldown(message, "rate_limit");
     }
 
+    if (response.status === 402) {
+      // Credits exhausted — cooldown 30 minutes before retrying
+      cooldownUntil = Date.now() + 30 * 60 * 1000;
+      cooldownReason = "insufficient_credits";
+    }
+
     if (response.status === 401 || response.status === 403) {
       disableOpenRouter("invalid_api_key_or_forbidden");
     }

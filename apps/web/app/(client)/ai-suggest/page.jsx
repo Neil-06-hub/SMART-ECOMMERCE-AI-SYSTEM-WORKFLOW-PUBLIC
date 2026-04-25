@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Button,
   Card,
@@ -44,11 +44,13 @@ export default function AISuggest() {
 
   const watchedStyles = Form.useWatch('styles', form) || [];
   const watchedColors = Form.useWatch('colors', form) || [];
-  const watchedBudget = Form.useWatch('budget', form) || [0, 5000000];
+  const watchedBudget = Form.useWatch('budget', form) || [0, 100000000];
+
+  const [appliedFilters, setAppliedFilters] = useState({});
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['aiRecommendations'],
-    queryFn: () => aiAPI.getRecommendations().then((response) => response.data),
+    queryKey: ['aiRecommendations', appliedFilters],
+    queryFn: () => aiAPI.getRecommendations(appliedFilters).then((response) => response.data),
     enabled: isAuthenticated,
     staleTime: 60000,
   });
@@ -63,6 +65,15 @@ export default function AISuggest() {
 
   const onFinish = (values) => {
     const preferences = [...(values.styles || []), ...(values.colors || [])].filter(Boolean);
+    const budget = values.budget || [0, 100000000];
+
+    const filters = {};
+    if (budget[0] > 0) filters.minPrice = budget[0];
+    if (budget[1] < 100000000) filters.maxPrice = budget[1];
+    if (preferences.length > 0) filters.preferences = preferences.join(',');
+    if (values.keywords?.trim()) filters.keywords = values.keywords.trim();
+
+    setAppliedFilters(filters);
     savePrefMutation.mutate(preferences);
   };
 
@@ -71,18 +82,42 @@ export default function AISuggest() {
   const resultMessage = data?.message;
   const loading = isLoading || isFetching || savePrefMutation.isPending;
 
-  const contextualReasons = useMemo(() => {
+  const liveSignals = [
+    ...watchedStyles.map((s) => `Phong cách: ${s}`),
+    ...watchedColors.slice(0, 2).map((c) => `Màu: ${c}`),
+    ...(watchedBudget[1] < 100000000 ? [`Ngân sách ≤ ${formatBudgetLabel(watchedBudget[1])}`] : []),
+  ];
+
+  const getProductReasons = (product) => {
     const reasons = [];
+    const prodTags = (product?.tags || []).map((t) => t.toLowerCase());
+    const prodName = (product?.name || '').toLowerCase();
+    const prodCategory = (product?.category || '').toLowerCase();
 
-    watchedStyles.slice(0, 2).forEach((style) => reasons.push(`Ưu tiên phong cách ${style}`));
-    watchedColors.slice(0, 1).forEach((color) => reasons.push(`Ưa chuộng tông ${color}`));
+    // Only show style reason if product tags/name/category actually contain that style keyword
+    watchedStyles.forEach((style) => {
+      const s = style.toLowerCase();
+      if (prodTags.some((t) => t.includes(s) || s.includes(t)) || prodName.includes(s) || prodCategory.includes(s)) {
+        reasons.push(`Ưu tiên phong cách ${style}`);
+      }
+    });
 
-    if (watchedBudget[1]) {
-      reasons.push(`Giữ trong ngân sách đến ${formatBudgetLabel(watchedBudget[1])}`);
+    // Only show color reason if product tags contain that color
+    watchedColors.forEach((color) => {
+      const c = color.toLowerCase();
+      if (prodTags.some((t) => t.includes(c))) {
+        reasons.push(`Ưa chuộng tông ${color}`);
+      }
+    });
+
+    // Show budget reason if product is within budget
+    if (watchedBudget[1] && product?.price <= watchedBudget[1]) {
+      reasons.push(`Trong ngân sách ${formatBudgetLabel(watchedBudget[1])}`);
     }
 
+    // Return empty array → AIRecCard will use its own deriveDefaultReasons fallback
     return reasons.slice(0, 3);
-  }, [watchedBudget, watchedColors, watchedStyles]);
+  };
 
   if (!isAuthenticated) {
     return (
@@ -160,7 +195,7 @@ export default function AISuggest() {
                 form={form}
                 layout="vertical"
                 onFinish={onFinish}
-                initialValues={{ purpose: 'self', budget: [0, 5000000], styles: [], colors: [] }}
+                initialValues={{ purpose: 'self', budget: [0, 100000000], styles: [], colors: [] }}
               >
                 <Form.Item
                   name="purpose"
@@ -209,10 +244,10 @@ export default function AISuggest() {
                 >
                   <Slider
                     range
-                    step={100000}
+                    step={500000}
                     min={0}
-                    max={10000000}
-                    marks={{ 0: '0đ', 10000000: '10 triệu' }}
+                    max={100000000}
+                    marks={{ 0: '0đ', 25000000: '25tr', 50000000: '50tr', 75000000: '75tr', 100000000: '100tr' }}
                     tooltip={{ formatter: formatBudgetLabel }}
                   />
                 </Form.Item>
@@ -223,9 +258,9 @@ export default function AISuggest() {
                 >
                   <Text strong style={{ color: '#9A3412' }}>Tín hiệu đang gửi vào AI</Text>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                    {contextualReasons.length > 0 ? contextualReasons.map((reason) => (
-                      <Tag key={reason} color="orange" style={{ borderRadius: 999, margin: 0 }}>
-                        {reason}
+                    {liveSignals.length > 0 ? liveSignals.map((signal) => (
+                      <Tag key={signal} color="orange" style={{ borderRadius: 999, margin: 0 }}>
+                        {signal}
                       </Tag>
                     )) : (
                       <Text type="secondary">Chọn phong cách, màu hoặc ngân sách để AI cá nhân hóa sâu hơn.</Text>
@@ -299,7 +334,7 @@ export default function AISuggest() {
                       matchPercent={96 - Math.min(index, 5) * 3}
                       source={resultType === 'fallback' ? 'fallback' : 'model'}
                       reasonTitle="Vì sao AI đưa vào shortlist"
-                      reasons={contextualReasons}
+                      reasons={getProductReasons(product)}
                     />
                   </Col>
                 ))}

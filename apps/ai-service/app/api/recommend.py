@@ -32,7 +32,7 @@ async def _load_products() -> tuple[list[dict], list[str]]:
     db = get_db()
     products = await db["products"].find(
         {"isActive": True},
-        {"_id": 1, "name": 1, "price": 1, "stock": 1, "sold": 1, "rating": 1, "category": 1},
+        {"_id": 1, "name": 1, "price": 1, "stock": 1, "sold": 1, "rating": 1, "category": 1, "tags": 1},
     ).to_list(length=100_000)
 
     # Convert ObjectId to string
@@ -103,6 +103,8 @@ async def get_recommendation(req: RecommendRequest):
         all_products=all_products,
         user_recent_views=user_recent_views,
         user_interaction_count=user_interaction_count,
+        preferences=req.preferences,
+        keywords=req.keywords,
     )
 
     # Determine source label for observability

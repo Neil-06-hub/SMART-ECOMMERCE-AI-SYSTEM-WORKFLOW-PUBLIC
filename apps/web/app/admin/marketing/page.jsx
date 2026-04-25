@@ -1,69 +1,119 @@
 'use client';
 
-import { useState } from 'react';
-import { Table, Button, Tag, Card, Row, Col, Typography, message } from 'antd';
+import { useState, useMemo, useEffect } from 'react';
+import { Table, Button, Tag, Typography, message, Tabs, Badge, Input, DatePicker, Space, Empty } from 'antd';
 import {
   MailOutlined, ThunderboltOutlined, CalendarOutlined,
-  ShoppingCartOutlined, NotificationOutlined, CheckCircleOutlined, CloseCircleOutlined,
+  ShoppingCartOutlined, NotificationOutlined,
+  CheckCircleOutlined, CloseCircleOutlined, SearchOutlined,
 } from '@ant-design/icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import dayjs from 'dayjs';
 import { adminAPI } from '@/lib/api';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text } = Typography;
+const { RangePicker } = DatePicker;
+
+const typeConfig = {
+  welcome:       { color: 'green',  text: 'Chào mừng',  icon: <MailOutlined /> },
+  cart_abandoned:{ color: 'orange', text: 'Giỏ hàng',   icon: <ShoppingCartOutlined /> },
+  newsletter:    { color: 'blue',   text: 'Newsletter',  icon: <NotificationOutlined /> },
+  promotion:     { color: 'red',    text: 'Khuyến mãi', icon: <ThunderboltOutlined /> },
+};
 
 const campaignCards = [
   {
     type: 'cart_abandoned',
     title: 'Giỏ hàng bỏ quên',
-    desc: 'Gửi email nhắc nhở kèm mã giảm giá cho khách hàng đã bỏ quên giỏ hàng trên 24 giờ',
-    icon: <ShoppingCartOutlined style={{ fontSize: 32, color: '#fa8c16' }} />,
-    color: '#fa8c16',
+    desc: 'Gửi email nhắc nhở kèm mã giảm giá cho khách đã bỏ quên giỏ hàng trên 24 giờ.',
+    icon: <ShoppingCartOutlined style={{ fontSize: 28 }} />,
+    color: '#f97316',
+    bg: '#FFF7ED',
     trigger: 'Mỗi giờ (tự động) + Thủ công',
   },
   {
     type: 'newsletter',
     title: 'Newsletter tuần',
-    desc: 'Gửi email giới thiệu top 3 sản phẩm bán chạy nhất đến toàn bộ khách hàng',
-    icon: <NotificationOutlined style={{ fontSize: 32, color: '#667eea' }} />,
-    color: '#667eea',
+    desc: 'Gửi email giới thiệu top 3 sản phẩm bán chạy nhất đến toàn bộ khách hàng.',
+    icon: <NotificationOutlined style={{ fontSize: 28 }} />,
+    color: '#6366f1',
+    bg: '#F5F3FF',
     trigger: 'Thứ Hai 9:00 AM (tự động) + Thủ công',
   },
 ];
 
-const typeConfig = {
-  welcome: { color: 'green', text: 'Chào mừng', icon: <MailOutlined /> },
-  cart_abandoned: { color: 'orange', text: 'Giỏ hàng', icon: <ShoppingCartOutlined /> },
-  newsletter: { color: 'blue', text: 'Newsletter', icon: <NotificationOutlined /> },
-  promotion: { color: 'red', text: 'Khuyến mãi', icon: <ThunderboltOutlined /> },
-};
-
 export default function AdminMarketing() {
   const [triggerLoading, setTriggerLoading] = useState({});
-  const [logFilter, setLogFilter] = useState('');
+  const [logTab, setLogTab] = useState('all');
+  const [search, setSearch] = useState('');
+  const [dateRange, setDateRange] = useState([]);
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(10);
   const queryClient = useQueryClient();
 
+  const logType = logTab === 'all' ? '' : logTab;
+
+  useEffect(() => { setLogPage(1); }, [logTab, search, dateRange]);
+
   const { data: logsData, isLoading } = useQuery({
-    queryKey: ['marketing-logs', logFilter],
-    queryFn: () => adminAPI.getMarketingLogs({ type: logFilter }).then((r) => r.data),
+    queryKey: ['marketing-logs', logType, logPage, logPageSize],
+    queryFn: () => adminAPI.getMarketingLogs({ type: logType, page: logPage, limit: logPageSize }).then((r) => r.data),
   });
+
+  const logs = logsData?.logs ?? [];
+
+  // Client-side search + date filter on loaded page
+  const filteredLogs = useMemo(() => {
+    let list = logs;
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (l) =>
+          (l.recipientName ?? '').toLowerCase().includes(q) ||
+          (l.recipient ?? '').toLowerCase().includes(q)
+      );
+    }
+    if (dateRange.length === 2) {
+      list = list.filter((l) => {
+        const d = dayjs(l.createdAt);
+        return (
+          d.isAfter(dateRange[0].startOf('day').subtract(1, 'ms')) &&
+          d.isBefore(dateRange[1].endOf('day').add(1, 'ms'))
+        );
+      });
+    }
+    return list;
+  }, [logs, search, dateRange]);
+
+  const successCount = logs.filter((l) => l.status === 'success').length;
+  const failedCount  = logs.filter((l) => l.status === 'failed').length;
+  const total        = logsData?.pagination?.total ?? 0;
 
   const handleTrigger = async (campaignType) => {
     setTriggerLoading((p) => ({ ...p, [campaignType]: true }));
     try {
       const { data } = await adminAPI.triggerMarketing(campaignType);
-      message.success(data.message || 'Chiến dịch đã được kích hoạt thành công!');
+      message.success(data.message || 'Chiến dịch đã được kích hoạt!');
       queryClient.invalidateQueries({ queryKey: ['marketing-logs'] });
     } catch (err) {
-      message.error(err.response?.data?.message || 'Kích hoạt chiến dịch thất bại');
+      message.error(err.response?.data?.message || 'Kích hoạt thất bại');
     } finally {
       setTriggerLoading((p) => ({ ...p, [campaignType]: false }));
     }
   };
 
+  const tabItems = [
+    { key: 'all',           label: 'Tất cả' },
+    { key: 'welcome',       label: <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><MailOutlined /> Chào mừng</span> },
+    { key: 'cart_abandoned',label: <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><ShoppingCartOutlined /> Giỏ hàng</span> },
+    { key: 'newsletter',    label: <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><NotificationOutlined /> Newsletter</span> },
+  ];
+
   const columns = [
     {
       title: 'Loại',
       dataIndex: 'type',
+      width: 130,
       render: (t) => (
         <Tag color={typeConfig[t]?.color} icon={typeConfig[t]?.icon}>
           {typeConfig[t]?.text || t}
@@ -72,20 +122,28 @@ export default function AdminMarketing() {
     },
     {
       title: 'Người nhận',
+      width: 210,
       render: (_, r) => (
         <div>
-          <div style={{ fontWeight: 600 }}>{r.recipientName || '-'}</div>
-          <div style={{ fontSize: 12, color: '#999' }}>{r.recipient}</div>
+          <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {r.recipientName || '—'}
+          </div>
+          <div style={{ fontSize: 12, color: '#94A3B8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {r.recipient}
+          </div>
         </div>
       ),
     },
-    { title: 'Tiêu đề', dataIndex: 'subject', ellipsis: true, width: 200 },
+    { title: 'Tiêu đề', dataIndex: 'subject', ellipsis: true, width: 220 },
     {
       title: 'Trạng thái',
       dataIndex: 'status',
+      width: 130,
       render: (s) => (
-        <Tag color={s === 'success' ? 'green' : s === 'failed' ? 'red' : 'orange'}
-          icon={s === 'success' ? <CheckCircleOutlined /> : s === 'failed' ? <CloseCircleOutlined /> : null}>
+        <Tag
+          color={s === 'success' ? 'green' : s === 'failed' ? 'red' : 'orange'}
+          icon={s === 'success' ? <CheckCircleOutlined /> : s === 'failed' ? <CloseCircleOutlined /> : null}
+        >
           {s === 'success' ? 'Thành công' : s === 'failed' ? 'Thất bại' : 'Đang xử lý'}
         </Tag>
       ),
@@ -93,85 +151,141 @@ export default function AdminMarketing() {
     {
       title: 'Mã giảm giá',
       dataIndex: 'discountCode',
-      render: (c) => c ? <Tag color="gold">{c}</Tag> : '-',
+      width: 130,
+      render: (c) => c ? <Tag color="gold">{c}</Tag> : <span style={{ color: '#94A3B8' }}>—</span>,
     },
     {
       title: 'Thời gian',
       dataIndex: 'createdAt',
-      render: (d) => new Date(d).toLocaleString('vi-VN'),
+      width: 160,
+      render: (d) => <span style={{ whiteSpace: 'nowrap', color: '#64748B', fontSize: 13 }}>{new Date(d).toLocaleString('vi-VN')}</span>,
+      sorter: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
     },
   ];
 
   return (
     <div>
-      <Title level={3} style={{ marginBottom: 24 }}>Marketing AI - Trung tâm chiến dịch</Title>
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
-        {campaignCards.map((c) => (
-          <Col key={c.type} xs={24} md={12}>
-            <Card style={{ borderRadius: 12, borderTop: `4px solid ${c.color}` }}>
-              <div style={{ display: 'flex', gap: 16 }}>
-                <div>{c.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <Title level={5} style={{ margin: 0 }}>{c.title}</Title>
-                  <Paragraph type="secondary" style={{ margin: '8px 0' }}>{c.desc}</Paragraph>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <CalendarOutlined style={{ color: '#999' }} />
-                    <Text type="secondary" style={{ fontSize: 12 }}>{c.trigger}</Text>
-                  </div>
-                  <Button
-                    type="primary" icon={<ThunderboltOutlined />}
-                    loading={triggerLoading[c.type]}
-                    onClick={() => handleTrigger(c.type)}
-                    style={{ background: c.color, borderColor: c.color }}
-                  >
-                    Kích hoạt ngay
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      <Card style={{ borderRadius: 12, marginBottom: 24, borderLeft: '4px solid #52c41a' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <MailOutlined style={{ color: '#52c41a', fontSize: 24 }} />
-          <div>
-            <Title level={5} style={{ margin: 0 }}>Email chào mừng</Title>
-            <Text type="secondary">Tự động gửi khi có khách hàng mới đăng ký. Bao gồm mã giảm giá WELCOME10 do AI tạo ra.</Text>
-          </div>
-          <Tag color="green" style={{ marginLeft: 'auto' }}>Tự động 100%</Tag>
-        </div>
-      </Card>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={5} style={{ margin: 0 }}>Lịch sử gửi email ({logsData?.pagination?.total || 0})</Title>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['', 'welcome', 'cart_abandoned', 'newsletter'].map((t) => (
-            <Button key={t} size="small" type={logFilter === t ? 'primary' : 'default'}
-              onClick={() => setLogFilter(t)}
-              style={logFilter === t ? { background: '#667eea', borderColor: '#667eea' } : {}}>
-              {t === '' ? 'Tất cả' : typeConfig[t]?.text}
-            </Button>
-          ))}
-        </div>
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h3 style={{ fontWeight: 700, margin: 0, fontSize: 20, color: '#0F172A' }}>Marketing AI</h3>
+        <p style={{ color: '#64748B', margin: '4px 0 0', fontSize: 14 }}>Trung tâm chiến dịch email tự động</p>
       </div>
 
-      <Table
-        columns={columns} dataSource={logsData?.logs} rowKey="_id"
-        loading={isLoading} style={{ background: 'white', borderRadius: 12 }}
-        pagination={{ pageSize: 10, total: logsData?.pagination?.total }}
-        expandable={{
-          expandedRowRender: (record) => (
-            <div style={{ padding: '8px 16px' }}>
-              <Text strong>Nội dung: </Text>
-              <Paragraph style={{ margin: '4px 0' }}>{record.content}</Paragraph>
-              {record.errorMessage && <Text type="danger">Lỗi: {record.errorMessage}</Text>}
+      {/* Campaign Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+        {campaignCards.map((c) => (
+          <div key={c.type} style={{ background: 'white', borderRadius: 16, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', borderTop: `4px solid ${c.color}` }}>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <div style={{ width: 52, height: 52, borderRadius: 12, background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.color, flexShrink: 0 }}>
+                {c.icon}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#0F172A', marginBottom: 4 }}>{c.title}</div>
+                <div style={{ fontSize: 13, color: '#64748B', marginBottom: 10, lineHeight: '1.5' }}>{c.desc}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                  <CalendarOutlined style={{ color: '#94A3B8', fontSize: 12 }} />
+                  <Text style={{ fontSize: 12, color: '#94A3B8' }}>{c.trigger}</Text>
+                </div>
+                <Button
+                  type="primary"
+                  icon={<ThunderboltOutlined />}
+                  loading={triggerLoading[c.type]}
+                  onClick={() => handleTrigger(c.type)}
+                  style={{ background: c.color, borderColor: c.color, fontWeight: 600 }}
+                >
+                  Kích hoạt ngay
+                </Button>
+              </div>
             </div>
-          ),
-        }}
-      />
+          </div>
+        ))}
+      </div>
+
+      {/* Welcome card */}
+      <div style={{ background: 'white', borderRadius: 16, padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', borderLeft: '4px solid #22c55e', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 10, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <MailOutlined style={{ color: '#22c55e', fontSize: 20 }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: '#0F172A' }}>Email chào mừng</div>
+          <div style={{ fontSize: 13, color: '#64748B' }}>Tự động gửi khi có khách hàng mới đăng ký. Bao gồm mã WELCOME10 do AI tạo ra.</div>
+        </div>
+        <Tag color="green" style={{ flexShrink: 0 }}>Tự động 100%</Tag>
+      </div>
+
+      {/* Logs Section */}
+      <div style={{ background: 'white', borderRadius: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+        {/* Stats row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, borderBottom: '1px solid #F1F5F9' }}>
+          {[
+            { label: 'Tổng đã gửi',   value: total,        color: '#6366f1' },
+            { label: 'Thành công',    value: successCount, color: '#22c55e' },
+            { label: 'Thất bại',      value: failedCount,  color: '#ef4444' },
+          ].map((s, i) => (
+            <div key={s.label} style={{ padding: '16px 24px', borderRight: i < 2 ? '1px solid #F1F5F9' : 'none' }}>
+              <div style={{ fontSize: 12, color: '#64748B', marginBottom: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tabs */}
+        <div style={{ padding: '0 24px', borderBottom: '1px solid #F1F5F9' }}>
+          <Tabs activeKey={logTab} onChange={setLogTab} items={tabItems} size="large" style={{ marginBottom: 0 }} />
+        </div>
+
+        <div style={{ padding: '16px 24px 24px' }}>
+          {/* Filters */}
+          <Space wrap style={{ marginBottom: 12 }}>
+            <Input
+              placeholder="Tìm theo tên, email người nhận..."
+              prefix={<SearchOutlined style={{ color: '#94A3B8' }} />}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              allowClear
+              style={{ width: 280 }}
+            />
+            <RangePicker
+              value={dateRange.length ? dateRange : null}
+              onChange={(dates) => setDateRange(dates ?? [])}
+              format="DD/MM/YYYY"
+              placeholder={['Từ ngày', 'Đến ngày']}
+              style={{ width: 240 }}
+            />
+          </Space>
+
+          <Table
+            columns={columns}
+            dataSource={filteredLogs}
+            rowKey="_id"
+            loading={isLoading}
+            scroll={{ x: 960 }}
+            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có lịch sử gửi email" /> }}
+            pagination={{
+              current: logPage,
+              pageSize: logPageSize,
+              total: logsData?.pagination?.total,
+              onChange: (page, size) => { setLogPage(page); setLogPageSize(size); },
+              showSizeChanger: true,
+              pageSizeOptions: ['10', '20', '50'],
+              showTotal: (t) => `${t} email`,
+            }}
+            expandable={{
+              expandedRowRender: (record) => (
+                <div style={{ padding: '8px 16px', background: '#F8FAFC', borderRadius: 6 }}>
+                  <Text strong>Nội dung: </Text>
+                  <Text>{record.content}</Text>
+                  {record.errorMessage && (
+                    <div style={{ marginTop: 4 }}>
+                      <Text type="danger">Lỗi: {record.errorMessage}</Text>
+                    </div>
+                  )}
+                </div>
+              ),
+            }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
