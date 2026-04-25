@@ -1178,16 +1178,16 @@ const seedData = async () => {
     const admin = await User.create({
       name: "Admin",
       email: "admin@smartshop.com",
-      password: "admin123456",
+      password: "Admin@123456",
       role: "admin",
     });
     console.log("✅ Admin account created:");
     console.log("   Email: admin@smartshop.com");
-    console.log("   Password: admin123456");
+    console.log("   Password: Admin@123456");
 
     // Create sample customers (needed for AI training - more users = better model)
     // Must pre-hash passwords because insertMany() bypasses mongoose pre-save hooks
-    const hashedPassword = await bcrypt.hash("customer123456", 12);
+    const hashedPassword = await bcrypt.hash("Customer@123456", 12);
     const sampleCustomers = [
       { name: "Nguyễn Văn A", email: "customer@smartshop.com", preferences: ["smartphone", "laptop", "ai"] },
       { name: "Trần Thị Bình", email: "binh@smartshop.com", preferences: ["watch", "headphone", "audio"] },
@@ -1200,7 +1200,7 @@ const seedData = async () => {
     ];
     await User.insertMany(sampleCustomers.map(c => ({ ...c, password: hashedPassword, role: "customer" })));
     console.log(`✅ ${sampleCustomers.length} customer accounts created`);
-    console.log("   Main customer: customer@smartshop.com / customer123456");
+    console.log("   Main customer: customer@smartshop.com / Customer@123456");
 
     // ── Phase 2 AI seed data ──────────────────────────────────────────────────
     console.log("\n🤖 Seeding behavioral events (seed 05)...");

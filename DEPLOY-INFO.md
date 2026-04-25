@@ -10,7 +10,7 @@
 |---|---|---|
 | **Backend API** | `https://smart-ecommerce-api-vbkw.onrender.com` | Render.com |
 | **AI Service** | `https://smart-ecommerce-ai.onrender.com` | Render.com |
-| **Frontend** | _(cập nhật sau khi Vercel deploy xong)_ | Vercel |
+| **Frontend** | `https://smart-ecommerce-ai-system-workflow-chi.vercel.app` | Vercel |
 | **Health check BE** | `https://smart-ecommerce-api-vbkw.onrender.com/api/health` | — |
 | **Health check AI** | `https://smart-ecommerce-ai.onrender.com/health` | — |
 
@@ -39,7 +39,7 @@ PORT=5000
 MONGODB_URI=mongodb+srv://smart-ecommerce_db_user:***@smart-ecommerce.mq5xast.mongodb.net/smart-ecommerce?retryWrites=true&w=majority
 JWT_SECRET=<random 32 chars — xem Render dashboard>
 JWT_EXPIRE=7d
-CLIENT_URL=<Vercel URL — cập nhật sau>
+CLIENT_URL=https://smart-ecommerce-ai-system-workflow-chi.vercel.app
 FASTAPI_URL=https://smart-ecommerce-ai.onrender.com
 INTERNAL_SECRET=<random string — xem Render dashboard, phải trùng với AI service>
 OPENROUTER_API_KEY=<xem backend/.env>
