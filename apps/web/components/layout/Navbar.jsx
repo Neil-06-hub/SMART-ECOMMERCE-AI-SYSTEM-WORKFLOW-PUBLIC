@@ -48,9 +48,11 @@ const Navbar = () => {
   return (
     <nav style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
-      background: 'white',
-      borderBottom: '1px solid #F1F5F9',
-      boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+      background: 'rgba(255, 253, 248, 0.88)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
+      borderBottom: '1px solid rgba(231, 217, 200, 0.6)',
+      boxShadow: '0 1px 12px rgba(0,0,0,0.05)',
     }}>
       <div className="container" style={{
         height: 76,
@@ -63,12 +65,13 @@ const Navbar = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
                 width: 44, height: 44,
-                background: 'linear-gradient(135deg, var(--ai-purple), var(--ai-pink))',
+                background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))',
                 borderRadius: 12,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'white', fontSize: 22, fontWeight: 700,
+                boxShadow: '0 4px 12px rgba(232,93,4,0.28)',
               }}>S</div>
-              <span style={{ color: 'var(--brand-teal)', fontWeight: 700, fontSize: 22 }}>SmartShop AI</span>
+              <span style={{ color: 'var(--color-primary)', fontWeight: 700, fontSize: 22 }}>SmartShop AI</span>
             </div>
           </Link>
         </div>
@@ -82,11 +85,11 @@ const Navbar = () => {
                 key={link.label}
                 href={link.to}
                 style={{
-                  color: '#0F172A',
-                  fontWeight: isActive ? 600 : 500,
-                  fontSize: 17,
+                  color: isActive ? 'var(--color-primary)' : '#0F172A',
+                  fontWeight: isActive ? 700 : 500,
+                  fontSize: 16,
                   textDecoration: 'none',
-                  borderBottom: isActive ? '2px solid var(--ai-purple)' : '2px solid transparent',
+                  borderBottom: isActive ? '2px solid var(--color-primary)' : '2px solid transparent',
                   paddingBottom: 4,
                   transition: 'all 0.2s',
                 }}
@@ -116,7 +119,7 @@ const Navbar = () => {
                     size={42}
                     src={user?.avatar}
                     icon={!user?.avatar && <UserOutlined />}
-                    style={{ background: 'linear-gradient(135deg, var(--brand-teal), var(--brand-teal-light))', color: 'white' }}
+                    style={{ background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))', color: 'white' }}
                   />
                   <span style={{ color: '#0F172A', fontWeight: 500, fontSize: 16 }}>{user?.name?.split(' ').pop()}</span>
                 </div>
