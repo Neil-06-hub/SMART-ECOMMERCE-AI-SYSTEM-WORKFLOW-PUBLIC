@@ -193,4 +193,37 @@ const trackPublicEvent = async (req, res) => {
   }
 };
 
-module.exports = { getPersonalizedRecommendations, trackActivity, trackPublicEvent };
+// @desc  Return last 3 behavioral signals for the authenticated user
+// @route GET /api/ai/my-signals
+const getMySignals = async (req, res) => {
+  try {
+    const DISPLAY_WEIGHT = { view: 35, click: 55, add_to_cart: 70, purchase: 90, rec_click: 60 };
+    const LABEL_MAP = {
+      view: 'Đã xem',
+      click: 'Đã xem',
+      add_to_cart: 'Thêm giỏ',
+      purchase: 'Đã mua',
+      rec_click: 'Yêu thích',
+    };
+
+    const events = await BehavioralEvent.find({ userId: req.user._id })
+      .populate('productId', 'name images')
+      .sort({ timestamp: -1 })
+      .limit(3);
+
+    const signals = events
+      .filter((e) => e.productId)
+      .map((e) => ({
+        label: LABEL_MAP[e.eventType] || 'Đã xem',
+        item: e.productId.name,
+        weight: DISPLAY_WEIGHT[e.eventType] || 40,
+        color: e.eventType === 'purchase' || e.eventType === 'rec_click' ? '#0D9488' : '#E85D04',
+      }));
+
+    res.json({ success: true, data: signals });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getPersonalizedRecommendations, trackActivity, trackPublicEvent, getMySignals };

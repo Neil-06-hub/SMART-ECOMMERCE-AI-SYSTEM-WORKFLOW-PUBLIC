@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { aiAPI } from '@/lib/api';
+import { aiAPI, statsAPI } from '@/lib/api';
 import { useAuthStore } from '@/store/useStore';
 import ProductCard from '@/components/product/ProductCard';
 import AIRecCard from '@/components/ai/AIRecCard';
@@ -44,6 +44,29 @@ const sourceColors = {
   personalized_ai: 'gold',
   featured_fallback: 'default',
 };
+
+const MONTH_LABEL = { 1:'T1',2:'T2',3:'T3',4:'T4',5:'T5',6:'T6',7:'T7',8:'T8',9:'T9',10:'T10',11:'T11',12:'T12' };
+
+const CAT_ICON = {
+  'Điện tử':'📱','Điện Tử':'📱','Laptop':'💻','Điện thoại':'📱','Điện Thoại':'📱',
+  'Thời trang':'👕','Thời Trang':'👕','Giày dép':'👟','Giày Dép':'👟',
+  'Phụ kiện':'⌚','Phụ Kiện':'⌚','Âm thanh':'🎧','Âm Thanh':'🎧',
+  'Máy tính bảng':'📟','Thiết bị đeo':'⌚','Đồ gia dụng':'🏠',
+};
+const CAT_COLORS = ['#F97316','#8B5CF6','#0D9488','#3B82F6','#EC4899'];
+
+function formatCount(n) {
+  if (!n) return '0';
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return String(n);
+}
+function formatRevenue(n) {
+  if (!n) return '0đ';
+  if (n >= 1000000000) return (n / 1000000000).toFixed(1) + 'Tỷ';
+  if (n >= 1000000) return Math.round(n / 1000000) + 'M';
+  return formatCount(n);
+}
 
 const testimonials = [
   { initials: 'MA', name: 'Nguyễn Minh Anh',   role: 'Shopper',              color: '#8B5CF6', text: 'AI gợi ý sản phẩm cực kỳ chính xác. Tôi tìm được đúng món mình cần chỉ sau vài phút.', stars: 5 },
@@ -123,15 +146,27 @@ function buildHomepageSummary(aiData) {
   return 'Danh sách này được làm mới theo lịch sử xem và hành vi thêm giỏ hàng gần đây.';
 }
 
-function HeroBanner({ featuredProducts = [] }) {
+const DEFAULT_SIGNALS = [
+  { label: 'Xu hướng', item: 'Hệ thống AI đang phân tích', weight: 75, color: '#E85D04' },
+  { label: 'Real-time', item: 'Cá nhân hóa theo hành vi', weight: 52, color: '#E85D04' },
+  { label: 'Live', item: 'Đăng nhập để xem tín hiệu thật', weight: 34, color: '#0D9488' },
+];
+
+function HeroBanner({ featuredProducts = [], isAuthenticated = false }) {
   const router = useRouter();
   const preview = featuredProducts.slice(0, 2);
 
-  const activitySignals = [
-    { label: 'Đã xem', item: 'Giày Thể Thao Nike', weight: 85, color: '#E85D04' },
-    { label: 'Thêm giỏ', item: 'Áo Polo Slim Fit', weight: 62, color: '#E85D04' },
-    { label: 'Yêu thích', item: 'Balo Laptop 15"', weight: 44, color: '#0D9488' },
-  ];
+  const { data: signalsData } = useQuery({
+    queryKey: ['my-signals'],
+    queryFn: () => aiAPI.getMySignals().then((r) => r.data),
+    enabled: !!isAuthenticated,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const activitySignals =
+    isAuthenticated && signalsData && signalsData.length > 0
+      ? signalsData
+      : DEFAULT_SIGNALS;
 
   return (
     <section style={{ position: 'relative', background: 'var(--bg-main)', padding: '72px 48px 64px', overflow: 'hidden' }}>
@@ -424,32 +459,13 @@ const ChartSVG = () => (
   </svg>
 );
 
-/* ── Recommendation products for Card 1 ── */
-const REC_PRODUCTS = [
+/* ── Fallback recommendation products (used when statsData not yet loaded) ── */
+const REC_PRODUCTS_FALLBACK = [
   { name: 'Nike Air Force 1', cat: 'Giày thể thao', match: 96, color: '#F97316', icon: '👟' },
   { name: 'MacBook Air M3',   cat: 'Laptop',        match: 93, color: '#8B5CF6', icon: '💻' },
   { name: 'Áo Polo Premium',  cat: 'Thời trang',    match: 91, color: '#0D9488', icon: '👕' },
   { name: 'AirPods Pro 2',    cat: 'Âm thanh',      match: 88, color: '#3B82F6', icon: '🎧' },
   { name: 'Smart Watch S9',   cat: 'Phụ kiện',      match: 85, color: '#EC4899', icon: '⌚' },
-];
-
-/* ── Chart data snapshots for Card 3 ── */
-const CUSTOMER_SNAPSHOTS = [
-  [{ age: '18-24', gender: 'Nữ', count: 25 }, { age: '18-24', gender: 'Nam', count: 15 }, { age: '25-34', gender: 'Nữ', count: 55 }, { age: '25-34', gender: 'Nam', count: 40 }, { age: '35-44', gender: 'Nữ', count: 20 }, { age: '35-44', gender: 'Nam', count: 35 }, { age: '45-54', gender: 'Nữ', count: 15 }, { age: '45-54', gender: 'Nam', count: 20 }, { age: '55+', gender: 'Nữ', count: 5 }, { age: '55+', gender: 'Nam', count: 10 }],
-  [{ age: '18-24', gender: 'Nữ', count: 30 }, { age: '18-24', gender: 'Nam', count: 22 }, { age: '25-34', gender: 'Nữ', count: 48 }, { age: '25-34', gender: 'Nam', count: 52 }, { age: '35-44', gender: 'Nữ', count: 28 }, { age: '35-44', gender: 'Nam', count: 30 }, { age: '45-54', gender: 'Nữ', count: 18 }, { age: '45-54', gender: 'Nam', count: 25 }, { age: '55+', gender: 'Nữ', count: 8 }, { age: '55+', gender: 'Nam', count: 12 }],
-  [{ age: '18-24', gender: 'Nữ', count: 42 }, { age: '18-24', gender: 'Nam', count: 18 }, { age: '25-34', gender: 'Nữ', count: 60 }, { age: '25-34', gender: 'Nam', count: 35 }, { age: '35-44', gender: 'Nữ', count: 25 }, { age: '35-44', gender: 'Nam', count: 40 }, { age: '45-54', gender: 'Nữ', count: 12 }, { age: '45-54', gender: 'Nam', count: 18 }, { age: '55+', gender: 'Nữ', count: 6 }, { age: '55+', gender: 'Nam', count: 9 }],
-];
-
-const SALES_SNAPSHOTS = [
-  [{ month: 'T1', product: 'Giày', sales: 120 }, { month: 'T1', product: 'Áo', sales: 80 }, { month: 'T1', product: 'Balo', sales: 40 }, { month: 'T2', product: 'Giày', sales: 130 }, { month: 'T2', product: 'Áo', sales: 90 }, { month: 'T2', product: 'Balo', sales: 45 }, { month: 'T3', product: 'Giày', sales: 110 }, { month: 'T3', product: 'Áo', sales: 105 }, { month: 'T3', product: 'Balo', sales: 60 }, { month: 'T4', product: 'Giày', sales: 140 }, { month: 'T4', product: 'Áo', sales: 110 }, { month: 'T4', product: 'Balo', sales: 70 }, { month: 'T5', product: 'Giày', sales: 160 }, { month: 'T5', product: 'Áo', sales: 130 }, { month: 'T5', product: 'Balo', sales: 90 }],
-  [{ month: 'T3', product: 'Giày', sales: 110 }, { month: 'T3', product: 'Áo', sales: 105 }, { month: 'T3', product: 'Balo', sales: 60 }, { month: 'T4', product: 'Giày', sales: 155 }, { month: 'T4', product: 'Áo', sales: 125 }, { month: 'T4', product: 'Balo', sales: 80 }, { month: 'T5', product: 'Giày', sales: 180 }, { month: 'T5', product: 'Áo', sales: 145 }, { month: 'T5', product: 'Balo', sales: 105 }, { month: 'T6', product: 'Giày', sales: 200 }, { month: 'T6', product: 'Áo', sales: 160 }, { month: 'T6', product: 'Balo', sales: 120 }, { month: 'T7', product: 'Giày', sales: 175 }, { month: 'T7', product: 'Áo', sales: 180 }, { month: 'T7', product: 'Balo', sales: 135 }],
-  [{ month: 'T5', product: 'Giày', sales: 175 }, { month: 'T5', product: 'Áo', sales: 130 }, { month: 'T5', product: 'Balo', sales: 90 }, { month: 'T6', product: 'Giày', sales: 210 }, { month: 'T6', product: 'Áo', sales: 170 }, { month: 'T6', product: 'Balo', sales: 125 }, { month: 'T7', product: 'Giày', sales: 195 }, { month: 'T7', product: 'Áo', sales: 195 }, { month: 'T7', product: 'Balo', sales: 145 }, { month: 'T8', product: 'Giày', sales: 230 }, { month: 'T8', product: 'Áo', sales: 210 }, { month: 'T8', product: 'Balo', sales: 160 }, { month: 'T9', product: 'Giày', sales: 215 }, { month: 'T9', product: 'Áo', sales: 220 }, { month: 'T9', product: 'Balo', sales: 175 }],
-];
-
-const CHART_STATS = [
-  { users: '12.4K', orders: '3.2K', revenue: '285M' },
-  { users: '14.1K', orders: '3.8K', revenue: '342M' },
-  { users: '16.8K', orders: '4.5K', revenue: '408M' },
 ];
 
 /* ── Email notification feed for Card 2 ── */
@@ -475,27 +491,89 @@ const staggerItem = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] } },
 };
 
-function AIFeaturesSection() {
-  const [recIdx, setRecIdx]         = useState(0);
-  const [chartSnap, setChartSnap]   = useState(0);
-  const [feedIdx, setFeedIdx]       = useState(0);
-  const [statsIn, setStatsIn]       = useState(false);
-  const [sending, setSending]       = useState(false);
+function AIFeaturesSection({ statsData, aiData }) {
+  const [recIdx, setRecIdx]   = useState(0);
+  const [feedIdx, setFeedIdx] = useState(0);
+  const [statsIn, setStatsIn] = useState(false);
+  const [sending, setSending] = useState(false);
   const statsRef = useRef(null);
+
+  /* Priority: AI model (LightFM) → top sellers → fallback */
+  const recProducts = (() => {
+    // 1) Real AI model output (user logged in, FastAPI returned results)
+    if (aiData?.products?.length && aiData.type !== 'featured_fallback') {
+      return aiData.products.slice(0, 5).map((p, i) => ({
+        name:  p.name,
+        cat:   p.category,
+        match: getMatchPercent(aiData.scores?.[i], i),
+        color: CAT_COLORS[i % CAT_COLORS.length],
+        icon:  CAT_ICON[p.category] || '🛍️',
+      }));
+    }
+    // 2) Top-selling products from MongoDB (public, no auth needed)
+    if (statsData?.topProducts?.length) {
+      return statsData.topProducts.map((p, i) => ({
+        name:  p.name,
+        cat:   p.category,
+        match: Math.max(95 - i * 4, 78),
+        color: CAT_COLORS[i % CAT_COLORS.length],
+        icon:  CAT_ICON[p.category] || '🛍️',
+      }));
+    }
+    // 3) Static fallback
+    return REC_PRODUCTS_FALLBACK;
+  })();
+
+  const recSource = aiData?.products?.length && aiData.type !== 'featured_fallback'
+    ? 'AI Model'
+    : statsData?.topProducts?.length
+      ? 'Top bán chạy'
+      : 'Fallback';
+
+  /* Real KPIs */
+  const currentStats = {
+    users:   statsData ? formatCount(statsData.totalUsers)   : '—',
+    orders:  statsData ? formatCount(statsData.totalOrders)  : '—',
+    revenue: statsData ? formatRevenue(statsData.totalRevenue) : '—',
+  };
+
+  /* Real customer age/gender chart data */
+  const customerChartData = statsData?.ageDistribution?.length
+    ? statsData.ageDistribution.map((d) => ({
+        age:    d._id.bracket,
+        gender: d._id.gender || 'Khác',
+        count:  d.count,
+      }))
+    : [
+        { age: '18-24', gender: 'Nữ', count: 25 }, { age: '18-24', gender: 'Nam', count: 15 },
+        { age: '25-34', gender: 'Nữ', count: 55 }, { age: '25-34', gender: 'Nam', count: 40 },
+        { age: '35-44', gender: 'Nữ', count: 20 }, { age: '35-44', gender: 'Nam', count: 35 },
+        { age: '45-54', gender: 'Nữ', count: 15 }, { age: '45-54', gender: 'Nam', count: 20 },
+        { age: '55+',   gender: 'Nữ', count: 5  }, { age: '55+',   gender: 'Nam', count: 10 },
+      ];
+
+  /* Real monthly category sales data */
+  const salesChartData = statsData?.monthlyCategories?.length
+    ? statsData.monthlyCategories.map((d) => ({
+        month:   MONTH_LABEL[d._id.month] || `T${d._id.month}`,
+        product: d._id.category,
+        sales:   d.totalSold,
+      }))
+    : [
+        { month: 'T3', product: 'Giày', sales: 110 }, { month: 'T3', product: 'Áo', sales: 105 }, { month: 'T3', product: 'Balo', sales: 60 },
+        { month: 'T4', product: 'Giày', sales: 155 }, { month: 'T4', product: 'Áo', sales: 125 }, { month: 'T4', product: 'Balo', sales: 80 },
+        { month: 'T5', product: 'Giày', sales: 180 }, { month: 'T5', product: 'Áo', sales: 145 }, { month: 'T5', product: 'Balo', sales: 105 },
+      ];
 
   /* Cycling effects */
   useEffect(() => {
-    const id = setInterval(() => setRecIdx(i => (i + 1) % REC_PRODUCTS.length), 2400);
+    const len = recProducts.length || 5;
+    const id = setInterval(() => setRecIdx((i) => (i + 1) % len), 2400);
     return () => clearInterval(id);
-  }, []);
+  }, [recProducts.length]);
 
   useEffect(() => {
-    const id = setInterval(() => setChartSnap(s => (s + 1) % 3), 3600);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const id = setInterval(() => setFeedIdx(i => (i + 1) % EMAIL_FEEDS.length), 2800);
+    const id = setInterval(() => setFeedIdx((i) => (i + 1) % EMAIL_FEEDS.length), 2800);
     return () => clearInterval(id);
   }, []);
 
@@ -512,18 +590,22 @@ function AIFeaturesSection() {
   useEffect(() => {
     const el = statsRef.current;
     if (!el) return;
-    const obs = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) setStatsIn(true); }, { threshold: 0.3 });
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setStatsIn(true); },
+      { threshold: 0.3 },
+    );
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
 
-  const currentRec   = REC_PRODUCTS[recIdx];
-  const nextRec      = REC_PRODUCTS[(recIdx + 1) % REC_PRODUCTS.length];
-  const currentFeed  = EMAIL_FEEDS[feedIdx];
-  const currentStats = CHART_STATS[chartSnap];
+  const safeIdx    = recIdx % recProducts.length;
+  const currentRec = recProducts[safeIdx];
+  const nextRec    = recProducts[(safeIdx + 1) % recProducts.length];
+  const currentFeed = EMAIL_FEEDS[feedIdx];
+  const hasRealData = !!statsData;
 
   const customerConfig = {
-    data: CUSTOMER_SNAPSHOTS[chartSnap],
+    data: customerChartData,
     xField: 'age', yField: 'count', colorField: 'gender',
     shapeField: 'smooth', smooth: true, height: 110, autoFit: true,
     color: ['#f97316', '#3b82f6'],
@@ -532,11 +614,11 @@ function AIFeaturesSection() {
     areaStyle: { fillOpacity: 0.45 },
     legend: { position: 'top-right', itemName: { style: { fontSize: 9 } } },
     tooltip: { showMarkers: false },
-    animation: { appear: { animation: 'wave-in', duration: 1100, easing: 'ease-in-out' }, update: { animation: 'morphing', duration: 700 } },
+    animation: { appear: { animation: 'wave-in', duration: 1100, easing: 'ease-in-out' } },
   };
 
   const salesConfig = {
-    data: SALES_SNAPSHOTS[chartSnap],
+    data: salesChartData,
     xField: 'month', yField: 'sales', colorField: 'product',
     shapeField: 'smooth', smooth: true, height: 110, autoFit: true,
     color: ['#f97316', '#3b82f6', '#10b981'],
@@ -545,7 +627,7 @@ function AIFeaturesSection() {
     areaStyle: { fillOpacity: 0.5 },
     legend: { position: 'top', layout: 'horizontal', itemName: { style: { fontSize: 9 } } },
     tooltip: { showMarkers: false },
-    animation: { appear: { animation: 'wave-in', duration: 1100, easing: 'ease-in-out' }, update: { animation: 'morphing', duration: 700 } },
+    animation: { appear: { animation: 'wave-in', duration: 1100, easing: 'ease-in-out' } },
   };
 
   return (
@@ -593,7 +675,9 @@ function AIFeaturesSection() {
               </div>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 18, color: 'var(--color-text)', lineHeight: 1.2 }}>AI Recommendation</div>
-                <div style={{ fontSize: 12, color: '#f87171', fontWeight: 600, marginTop: 2 }}>● Live · đang phân tích</div>
+                <div style={{ fontSize: 12, color: recSource === 'AI Model' ? '#22C55E' : '#f87171', fontWeight: 600, marginTop: 2 }}>
+                  ● Live · {recSource === 'AI Model' ? 'từ model LightFM' : recSource === 'Top bán chạy' ? 'top bán chạy' : 'đang phân tích'}
+                </div>
               </div>
             </div>
 
@@ -764,33 +848,30 @@ function AIFeaturesSection() {
                   Dữ liệu · <span style={{ color: '#22C55E', fontWeight: 700 }}>Live</span>
                 </div>
               </div>
-              {/* Snapshot indicator */}
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-                {[0, 1, 2].map(i => (
-                  <div key={i} style={{ width: i === chartSnap ? 16 : 6, height: 6, borderRadius: 999, background: i === chartSnap ? 'var(--color-primary)' : 'var(--color-border)', transition: 'all 0.3s ease' }} />
-                ))}
+              {/* Live indicator */}
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: hasRealData ? '#22C55E' : '#F97316', animation: 'liveBlip 1.8s ease-in-out infinite' }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: hasRealData ? '#22C55E' : '#F97316' }}>{hasRealData ? 'Live' : 'Loading'}</span>
               </div>
             </div>
 
             {/* Count-up KPI stats */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
               {[
-                { label: 'Người dùng', val: currentStats.users, color: '#8B5CF6' },
-                { label: 'Đơn hàng',  val: currentStats.orders, color: '#0D9488' },
-                { label: 'Doanh thu', val: currentStats.revenue + 'đ', color: 'var(--color-primary)' },
+                { label: 'Người dùng', val: currentStats.users,           color: '#8B5CF6' },
+                { label: 'Đơn hàng',  val: currentStats.orders,           color: '#0D9488' },
+                { label: 'Doanh thu', val: currentStats.revenue + 'đ',    color: 'var(--color-primary)' },
               ].map((stat, i) => (
-                <AnimatePresence mode="wait" key={stat.label}>
-                  <motion.div
-                    key={`${stat.label}-${chartSnap}`}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={statsIn ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
-                    transition={{ delay: i * 0.1, duration: 0.4, ease: 'easeOut' }}
-                    style={{ background: 'var(--color-bg)', borderRadius: 12, padding: '10px 8px', textAlign: 'center' }}
-                  >
-                    <div style={{ fontWeight: 800, fontSize: 17, color: stat.color, lineHeight: 1 }}>{stat.val}</div>
-                    <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, marginTop: 4 }}>{stat.label}</div>
-                  </motion.div>
-                </AnimatePresence>
+                <motion.div
+                  key={stat.label}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={statsIn ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
+                  transition={{ delay: i * 0.1, duration: 0.4, ease: 'easeOut' }}
+                  style={{ background: 'var(--color-bg)', borderRadius: 12, padding: '10px 8px', textAlign: 'center' }}
+                >
+                  <div style={{ fontWeight: 800, fontSize: 17, color: stat.color, lineHeight: 1 }}>{stat.val}</div>
+                  <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, marginTop: 4 }}>{stat.label}</div>
+                </motion.div>
               ))}
             </div>
 
@@ -799,17 +880,21 @@ function AIFeaturesSection() {
               <div style={{ background: 'var(--color-bg)', padding: '12px 14px', borderRadius: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text)' }}>Phân Bố Khách Hàng</div>
-                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)', background: 'white', padding: '2px 8px', borderRadius: 999, border: '1px solid var(--color-border)' }}>Minh họa</span>
+                  <span style={{ fontSize: 10, color: hasRealData ? '#22C55E' : 'var(--color-text-muted)', background: 'white', padding: '2px 8px', borderRadius: 999, border: `1px solid ${hasRealData ? '#22C55E' : 'var(--color-border)'}`, fontWeight: hasRealData ? 700 : 400 }}>
+                    {hasRealData ? '● Dữ liệu thật' : 'Minh họa'}
+                  </span>
                 </div>
-                <Area key={`demo-${chartSnap}`} {...customerConfig} />
+                <Area key="customer-chart" {...customerConfig} />
               </div>
 
               <div style={{ background: 'var(--color-bg)', padding: '12px 14px', borderRadius: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text)' }}>Top Bán Chạy</div>
-                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)', background: 'white', padding: '2px 8px', borderRadius: 999, border: '1px solid var(--color-border)' }}>Minh họa</span>
+                  <span style={{ fontSize: 10, color: hasRealData ? '#22C55E' : 'var(--color-text-muted)', background: 'white', padding: '2px 8px', borderRadius: 999, border: `1px solid ${hasRealData ? '#22C55E' : 'var(--color-border)'}`, fontWeight: hasRealData ? 700 : 400 }}>
+                    {hasRealData ? '● Dữ liệu thật' : 'Minh họa'}
+                  </span>
                 </div>
-                <Area key={`sales-${chartSnap}`} {...salesConfig} />
+                <Area key="sales-chart" {...salesConfig} />
               </div>
             </div>
           </motion.div>
@@ -1118,9 +1203,30 @@ function CTAAnimatedVisual() {
   );
 }
 
-function CTASection() {
+const CTA_FLOAT_ANIM = ['3.2s','2.8s','3.5s','2.6s'];
+const CTA_FLOAT_DELAY = ['0s','0.4s','0.9s','1.3s'];
+const CTA_BADGE_COLOR_MAP = { HOT: '#E85D04', NEW: '#0D9488', SALE: '#7C3AED' };
+
+function CTASection({ statsData }) {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+
+  const ctaProducts = statsData?.topProducts?.length >= 2
+    ? statsData.topProducts.slice(0, 4).map((p, i) => ({
+        icon:       CAT_ICON[p.category] || '🛍️',
+        name:       p.name.length > 14 ? p.name.slice(0, 13) + '…' : p.name,
+        price:      new Intl.NumberFormat('vi-VN').format(p.price) + 'đ',
+        badge:      p.sold >= 50 ? 'HOT' : 'NEW',
+        badgeColor: p.sold >= 50 ? '#E85D04' : '#0D9488',
+        dur:        CTA_FLOAT_ANIM[i]  || '3.0s',
+        delay:      CTA_FLOAT_DELAY[i] || '0s',
+      }))
+    : [
+        { icon: '👟', name: 'Nike Air Max',  price: '1.250.000đ',  badge: 'HOT',  badgeColor: '#E85D04', dur: '3.2s', delay: '0s'   },
+        { icon: '💻', name: 'MacBook Air',   price: '28.990.000đ', badge: 'NEW',  badgeColor: '#0D9488', dur: '2.8s', delay: '0.4s' },
+        { icon: '📱', name: 'iPhone 15',     price: '22.590.000đ', badge: 'SALE', badgeColor: '#7C3AED', dur: '3.5s', delay: '0.9s' },
+        { icon: '⌚', name: 'Smart Watch',   price: '4.990.000đ',  badge: 'HOT',  badgeColor: '#E85D04', dur: '2.6s', delay: '1.3s' },
+      ];
 
   return (
     <section>
@@ -1181,14 +1287,9 @@ function CTASection() {
             >
               {isAuthenticated ? 'Khám Phá Sản Phẩm →' : 'Bắt Đầu Trải Nghiệm AI'}
             </Button>
-            {/* Animated product cards */}
+            {/* Animated product cards — real top-selling products */}
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-              {[
-                { icon: '👟', name: 'Nike Air Max', price: '1.250.000đ', badge: 'HOT',  badgeColor: '#E85D04', dur: '3.2s', delay: '0s'    },
-                { icon: '💻', name: 'MacBook Air',  price: '28.990.000đ', badge: 'NEW',  badgeColor: '#0D9488', dur: '2.8s', delay: '0.4s'  },
-                { icon: '📱', name: 'iPhone 15',    price: '22.590.000đ', badge: 'SALE', badgeColor: '#7C3AED', dur: '3.5s', delay: '0.9s'  },
-                { icon: '⌚', name: 'Smart Watch',  price: '4.990.000đ',  badge: 'HOT',  badgeColor: '#E85D04', dur: '2.6s', delay: '1.3s'  },
-              ].map((item, i) => (
+              {ctaProducts.map((item, i) => (
                 <div
                   key={item.name}
                   style={{
@@ -1244,6 +1345,12 @@ export default function ClientHome({ initialFeaturedProducts = [] }) {
     placeholderData: (previousData) => previousData,
   });
 
+  const { data: statsData } = useQuery({
+    queryKey: ['public-stats'],
+    queryFn: () => statsAPI.getOverview().then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const featuredData = initialFeaturedProducts;
   const aiProducts = buildHomepageAIProducts(aiData);
   const aiSummary = buildHomepageSummary(aiData);
@@ -1251,10 +1358,10 @@ export default function ClientHome({ initialFeaturedProducts = [] }) {
 
   return (
     <div style={{ background: 'var(--bg-main)', minHeight: '100vh' }}>
-      <HeroBanner featuredProducts={featuredData || []} />
+      <HeroBanner featuredProducts={featuredData || []} isAuthenticated={isAuthenticated} />
 
       <FadeInSection>
-        <AIFeaturesSection />
+        <AIFeaturesSection statsData={statsData} aiData={aiData} />
       </FadeInSection>
 
       <FadeInSection>
@@ -1370,7 +1477,7 @@ export default function ClientHome({ initialFeaturedProducts = [] }) {
       </FadeInSection>
 
       <FadeInSection>
-        <CTASection />
+        <CTASection statsData={statsData} />
       </FadeInSection>
     </div>
   );

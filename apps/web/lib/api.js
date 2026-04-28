@@ -60,6 +60,12 @@ export const orderAPI = {
 export const aiAPI = {
   getRecommendations: (params = {}) => api.get('/ai/recommendations', { params }),
   trackActivity: (data) => api.post('/ai/track', data),
+  getMySignals: () => api.get('/ai/my-signals'),
+};
+
+// Public platform stats
+export const statsAPI = {
+  getOverview: () => api.get('/stats/overview'),
 };
 
 // Wishlist
