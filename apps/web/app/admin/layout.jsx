@@ -69,7 +69,7 @@ export default function AdminLayout({ children }) {
         <Header style={{ padding: '0 24px', background: colorBgContainer, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
           <Dropdown menu={userMenu} placement="bottomRight" trigger={['click']}>
             <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Avatar src={user?.avatar} icon={!user?.avatar && <UserOutlined />}
+              <Avatar src={user?.avatar || null} icon={!user?.avatar && <UserOutlined />}
                 style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }} />
               <span style={{ fontWeight: 500 }}>{user?.name}</span>
             </div>

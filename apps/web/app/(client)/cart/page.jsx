@@ -1,56 +1,53 @@
 'use client';
 
-import {
-  App,
-  Button,
-  Card,
-  Col,
-  InputNumber,
+import React, { useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  App, 
+  Button, 
+  Col, 
   Popconfirm,
-  Progress,
-  Row,
-  Space,
+  Row, 
+  Typography, 
+  Space, 
   Spin,
-  Table,
-  Tag,
-  Typography,
+  Tag
 } from 'antd';
-import {
-  ArrowRightOutlined,
-  DeleteOutlined,
-  SafetyCertificateOutlined,
+import { 
   ShoppingOutlined,
-  ThunderboltFilled,
-  TruckOutlined,
+  ArrowLeftOutlined,
+  DeleteOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import InsightEmptyState from '@/components/feedback/InsightEmptyState';
-import { useAuthStore, useCartStore } from '@/store/useStore';
 
-const { Paragraph, Text, Title } = Typography;
+import { useAuthStore, useCartStore } from '@/store/useStore';
+import CartItem from '@/components/cart/CartItem';
+import OrderSummary from '@/components/cart/OrderSummary';
+import AIAddons from '@/components/cart/AIAddons';
+
+const { Title, Text, Paragraph } = Typography;
 
 const FREE_SHIPPING_THRESHOLD = 500000;
 
-const formatPrice = (value) => `${new Intl.NumberFormat('vi-VN').format(value || 0)}đ`;
-
-export default function Cart() {
+export default function CartPage() {
   const router = useRouter();
   const { message } = App.useApp();
   const { isAuthenticated } = useAuthStore();
-  const { items, removeItem, updateQuantity, clearCart, _hasHydrated } = useCartStore();
+  const { items, removeItem, updateQuantity, clearCart, addItem, _hasHydrated } = useCartStore();
+
+  const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.price * item.quantity, 0), [items]);
+  const shippingFee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : 30000;
+  const total = subtotal + shippingFee;
 
   if (!_hasHydrated) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
         <Spin size="large" />
       </div>
     );
   }
-
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const shippingFee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : 30000;
-  const total = subtotal + shippingFee;
-  const freeShippingProgress = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
 
   const handleCheckout = () => {
     if (!isAuthenticated) {
@@ -58,272 +55,128 @@ export default function Cart() {
       router.push('/login');
       return;
     }
-
     router.push('/checkout');
   };
 
-  const columns = [
-    {
-      title: 'Sản phẩm',
-      dataIndex: 'name',
-      render: (_, item) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 280 }}>
-          <div
-            style={{
-              width: 84,
-              height: 84,
-              borderRadius: 16,
-              overflow: 'hidden',
-              background: 'var(--bg-main)',
-              border: '1px solid var(--border-color)',
-              flexShrink: 0,
-            }}
-          >
-            <img src={item.image} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-main)', marginBottom: 6 }}>
-              {item.name}
-            </div>
-            <Tag color="orange" style={{ margin: 0, borderRadius: 999 }}>
-              {item.category || 'Sản phẩm'}
-            </Tag>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: 'Đơn giá',
-      dataIndex: 'price',
-      render: (price) => <Text strong style={{ color: 'var(--text-main)' }}>{formatPrice(price)}</Text>,
-    },
-    {
-      title: 'Số lượng',
-      dataIndex: 'quantity',
-      render: (quantity, item) => (
-        <InputNumber
-          min={1}
-          max={item.stock || 99}
-          value={quantity}
-          onChange={(value) => updateQuantity(item._id, value || 1)}
-          style={{ width: 88, borderRadius: 10 }}
-        />
-      ),
-    },
-    {
-      title: 'Thành tiền',
-      render: (_, item) => (
-        <Text strong style={{ color: 'var(--brand-teal)', fontSize: 16 }}>
-          {formatPrice(item.price * item.quantity)}
-        </Text>
-      ),
-    },
-    {
-      title: '',
-      align: 'right',
-      render: (_, item) => (
-        <Popconfirm
-          title="Xóa sản phẩm này khỏi giỏ hàng?"
-          okText="Xóa"
-          cancelText="Hủy"
-          onConfirm={() => removeItem(item._id)}
-        >
-          <Button danger icon={<DeleteOutlined />} type="text" style={{ borderRadius: 10 }} />
-        </Popconfirm>
-      ),
-    },
-  ];
+  const handleFastAdd = (product) => {
+    addItem(product, 1);
+    message.success(`Đã thêm ${product.name} vào giỏ hàng`);
+  };
 
   if (items.length === 0) {
     return (
-      <div style={{ background: 'var(--bg-main)', minHeight: '80vh', padding: '56px 24px' }}>
-        <div className="container" style={{ maxWidth: 960 }}>
-          <InsightEmptyState
-            title="Giỏ hàng của bạn đang trống"
-            description="Hãy thêm vài sản phẩm để hệ thống bắt đầu tính tổng đơn, phí giao hàng và các ưu đãi liên quan."
-            actionLabel="Khám phá cửa hàng"
-            onAction={() => router.push('/shop')}
-            icon={<ShoppingOutlined />}
-            accentColor="#0F766E"
-            accentBackground="rgba(13, 148, 136, 0.12)"
-          />
-        </div>
+      <div style={{ background: 'var(--bg-main)', minHeight: '80vh', padding: '100px 24px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{ textAlign: 'center', maxWidth: 480 }}
+        >
+          <div style={{ position: 'relative', width: 200, height: 200, margin: '0 auto 32px' }}>
+            <motion.div
+              animate={{ 
+                rotate: [0, 5, -5, 0],
+                y: [0, -10, 0]
+              }}
+              transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+            >
+              <ShoppingOutlined style={{ fontSize: 120, color: 'var(--color-primary)', opacity: 0.2 }} />
+            </motion.div>
+            <motion.div
+              style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+            >
+              <ThunderboltOutlined style={{ fontSize: 40, color: 'var(--color-ai-light)' }} />
+            </motion.div>
+          </div>
+          
+          <Title level={2} style={{ fontWeight: 800, marginBottom: 16 }}>Giỏ hàng đang trống</Title>
+          <Paragraph style={{ color: 'var(--text-muted)', fontSize: 16, marginBottom: 32 }}>
+            Hàng ngàn sản phẩm công nghệ và phụ kiện cao cấp đang chờ bạn khám phá. Hãy bắt đầu hành trình mua sắm ngay!
+          </Paragraph>
+          
+          <Button 
+            type="primary" 
+            size="large" 
+            icon={<ArrowLeftOutlined />}
+            onClick={() => router.push('/shop')}
+            style={{ height: 56, borderRadius: 18, paddingInline: 40, fontWeight: 700 }}
+          >
+            Tiếp tục mua sắm
+          </Button>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div style={{ background: 'var(--bg-main)', minHeight: '100vh', padding: '32px 24px 56px' }}>
-      <div className="container" style={{ maxWidth: 1320 }}>
-        <div
-          style={{
-            marginBottom: 24,
-            borderRadius: 28,
-            padding: '28px 28px 24px',
-            background: 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 60%, #ECFEFF 100%)',
-            border: '1px solid rgba(231, 217, 200, 0.9)',
-            boxShadow: '0 24px 48px rgba(131, 61, 7, 0.06)',
-          }}
-        >
-          <Row gutter={[20, 20]} align="middle">
-            <Col xs={24} xl={16}>
-              <Space size={10} wrap style={{ marginBottom: 14 }}>
-                <Tag color="orange" style={{ borderRadius: 999, paddingInline: 12, paddingBlock: 5, fontWeight: 700 }}>
-                  <ShoppingOutlined /> Checkout staging
-                </Tag>
+    <div style={{ background: 'var(--bg-main)', minHeight: '100vh', padding: '40px 24px 80px' }}>
+      <div className="container" style={{ maxWidth: 1200 }}>
+        {/* Header Section */}
+        <div style={{ marginBottom: 40 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 20 }}>
+            <div>
+              <Space size={8} style={{ marginBottom: 8 }}>
+                <Link href="/shop" style={{ color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
+                  <ArrowLeftOutlined style={{ fontSize: 12 }} /> Tiếp tục mua sắm
+                </Link>
               </Space>
-              <Title level={1} style={{ margin: 0, fontSize: 'clamp(2rem, 4vw, 3rem)', lineHeight: 1.1 }}>
-                Hoàn thiện đơn hàng với bố cục rõ ràng và ít ma sát hơn.
+              <Title level={1} style={{ margin: 0, fontSize: 'clamp(2rem, 4vw, 2.5rem)', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                Giỏ hàng của bạn
               </Title>
-              <Paragraph style={{ margin: '14px 0 0', maxWidth: 760, fontSize: 16, color: 'var(--text-muted)' }}>
-                Giỏ hàng nên trả lời nhanh ba câu hỏi: đang có gì, còn thiếu bao nhiêu để đạt ưu đãi, và bước tiếp theo là gì. Phần summary bên phải được tối ưu theo đúng logic đó.
-              </Paragraph>
-            </Col>
-
-            <Col xs={24} xl={8}>
-              <Row gutter={[12, 12]}>
-                <Col xs={12}>
-                  <Card bodyStyle={{ padding: 18 }} style={{ borderRadius: 22, border: '1px solid var(--border-color)' }}>
-                    <Text type="secondary">Dòng sản phẩm</Text>
-                    <div style={{ marginTop: 8, fontSize: 28, fontWeight: 800, color: 'var(--text-main)' }}>{items.length}</div>
-                    <Text style={{ color: 'var(--text-muted)' }}>Số item đang chờ thanh toán</Text>
-                  </Card>
-                </Col>
-                <Col xs={12}>
-                  <Card bodyStyle={{ padding: 18 }} style={{ borderRadius: 22, border: '1px solid var(--border-color)' }}>
-                    <Text type="secondary">Tổng tạm tính</Text>
-                    <div style={{ marginTop: 8, fontSize: 'clamp(14px, 2vw, 22px)', fontWeight: 800, color: 'var(--brand-teal)', wordBreak: 'break-word', lineHeight: 1.2 }}>{formatPrice(subtotal)}</div>
-                    <Text style={{ color: 'var(--text-muted)' }}>Chưa gồm phí giao hàng</Text>
-                  </Card>
-                </Col>
-              </Row>
-            </Col>
-          </Row>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
-          <Space size={[8, 8]} wrap>
-            <Tag color="blue" style={{ borderRadius: 999, paddingInline: 12, paddingBlock: 5 }}>
-              <TruckOutlined /> Giao hàng toàn quốc
-            </Tag>
-            <Tag color="green" style={{ borderRadius: 999, paddingInline: 12, paddingBlock: 5 }}>
-              <SafetyCertificateOutlined /> Thanh toán bảo mật
-            </Tag>
-          </Space>
-
-          <Popconfirm
-            title="Xóa toàn bộ sản phẩm trong giỏ?"
-            okText="Xóa tất cả"
-            cancelText="Hủy"
-            onConfirm={clearCart}
-          >
-            <Button danger>Xóa tất cả</Button>
-          </Popconfirm>
-        </div>
-
-        <Row gutter={[24, 24]}>
-          <Col xs={24} lg={16}>
-            <Card
-              bodyStyle={{ padding: 24 }}
-              style={{ borderRadius: 24, border: '1px solid var(--border-color)', boxShadow: '0 18px 36px rgba(15, 23, 42, 0.05)' }}
+              <Text type="secondary" style={{ fontSize: 16 }}>
+                Bạn có <Text strong>{items.length}</Text> sản phẩm trong danh sách chờ.
+              </Text>
+            </div>
+            
+            <Popconfirm
+              title="Xóa toàn bộ giỏ hàng?"
+              onConfirm={clearCart}
+              okText="Xóa tất cả"
+              cancelText="Hủy"
             >
-              <Table
-                columns={columns}
-                dataSource={items}
-                rowKey="_id"
-                pagination={false}
-                scroll={{ x: 760 }}
-              />
-            </Card>
+              <Button 
+                danger 
+                type="text" 
+                icon={<DeleteOutlined />}
+                style={{ borderRadius: 12 }}
+              >
+                Làm trống giỏ hàng
+              </Button>
+            </Popconfirm>
+          </div>
+        </div>
+
+        <Row gutter={[40, 40]}>
+          {/* Main Cart Items */}
+          <Col xs={24} lg={15}>
+            <div className="cart-items-list">
+              <AnimatePresence mode="popLayout">
+                {items.map((item) => (
+                  <CartItem 
+                    key={item._id} 
+                    item={item} 
+                    onUpdateQuantity={updateQuantity}
+                    onRemove={removeItem}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+
+            {/* AI Recommendations */}
+            <AIAddons onAdd={handleFastAdd} />
           </Col>
 
-          <Col xs={24} lg={8}>
-            <div style={{ position: 'sticky', top: 88, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <Card
-                bodyStyle={{ padding: 24 }}
-                style={{ borderRadius: 24, border: '1px solid var(--border-color)', boxShadow: '0 18px 36px rgba(15, 23, 42, 0.05)' }}
-              >
-                <Space size={10} style={{ marginBottom: 18 }}>
-                  <div
-                    className="bg-gradient-ai"
-                    style={{
-                      width: 12,
-                      height: 40,
-                      borderRadius: 999,
-                    }}
-                  />
-                  <Title level={4} style={{ margin: 0 }}>
-                    Tóm tắt đơn hàng
-                  </Title>
-                </Space>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                    <Text type="secondary">Tạm tính ({items.length} sản phẩm)</Text>
-                    <Text strong>{formatPrice(subtotal)}</Text>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                    <Text type="secondary">Phí giao hàng</Text>
-                    <Text strong style={{ color: shippingFee === 0 ? '#059669' : 'var(--text-main)' }}>
-                      {shippingFee === 0 ? 'Miễn phí' : formatPrice(shippingFee)}
-                    </Text>
-                  </div>
-                </div>
-
-                <Card
-                  bodyStyle={{ padding: 16 }}
-                  style={{ borderRadius: 18, background: '#FFF7ED', border: '1px solid #F5E4D3', marginBottom: 20 }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <ThunderboltFilled style={{ color: 'var(--brand-teal)' }} />
-                    <Text strong style={{ color: '#9A3412' }}>Ưu đãi giao hàng</Text>
-                  </div>
-                  <Paragraph style={{ marginBottom: 10, color: '#9A3412' }}>
-                    {subtotal >= FREE_SHIPPING_THRESHOLD
-                      ? 'Bạn đã đạt ngưỡng miễn phí giao hàng.'
-                      : `Mua thêm ${formatPrice(FREE_SHIPPING_THRESHOLD - subtotal)} để được miễn phí giao hàng.`}
-                  </Paragraph>
-                  <Progress percent={freeShippingProgress} showInfo={false} strokeColor="var(--brand-teal)" trailColor="#FDE7CF" />
-                </Card>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
-                  <div>
-                    <Text type="secondary">Tổng thanh toán</Text>
-                    <div style={{ marginTop: 6, fontSize: 32, fontWeight: 800, color: 'var(--brand-teal)', lineHeight: 1 }}>
-                      {formatPrice(total)}
-                    </div>
-                    <Text style={{ fontSize: 12, color: 'var(--text-muted)' }}>Đã bao gồm VAT</Text>
-                  </div>
-                </div>
-
-                <Button
-                  type="primary"
-                  block
-                  size="large"
-                  icon={<ArrowRightOutlined />}
-                  onClick={handleCheckout}
-                  style={{ height: 54, borderRadius: 14, fontWeight: 700 }}
-                >
-                  Tiến hành thanh toán
-                </Button>
-              </Card>
-
-              <Card
-                bodyStyle={{ padding: 18 }}
-                style={{
-                  borderRadius: 22,
-                  background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
-                  border: 'none',
-                }}
-              >
-                <Text style={{ color: 'white', fontWeight: 800, display: 'block', marginBottom: 8 }}>
-                  Trước khi thanh toán
-                </Text>
-                <Paragraph style={{ marginBottom: 0, color: 'rgba(255,255,255,0.75)' }}>
-                  Kiểm tra lại số lượng và wishlist để tránh bỏ sót sản phẩm muốn mua cùng đơn hàng.
-                </Paragraph>
-              </Card>
-            </div>
+          {/* Sidebar Summary */}
+          <Col xs={24} lg={9}>
+            <OrderSummary 
+              subtotal={subtotal}
+              shippingFee={shippingFee}
+              total={total}
+              itemCount={items.length}
+              onCheckout={handleCheckout}
+              freeShippingThreshold={FREE_SHIPPING_THRESHOLD}
+            />
           </Col>
         </Row>
       </div>

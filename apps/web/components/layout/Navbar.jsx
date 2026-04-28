@@ -117,7 +117,7 @@ const Navbar = () => {
                 <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px', borderRadius: 99 }}>
                   <Avatar
                     size={42}
-                    src={user?.avatar}
+                    src={user?.avatar || null}
                     icon={!user?.avatar && <UserOutlined />}
                     style={{ background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))', color: 'white' }}
                   />

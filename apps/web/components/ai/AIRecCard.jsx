@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Rate, Tooltip, Typography, message } from 'antd';
 import {
@@ -8,8 +8,11 @@ import {
   RobotOutlined,
   ShoppingCartOutlined,
   ThunderboltFilled,
+  InfoCircleOutlined,
+  DownOutlined,
+  UpOutlined,
 } from '@ant-design/icons';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { aiAPI } from '@/lib/api';
 import { useAuthStore, useCartStore } from '@/store/useStore';
 
@@ -68,6 +71,7 @@ export default function AIRecCard({
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const { addItem }         = useCartStore();
+  const [showReasons, setShowReasons] = useState(false);
 
   const sourceInfo  = sourceMap[source] || sourceMap.model;
   const reasonList  = useMemo(
@@ -102,6 +106,15 @@ export default function AIRecCard({
     }
   };
 
+  const toggleReasons = (e) => {
+    e.stopPropagation();
+    setShowReasons((v) => !v);
+  };
+
+  // Confidence ring
+  const circumference = 2 * Math.PI * 20;
+  const offset = circumference - (safeMatchPercent / 100) * circumference;
+
   return (
     <motion.div
       variants={cardVariants}
@@ -111,7 +124,7 @@ export default function AIRecCard({
       onClick={handleNavigate}
       style={{
         height: '100%',
-        borderRadius: 24,
+        borderRadius: 22,
         overflow: 'hidden',
         border: '1px solid rgba(255,255,255,0.6)',
         background: 'rgba(255,255,255,0.82)',
@@ -124,190 +137,185 @@ export default function AIRecCard({
       }}
     >
       {/* Image block */}
-      <div style={{ marginBottom: 0 }}>
-        <div
-          style={{
-            borderRadius: '24px 24px 0 0',
-            overflow: 'hidden',
-            background: 'linear-gradient(180deg, #FFF4EC 0%, #FEFEFE 100%)',
-          }}
-        >
-          <div style={{ position: 'relative', aspectRatio: '4 / 4.2' }}>
-            <motion.img
-              variants={imageVariants}
-              src={product.image || 'https://placehold.co/800x900/f7f3ee/9a8b7a?text=Product'}
-              alt={product.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            />
+      <div
+        style={{
+          borderRadius: '22px 22px 0 0',
+          overflow: 'hidden',
+          background: 'linear-gradient(180deg, #FFF4EC 0%, #FEFEFE 100%)',
+        }}
+      >
+        <div style={{ position: 'relative', aspectRatio: '4 / 4' }}>
+          <motion.img
+            variants={imageVariants}
+            src={product.image || 'https://placehold.co/800x900/f7f3ee/9a8b7a?text=Product'}
+            alt={product.name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
 
-            {/* Badge row — full width, flex */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 0, left: 0, right: 0,
-                zIndex: 2,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                gap: 6,
-                padding: '10px 10px 0',
-              }}
-            >
-              {/* Left: stacked badges */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0, flex: 1 }}>
-                <div
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    background: '#D97706', color: 'white',
-                    borderRadius: 999, padding: '3px 10px',
-                    fontSize: 11, fontWeight: 700,
-                    overflow: 'hidden', whiteSpace: 'nowrap',
-                    maxWidth: '100%',
-                  }}
-                >
-                  <RobotOutlined style={{ flexShrink: 0, fontSize: 11 }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Dành riêng cho bạn</span>
-                </div>
-                {discount > 0 && (
-                  <div
-                    style={{
-                      alignSelf: 'flex-start',
-                      display: 'inline-flex', alignItems: 'center',
-                      background: '#EF4444', color: 'white',
-                      borderRadius: 999, padding: '3px 10px',
-                      fontSize: 11, fontWeight: 700,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    -{discount}%
-                  </div>
-                )}
+          {/* Badge row */}
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2,
+            display: 'flex', justifyContent: 'space-between',
+            alignItems: 'flex-start', gap: 6, padding: '10px 10px 0',
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0, flex: 1 }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                background: '#D97706', color: 'white',
+                borderRadius: 999, padding: '3px 10px',
+                fontSize: 11, fontWeight: 700,
+                overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '100%',
+              }}>
+                <RobotOutlined style={{ flexShrink: 0, fontSize: 11 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>AI Concierge Pick</span>
               </div>
-
-              {/* Right: source badge — glassmorphic */}
-              <Tooltip title={source === 'fallback' ? 'Đang dùng danh sách dự phòng' : 'Nguồn gợi ý hiện tại'}>
-                <div
-                  style={{
-                    flexShrink: 0,
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    background: 'rgba(255,255,255,0.88)',
-                    backdropFilter: 'blur(10px)',
-                    WebkitBackdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255,255,255,0.7)',
-                    color: '#374151',
-                    borderRadius: 999, padding: '3px 10px',
-                    fontSize: 11, fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                    cursor: 'default',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6, height: 6, borderRadius: '50%',
-                      background: sourceInfo.dotColor,
-                      display: 'inline-block', flexShrink: 0,
-                    }}
-                  />
-                  {sourceInfo.label}
+              {discount > 0 && (
+                <div style={{
+                  alignSelf: 'flex-start',
+                  display: 'inline-flex', alignItems: 'center',
+                  background: '#EF4444', color: 'white',
+                  borderRadius: 999, padding: '3px 10px',
+                  fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                }}>
+                  -{discount}%
                 </div>
-              </Tooltip>
+              )}
             </div>
+
+            <Tooltip title={source === 'fallback' ? 'Đang dùng danh sách dự phòng' : 'Nguồn gợi ý hiện tại'}>
+              <div style={{
+                flexShrink: 0,
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                background: 'rgba(255,255,255,0.88)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255,255,255,0.7)',
+                color: '#374151', borderRadius: 999, padding: '3px 10px',
+                fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+                cursor: 'default', boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: sourceInfo.dotColor,
+                  display: 'inline-block', flexShrink: 0,
+                }} />
+                {sourceInfo.label}
+              </div>
+            </Tooltip>
           </div>
         </div>
       </div>
 
       {/* Card body */}
-      <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-
-        {/* Category + Match% */}
+      <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+        {/* Category + Confidence Ring */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
           <Text style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-text-muted)', fontWeight: 600 }}>
             {product.category || 'Sản phẩm'}
           </Text>
-          <div
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              background: 'linear-gradient(135deg, #E85D04, #F97316)',
-              color: 'white',
-              borderRadius: 999,
-              padding: '4px 11px',
-              fontSize: 11, fontWeight: 700,
-              boxShadow: '0 4px 12px rgba(232,93,4,0.25)',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <ThunderboltFilled style={{ fontSize: 10 }} />
-            {safeMatchPercent}%
-          </div>
+
+          {/* Confidence Ring — clickable */}
+          <Tooltip title="Nhấn để xem lý do AI chọn sản phẩm này">
+            <div
+              onClick={toggleReasons}
+              style={{ position: 'relative', width: 48, height: 48, cursor: 'pointer', flexShrink: 0 }}
+            >
+              <svg width="48" height="48" viewBox="0 0 48 48">
+                <circle cx="24" cy="24" r="20" className="confidence-ring-bg" />
+                <circle
+                  cx="24" cy="24" r="20"
+                  className="confidence-ring-fill"
+                  style={{ strokeDashoffset: offset }}
+                />
+              </svg>
+              <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--mood-accent)', lineHeight: 1 }}>
+                  {safeMatchPercent}
+                </span>
+                <span style={{ fontSize: 7, fontWeight: 600, color: 'var(--color-text-muted)', lineHeight: 1, marginTop: 1 }}>
+                  MATCH
+                </span>
+              </div>
+            </div>
+          </Tooltip>
         </div>
 
-        <Title level={5} style={{ margin: '0 0 12px', lineHeight: 1.4, fontWeight: 700, fontSize: 14 }}>
+        <Title level={5} style={{ margin: '0 0 8px', lineHeight: 1.4, fontWeight: 700, fontSize: 14 }}>
           {product.name}
         </Title>
 
-        {/* Reason box — glassmorphism */}
-        <div
-          style={{
-            marginBottom: 14,
-            padding: '12px 14px',
-            borderRadius: 16,
-            background: 'rgba(255,250,243,0.9)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-            border: '1px solid rgba(245,228,211,0.7)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)',
-          }}
-        >
-          <Text style={{ display: 'block', color: '#92400E', fontWeight: 700, marginBottom: 8, fontSize: 12 }}>
-            {reasonTitle}
-          </Text>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {reasonList.map((reason) => (
-              <span
-                key={reason}
-                style={{
-                  borderRadius: 999,
-                  background: 'rgba(255,255,255,0.85)',
-                  border: '1px solid rgba(244,217,191,0.8)',
-                  color: '#92400E',
-                  padding: '4px 10px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}
-              >
-                {reason}
-              </span>
-            ))}
-          </div>
-        </div>
+        {/* Expandable reason panel */}
+        <AnimatePresence>
+          {showReasons && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              style={{ overflow: 'hidden' }}
+            >
+              <div style={{
+                marginBottom: 12, padding: '12px 14px', borderRadius: 14,
+                background: 'rgba(255,250,243,0.9)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                border: '1px solid rgba(245,228,211,0.7)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <InfoCircleOutlined style={{ color: '#92400E', fontSize: 12 }} />
+                  <Text style={{ color: '#92400E', fontWeight: 700, fontSize: 12 }}>
+                    {reasonTitle}
+                  </Text>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {reasonList.map((reason) => (
+                    <span key={reason} style={{
+                      borderRadius: 999,
+                      background: 'rgba(255,255,255,0.85)',
+                      border: '1px solid rgba(244,217,191,0.8)',
+                      color: '#92400E', padding: '4px 10px',
+                      fontSize: 11, fontWeight: 600,
+                    }}>
+                      {reason}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
           <Rate disabled allowHalf value={product.rating || 0} style={{ fontSize: 12, color: '#F59E0B' }} />
           <Text type="secondary" style={{ fontSize: 12 }}>({product.numReviews || 0})</Text>
         </div>
 
         {/* Price + Buttons */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 14, marginTop: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginTop: 'auto' }}>
           <div>
             {product.originalPrice > product.price && (
               <div style={{ color: 'var(--color-text-muted)', fontSize: 12, textDecoration: 'line-through', marginBottom: 2, fontWeight: 400 }}>
                 {formatPrice(product.originalPrice)}
               </div>
             )}
-            <div style={{ color: 'var(--color-primary)', fontSize: 22, lineHeight: 1, fontWeight: 800, letterSpacing: '-0.01em' }}>
+            <div style={{ color: 'var(--color-primary)', fontSize: 20, lineHeight: 1, fontWeight: 800, letterSpacing: '-0.01em' }}>
               {formatPrice(product.price)}
             </div>
-            <Paragraph style={{ margin: '5px 0 0', color: product.stock === 0 ? '#DC2626' : 'var(--color-text-muted)', fontSize: 12 }}>
+            <Paragraph style={{ margin: '4px 0 0', color: product.stock === 0 ? '#DC2626' : 'var(--color-text-muted)', fontSize: 12 }}>
               {product.stock === 0 ? 'Tạm hết hàng' : `Còn ${product.stock || 0} sp`}
             </Paragraph>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             <Button
               icon={<EyeOutlined />}
-              size="middle"
-              style={{ borderRadius: 12, height: 42, fontSize: 13 }}
+              size="small"
+              style={{ borderRadius: 10, height: 36, fontSize: 12 }}
               onClick={(event) => { event.stopPropagation(); handleNavigate(); }}
             >
               Xem
@@ -315,8 +323,8 @@ export default function AIRecCard({
             <Button
               type="primary"
               icon={<ShoppingCartOutlined />}
-              size="middle"
-              style={{ borderRadius: 12, height: 42, fontSize: 13 }}
+              size="small"
+              style={{ borderRadius: 10, height: 36, fontSize: 12 }}
               disabled={product.stock === 0}
               onClick={handleAddToCart}
             >
