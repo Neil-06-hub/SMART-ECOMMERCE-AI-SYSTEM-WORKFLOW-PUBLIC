@@ -8,6 +8,7 @@ const {
   getAllOrders, updateOrderStatus,
   getAllUsers, updateUser, deleteUser, toggleBlockUser,
   getMarketingLogs, triggerMarketing,
+  getAdminAlerts,
 } = require("../controllers/admin.controller");
 
 router.use(protect, adminOnly);
@@ -35,5 +36,8 @@ router.patch("/users/:id/toggle-block", toggleBlockUser);
 // Marketing
 router.get("/marketing/logs", getMarketingLogs);
 router.post("/marketing/trigger", triggerMarketing);
+
+// Alerts
+router.get("/alerts", getAdminAlerts);
 
 module.exports = router;

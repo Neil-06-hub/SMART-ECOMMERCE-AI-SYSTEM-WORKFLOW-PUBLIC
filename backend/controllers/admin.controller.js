@@ -1,6 +1,7 @@
 const Product = require("../models/Product");
 const Order = require("../models/Order");
 const User = require("../models/User");
+const DiscountCode = require("../models/DiscountCode");
 const MarketingLog = require("../models/MarketingLog");
 const Notification = require("../models/Notification");
 const BehavioralEvent = require("../models/BehavioralEvent");
@@ -378,8 +379,8 @@ const updateOrderStatus = async (req, res) => {
         }
       }
 
-      // Hoàn trả kho khi admin hủy đơn đã confirmed (kho đã bị trừ lúc confirm)
-      if (orderStatus === "cancelled" && order.orderStatus === "confirmed") {
+      // Hoàn trả kho khi admin hủy đơn đã confirmed hoặc shipping (kho đã bị trừ lúc confirm)
+      if (orderStatus === "cancelled" && ["confirmed", "shipping"].includes(order.orderStatus)) {
         for (const item of order.items) {
           await Product.findByIdAndUpdate(item.product, {
             $inc: { stock: item.quantity, sold: -item.quantity },
@@ -517,10 +518,56 @@ const triggerMarketing = async (req, res) => {
   }
 };
 
+// ===================== ADMIN ALERTS =====================
+
+// @desc  Lấy cảnh báo hệ thống cho admin (tồn kho thấp, đơn pending, mã giảm giá hết hạn)
+// @route GET /api/admin/alerts
+const getAdminAlerts = async (req, res) => {
+  try {
+    const now = new Date();
+
+    const [lowStock, pendingOrders, discountAlerts] = await Promise.all([
+      Product.find({ isActive: true, stock: { $lt: 10 } })
+        .select("name stock image category")
+        .sort({ stock: 1 })
+        .limit(20),
+
+      Order.find({ orderStatus: "pending", deletedAt: null })
+        .populate("user", "name email")
+        .select("_id user items totalAmount createdAt orderStatus")
+        .sort({ createdAt: -1 })
+        .limit(20),
+
+      DiscountCode.find({
+        isActive: true,
+        $or: [
+          { expiresAt: { $ne: null, $lt: now } },
+          { $and: [{ usageLimit: { $gt: 0 } }, { $expr: { $gte: ["$usedCount", "$usageLimit"] } }] },
+        ],
+      })
+        .select("code type value usageLimit usedCount expiresAt")
+        .limit(20),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        lowStock,
+        pendingOrders,
+        discountAlerts,
+        total: lowStock.length + pendingOrders.length + discountAlerts.length,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   getDashboardStats, getAIAnalysis,
   getAllProducts, createProduct, updateProduct, deleteProduct,
   getAllOrders, updateOrderStatus,
   getAllUsers, updateUser, deleteUser, toggleBlockUser,
   getMarketingLogs, triggerMarketing,
+  getAdminAlerts,
 };

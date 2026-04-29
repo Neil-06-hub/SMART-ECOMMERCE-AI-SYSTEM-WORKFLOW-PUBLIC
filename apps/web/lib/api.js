@@ -112,6 +112,7 @@ export const adminAPI = {
   toggleDiscount: (id) => api.patch(`/admin/discounts/${id}/toggle`),
   getMarketingLogs: (params) => api.get('/admin/marketing/logs', { params }),
   triggerMarketing: (campaignType) => api.post('/admin/marketing/trigger', { campaignType }),
+  getAlerts: () => api.get('/admin/alerts'),
 };
 
 export default api;

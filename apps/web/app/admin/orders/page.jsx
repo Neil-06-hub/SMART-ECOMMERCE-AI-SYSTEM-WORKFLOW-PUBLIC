@@ -39,6 +39,15 @@ const NEXT_STATE = {
   shipping:  'delivered',
 };
 
+const ALLOWED_TRANSITIONS = {
+  pending:   ['confirmed', 'cancelled', 'paid'],
+  paid:      ['confirmed', 'cancelled'],
+  confirmed: ['shipping', 'cancelled'],
+  shipping:  ['delivered', 'cancelled'],
+  delivered: [],
+  cancelled: [],
+};
+
 const TAB_CONFIG = [
   { key: 'all',       label: 'Tất cả',       statuses: null                },
   { key: 'pending',   label: 'Chờ xác nhận', statuses: ['pending', 'paid'] },
@@ -77,6 +86,7 @@ export default function AdminOrders() {
   const printRef = useRef(null);
 
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [drawerStatus, setDrawerStatus] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -100,6 +110,11 @@ export default function AdminOrders() {
     setCurrentPage(1);
     setSelectedRowKeys([]);
   }, [activeTab, filters]);
+
+  // Sync drawer select with actual order status
+  useEffect(() => {
+    if (selectedOrder) setDrawerStatus(selectedOrder.orderStatus);
+  }, [selectedOrder]);
 
   // Badge counts (before search/date filters, just by status)
   const tabCounts = useMemo(() => {
@@ -156,8 +171,9 @@ export default function AdminOrders() {
       message.success('Cập nhật trạng thái thành công!');
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       setSelectedOrder(null);
-    } catch {
-      message.error('Cập nhật thất bại');
+    } catch (e) {
+      if (orderStatus) setDrawerStatus(selectedOrder?.orderStatus);
+      message.error(e?.response?.data?.message || 'Cập nhật thất bại');
     }
   };
 
@@ -552,16 +568,20 @@ export default function AdminOrders() {
             <Typography.Title level={5} style={{ marginTop: 16, marginBottom: 8 }}>Cập nhật trạng thái</Typography.Title>
             <Space direction="vertical" style={{ width: '100%' }}>
               <Select
-                defaultValue={selectedOrder.orderStatus}
+                value={drawerStatus}
                 style={{ width: '100%' }}
-                onChange={(v) => handleStatusUpdate(selectedOrder._id, v, undefined)}
+                onChange={(v) => {
+                  setDrawerStatus(v);
+                  handleStatusUpdate(selectedOrder._id, v, undefined);
+                }}
               >
-                <Option value="pending">Chờ xác nhận</Option>
-                <Option value="paid">Đang xử lý</Option>
-                <Option value="confirmed">Chờ lấy hàng</Option>
-                <Option value="shipping">Đang giao</Option>
-                <Option value="delivered">Đã giao</Option>
-                <Option value="cancelled">Đã hủy</Option>
+                {[selectedOrder.orderStatus, ...(ALLOWED_TRANSITIONS[selectedOrder.orderStatus] ?? [])]
+                  .filter((v, i, arr) => arr.indexOf(v) === i)
+                  .map((v) => (
+                    <Option key={v} value={v} disabled={v === selectedOrder.orderStatus}>
+                      {statusConfig[v]?.text ?? v}
+                    </Option>
+                  ))}
               </Select>
               <Select
                 defaultValue={selectedOrder.paymentStatus}
