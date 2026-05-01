@@ -61,6 +61,9 @@ export const aiAPI = {
   getRecommendations: (params = {}) => api.get('/ai/recommendations', { params }),
   trackActivity: (data) => api.post('/ai/track', data),
   getMySignals: () => api.get('/ai/my-signals'),
+  getSearchSuggestions: (q, n = 5) => api.get('/ai/search-suggest', { params: { q, n } }),
+  trackSearch: (query) => api.post('/ai/track-search', { query }),
+  chatSearch: (query, categories = []) => api.post('/ai/chat-search', { query, categories }),
 };
 
 // Public platform stats
@@ -93,6 +96,10 @@ export const discountAPI = {
 export const adminAPI = {
   getDashboard: () => api.get('/admin/dashboard'),
   getAIAnalysis: () => api.get('/admin/dashboard/ai-analysis'),
+  getEnhancedRevenue: (granularity = 'month') =>
+    api.get(`/admin/dashboard/revenue?granularity=${granularity}`),
+  getInventoryTrends: () => api.get('/admin/dashboard/inventory-trends'),
+  getWishlistStats: () => api.get('/admin/dashboard/wishlist-stats'),
   getProducts: (params) => api.get('/admin/products', { params }),
   createProduct: (data) =>
     api.post('/admin/products', data, { headers: { 'Content-Type': 'multipart/form-data' } }),

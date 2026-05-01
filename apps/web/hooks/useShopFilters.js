@@ -195,6 +195,21 @@ export default function useShopFilters() {
     }
   }, []);
 
+  const applyAIFilters = useCallback((parsed) => {
+    const newFilters = {
+      page: 1,
+      category: parsed.category || '',
+      minPrice: parsed.minPrice || 0,
+      maxPrice: parsed.maxPrice || DEFAULT_FILTERS.maxPrice,
+      search: parsed.keywords || '',
+      sort: parsed.sort || 'newest',
+      quickFilter: '',
+    };
+    setFilters((current) => ({ ...current, ...newFilters }));
+    setSearchText(parsed.keywords || '');
+    setSliderValue([newFilters.minPrice, newFilters.maxPrice]);
+  }, []);
+
   const handleReset = useCallback(() => {
     setFilters(DEFAULT_FILTERS);
     setSearchText('');
@@ -226,6 +241,7 @@ export default function useShopFilters() {
     handlePriceCommit,
     handleQuickFilter,
     handleNLSearch,
+    applyAIFilters,
     handleReset,
     activeFilterCount,
     hasActiveFilters,

@@ -4,6 +4,7 @@ const { protect, adminOnly } = require("../middleware/authMiddleware");
 const { upload } = require("../config/cloudinary");
 const {
   getDashboardStats, getAIAnalysis,
+  getEnhancedRevenue, getInventoryTrends, getWishlistStats,
   getAllProducts, createProduct, updateProduct, deleteProduct,
   getAllOrders, updateOrderStatus,
   getAllUsers, updateUser, deleteUser, toggleBlockUser,
@@ -14,6 +15,9 @@ const {
 router.use(protect, adminOnly);
 
 // Dashboard
+router.get("/dashboard/revenue", getEnhancedRevenue);
+router.get("/dashboard/inventory-trends", getInventoryTrends);
+router.get("/dashboard/wishlist-stats", getWishlistStats);
 router.get("/dashboard", getDashboardStats);
 router.get("/dashboard/ai-analysis", getAIAnalysis);
 

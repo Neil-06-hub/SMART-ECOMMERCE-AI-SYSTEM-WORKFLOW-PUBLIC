@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from 'react';
 import { App, Col, Row, Tag, Typography } from 'antd';
-import { FilterOutlined, SearchOutlined } from '@ant-design/icons';
+import { FilterOutlined, HistoryOutlined, SearchOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -41,14 +41,29 @@ function ShopContent() {
     handlePriceCommit,
     handleQuickFilter,
     handleNLSearch,
+    applyAIFilters,
     handleReset,
     activeFilterCount,
     hasActiveFilters,
   } = useShopFilters();
 
+  // Search history helpers (localStorage)
+  const HISTORY_KEY = 'smart_search_history';
+  const getSearchHistory = () => {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
+  };
+  const addToSearchHistory = (q) => {
+    const trimmed = q.trim();
+    if (trimmed.length < 2) return;
+    const prev = getSearchHistory().filter((x) => x !== trimmed);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify([trimmed, ...prev].slice(0, 5)));
+  };
+
   // UI state
   const [filterOpen, setFilterOpen] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(true);
+  const [showSearchHistory, setShowSearchHistory] = useState(false);
+  const [searchHistory, setSearchHistory] = useState([]);
 
   // Data queries
   const { data: categoriesData } = useQuery({
@@ -99,8 +114,10 @@ function ShopContent() {
           aiCount={aiEnabled && isAuthenticated ? aiProducts.length : 0}
           isLoading={isLoading}
           onNLSearch={handleNL}
+          onAIFilters={applyAIFilters}
           onSearch={setSearchText}
           searchText={searchText}
+          availableCategories={categoriesData || []}
         />
 
         {/* Sticky Toolbar — Filter trigger + Search + Active filters + Mood */}
@@ -155,20 +172,38 @@ function ShopContent() {
 
           {/* Integrated Search Bar */}
           <div style={{ flex: 1, maxWidth: 500, position: 'relative' }}>
-            <SearchOutlined style={{ 
-              position: 'absolute', 
-              left: 14, 
-              top: '50%', 
-              transform: 'translateY(-50%)', 
-              color: 'var(--text-muted)', 
+            <SearchOutlined style={{
+              position: 'absolute',
+              left: 14,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-muted)',
               fontSize: 15,
-              zIndex: 1 
+              zIndex: 1
             }} />
             <input
               type="text"
               placeholder="Tìm sản phẩm..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
+              onFocus={() => {
+                setSearchHistory(getSearchHistory());
+                setShowSearchHistory(true);
+              }}
+              onBlur={() => {
+                setTimeout(() => setShowSearchHistory(false), 200);
+                if (searchText.trim().length >= 2) {
+                  addToSearchHistory(searchText);
+                  aiAPI.trackSearch(searchText).catch(() => {});
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchText.trim().length >= 2) {
+                  addToSearchHistory(searchText);
+                  aiAPI.trackSearch(searchText).catch(() => {});
+                  setShowSearchHistory(false);
+                }
+              }}
               className="sticky-search-input"
               style={{
                 width: '100%',
@@ -184,6 +219,40 @@ function ShopContent() {
                 transition: 'all 0.2s ease',
               }}
             />
+            {/* Search history dropdown */}
+            {showSearchHistory && searchHistory.length > 0 && !searchText && (
+              <div style={{
+                position: 'absolute', top: 50, left: 0, right: 0, zIndex: 200,
+                background: 'white', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                border: '1px solid rgba(0,0,0,0.06)', padding: '8px 0',
+              }}>
+                <div style={{ padding: '4px 12px 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                  <HistoryOutlined style={{ marginRight: 4 }} /> Tìm kiếm gần đây
+                </div>
+                {searchHistory.map((h) => (
+                  <button key={h} type="button"
+                    onClick={() => { setSearchText(h); setShowSearchHistory(false); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                      padding: '9px 12px', border: 'none', background: 'transparent',
+                      borderRadius: 10, cursor: 'pointer', fontSize: 13,
+                      color: 'var(--color-text)', textAlign: 'left', transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <SearchOutlined style={{ color: 'var(--text-muted)', fontSize: 12 }} />
+                    {h}
+                  </button>
+                ))}
+                <button type="button"
+                  onClick={() => { localStorage.removeItem(HISTORY_KEY); setSearchHistory([]); setShowSearchHistory(false); }}
+                  style={{ padding: '6px 12px', fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                >
+                  Xóa lịch sử
+                </button>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

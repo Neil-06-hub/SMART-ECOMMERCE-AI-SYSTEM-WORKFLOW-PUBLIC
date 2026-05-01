@@ -4,41 +4,42 @@ import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Alert,
   Button,
   Card,
   Col,
-  Divider,
   Row,
+  Segmented,
   Skeleton,
-  Space,
-  Spin,
-  Statistic,
+  Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd';
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
-  BarChartOutlined,
   BulbOutlined,
+  CalendarOutlined,
   DollarOutlined,
   FallOutlined,
   FireOutlined,
+  HeartFilled,
   PieChartOutlined,
   RiseOutlined,
   ShoppingCartOutlined,
   SyncOutlined,
   TeamOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { adminAPI } from '@/lib/api';
 import InsightEmptyState from '@/components/feedback/InsightEmptyState';
 
 const { Paragraph, Text, Title } = Typography;
 
-const Area = dynamic(() => import('@ant-design/charts').then((m) => m.Area), { ssr: false });
+const Line = dynamic(() => import('@ant-design/charts').then((m) => m.Line), { ssr: false });
 const Column = dynamic(() => import('@ant-design/charts').then((m) => m.Column), { ssr: false });
 const Pie = dynamic(() => import('@ant-design/charts').then((m) => m.Pie), { ssr: false });
+const Bar = dynamic(() => import('@ant-design/charts').then((m) => m.Bar), { ssr: false });
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
 function formatPrice(value) {
@@ -93,7 +94,6 @@ function KpiCard({ title, value, sub, icon, accentColor, delta, deltaLabel, pref
       }}
       hoverable
     >
-      {/* colored top bar */}
       <div style={{ height: 4, background: accentColor, borderRadius: '20px 20px 0 0' }} />
 
       <div style={{ padding: '20px 22px 22px' }}>
@@ -165,6 +165,89 @@ function ChartCard({ title, extra, children, style }) {
   );
 }
 
+/* ─── CSS word cloud (replaces @ant-design/charts WordCloud) ────────────── */
+const CLOUD_PALETTE = [
+  { color: '#F97316', bg: '#FFF7ED' },
+  { color: '#3B82F6', bg: '#EFF6FF' },
+  { color: '#10B981', bg: '#ECFDF5' },
+  { color: '#8B5CF6', bg: '#F5F3FF' },
+  { color: '#EF4444', bg: '#FEF2F2' },
+  { color: '#06B6D4', bg: '#ECFEFF' },
+  { color: '#F59E0B', bg: '#FFFBEB' },
+  { color: '#EC4899', bg: '#FDF2F8' },
+  { color: '#14B8A6', bg: '#F0FDFA' },
+  { color: '#6366F1', bg: '#EEF2FF' },
+];
+
+// Shuffle deterministically so layout varies without being fully sorted by size
+function interleave(arr) {
+  const result = [];
+  const mid = Math.ceil(arr.length / 2);
+  for (let i = 0; i < mid; i++) {
+    result.push(arr[i]);
+    if (arr[mid + i]) result.push(arr[mid + i]);
+  }
+  return result;
+}
+
+function CssWordCloud({ keywords }) {
+  const top10 = keywords.slice(0, 10);
+  const maxW = top10[0]?.weight || 1;
+  const minW = top10[top10.length - 1]?.weight || 0;
+  const range = maxW - minW || 1;
+  const items = interleave(top10);
+
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap',
+      gap: '10px 12px',
+      padding: '20px 12px 16px',
+      alignItems: 'center', alignContent: 'center',
+      justifyContent: 'center', minHeight: 230,
+    }}>
+      {items.map(({ word, weight }, i) => {
+        const norm = (weight - minW) / range;
+        const fontSize = Math.round(14 + norm * 34);
+        const { color, bg } = CLOUD_PALETTE[i % CLOUD_PALETTE.length];
+        const isTop = norm > 0.75;
+        const isMid = norm > 0.35;
+        return (
+          <span
+            key={word + i}
+            title={`${word} · ${weight} điểm`}
+            style={{
+              fontSize,
+              color,
+              background: bg,
+              fontWeight: isTop ? 800 : isMid ? 700 : 600,
+              lineHeight: 1,
+              cursor: 'default',
+              letterSpacing: isTop ? '-0.03em' : '-0.01em',
+              padding: isTop ? '6px 14px' : isMid ? '5px 11px' : '4px 9px',
+              borderRadius: 999,
+              border: `1.5px solid ${color}22`,
+              boxShadow: isTop ? `0 4px 16px ${color}25` : 'none',
+              transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+              display: 'inline-block',
+              userSelect: 'none',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.boxShadow = `0 6px 20px ${color}40`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = isTop ? `0 4px 16px ${color}25` : 'none';
+            }}
+          >
+            {word}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ─── AI analysis panel ─────────────────────────────────────────────────── */
 function AIAnalysisPanel({ analysis }) {
   return (
@@ -233,10 +316,19 @@ function AIAnalysisPanel({ analysis }) {
   );
 }
 
+/* ─── granularity labels ─────────────────────────────────────────────────── */
+const GRANULARITY_OPTIONS = [
+  { label: 'Ngày', value: 'day' },
+  { label: 'Tuần', value: 'week' },
+  { label: 'Tháng', value: 'month' },
+  { label: 'Quý', value: 'quarter' },
+];
+
 /* ─── main page ─────────────────────────────────────────────────────────── */
 export default function Dashboard() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [granularity, setGranularity] = useState('month');
 
   const { data: rawDashboard, isLoading, isFetching } = useQuery({
     queryKey: ['admin-dashboard'],
@@ -245,10 +337,41 @@ export default function Dashboard() {
     refetchInterval: 60 * 1000,
   });
 
+  const { data: rawRevenue, isFetching: revFetching } = useQuery({
+    queryKey: ['admin-revenue', granularity],
+    queryFn: () => adminAPI.getEnhancedRevenue(granularity).then((r) => r.data),
+    staleTime: 60 * 1000,
+  });
+
+  const { data: rawInventory } = useQuery({
+    queryKey: ['admin-inventory-trends'],
+    queryFn: () => adminAPI.getInventoryTrends().then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: rawWishlist } = useQuery({
+    queryKey: ['admin-wishlist-stats'],
+    queryFn: () => adminAPI.getWishlistStats().then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const statsData = unwrapPayload(rawDashboard);
-  const { stats, monthlyRevenue, ordersByStatus } = statsData || {};
+  const { stats, ordersByStatus } = statsData || {};
   const aiCtrByPlacement = statsData?.aiCtrByPlacement || statsData?.analytics?.aiCtrByPlacement || [];
   const rfmSegments = statsData?.rfmSegments || statsData?.marketing?.rfmSegments || [];
+
+  const revenueData = unwrapPayload(rawRevenue);
+  const currentRevenue = revenueData?.current || [];
+  const comparisonRevenue = revenueData?.comparison || [];
+  const forecastRevenue = revenueData?.forecast || [];
+  const revenueAnnotations = revenueData?.annotations || [];
+
+  const inventoryData = unwrapPayload(rawInventory);
+  const stockoutRisk = inventoryData?.stockoutRisk || [];
+  const trendingKeywords = inventoryData?.trendingKeywords || [];
+
+  const wishlistData = unwrapPayload(rawWishlist);
+  const wishlistStats = wishlistData?.wishlistStats || [];
 
   const growthRate = stats?.lastMonthRevenue
     ? (((stats.thisMonthRevenue - stats.lastMonthRevenue) / stats.lastMonthRevenue) * 100).toFixed(1)
@@ -256,26 +379,53 @@ export default function Dashboard() {
 
   const aov = (stats?.totalRevenue || 0) / Math.max(stats?.totalOrders || 1, 1);
 
-  /* chart configs */
-  const revenueChartConfig = useMemo(() => ({
-    data: monthlyRevenue || [],
-    xField: 'month',
+  /* ── multi-series revenue line chart ── */
+  const revenueLineData = useMemo(() => {
+    const rows = [];
+    currentRevenue.forEach((d) => rows.push({ label: d.label, revenue: d.revenue, series: 'Năm nay' }));
+    comparisonRevenue.forEach((d) => rows.push({ label: d.label, revenue: d.revenue, series: 'Năm trước' }));
+    forecastRevenue.forEach((d) => rows.push({ label: d.label, revenue: d.revenue, series: 'Dự báo AI' }));
+    return rows;
+  }, [currentRevenue, comparisonRevenue, forecastRevenue]);
+
+  const revenueLineConfig = useMemo(() => ({
+    data: revenueLineData,
+    xField: 'label',
     yField: 'revenue',
+    seriesField: 'series',
+    smooth: true,
     autoFit: true,
     height: 260,
-    smooth: true,
-    lineStyle: { stroke: '#F97316', lineWidth: 2.5 },
-    areaStyle: { fill: 'l(270) 0:#FED7AA40 1:#F9731620', fillOpacity: 1 },
-    point: { size: 3.5, shape: 'circle', style: { fill: '#F97316', stroke: '#fff', lineWidth: 2 } },
+    scale: {
+      color: {
+        domain: ['Năm nay', 'Năm trước', 'Dự báo AI'],
+        range: ['#F97316', '#9CA3AF', '#FB923C'],
+      },
+    },
+    style: (datum) => {
+      if (datum.series === 'Năm trước') return { lineDash: [5, 4], opacity: 0.6, lineWidth: 1.8 };
+      if (datum.series === 'Dự báo AI') return { lineDash: [6, 3], lineWidth: 2, opacity: 0.85 };
+      return { lineWidth: 2.5 };
+    },
+    point: {
+      size: 3,
+      style: (datum) => ({
+        fill: datum.series === 'Năm nay' ? '#F97316' : datum.series === 'Dự báo AI' ? '#FB923C' : '#9CA3AF',
+        stroke: '#fff',
+        lineWidth: 1.5,
+      }),
+    },
     axis: {
       y: { labelFormatter: (v) => `${Math.round(Number(v) / 1_000_000)}M` },
       x: { tickLine: false },
     },
+    legend: { color: { position: 'bottom', layout: { justifyContent: 'center' } } },
     tooltip: {
       items: [{ channel: 'y', formatter: (v) => formatPrice(v) }],
     },
-  }), [monthlyRevenue]);
+  }), [revenueLineData]);
 
+  /* ── order status donut ── */
   const orderStatusChartConfig = useMemo(() => ({
     data: (ordersByStatus || []).map((item) => ({ status: item._id, count: item.count })),
     angleField: 'count',
@@ -313,6 +463,7 @@ export default function Dashboard() {
     ],
   }), [ordersByStatus]);
 
+  /* ── AI CTR column ── */
   const ctrChartConfig = useMemo(() => ({
     data: aiCtrByPlacement,
     xField: 'placement',
@@ -337,6 +488,7 @@ export default function Dashboard() {
     axis: { y: { labelFormatter: (v) => `${v}%` } },
   }), [aiCtrByPlacement]);
 
+  /* ── RFM donut ── */
   const rfmChartConfig = useMemo(() => ({
     data: rfmSegments,
     angleField: 'users',
@@ -350,6 +502,84 @@ export default function Dashboard() {
       color: { range: ['#F97316', '#FB923C', '#2563EB', '#14B8A6', '#8B5CF6', '#E11D48'] },
     },
   }), [rfmSegments]);
+
+  /* ── wishlist bar chart ── */
+  const wishlistBarConfig = useMemo(() => ({
+    data: [...wishlistStats].reverse(), // horizontal bar renders bottom-to-top, reverse for desc order
+    yField: 'name',
+    xField: 'wishlistCount',
+    autoFit: true,
+    height: 340,
+    colorField: 'category',
+    label: {
+      text: (d) => `${d.wishlistCount} lượt`,
+      position: 'right',
+      style: { fill: '#374151', fontWeight: 700, fontSize: 12 },
+    },
+    axis: {
+      y: {
+        labelFormatter: (v) => (v.length > 24 ? `${v.slice(0, 24)}…` : v),
+      },
+      x: { title: 'Số lượt yêu thích', titleFill: '#9CA3AF', grid: true },
+    },
+    scale: {
+      color: { range: ['#F97316', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#14B8A6', '#F59E0B'] },
+    },
+    tooltip: {
+      items: [
+        { field: 'name', name: 'Sản phẩm' },
+        { field: 'wishlistCount', name: 'Lượt yêu thích' },
+        { field: 'category', name: 'Danh mục' },
+        { field: 'price', name: 'Giá', formatter: (v) => formatPrice(v) },
+      ],
+    },
+  }), [wishlistStats]);
+
+  /* ── stockout table ── */
+  const stockoutColumns = [
+    {
+      title: 'Sản phẩm',
+      dataIndex: 'name',
+      key: 'name',
+      ellipsis: true,
+      render: (v) => <span style={{ fontWeight: 600, fontSize: 13 }}>{v}</span>,
+    },
+    {
+      title: 'Danh mục',
+      dataIndex: 'category',
+      key: 'category',
+      width: 100,
+      render: (v) => <Tag style={{ borderRadius: 999, fontSize: 11 }}>{v}</Tag>,
+    },
+    {
+      title: 'Tồn kho',
+      dataIndex: 'stock',
+      key: 'stock',
+      width: 80,
+      align: 'center',
+      render: (v) => <strong style={{ color: v <= 5 ? '#DC2626' : '#D97706' }}>{v}</strong>,
+    },
+    {
+      title: 'Bán/ngày',
+      dataIndex: 'dailyVelocity',
+      key: 'dailyVelocity',
+      width: 90,
+      align: 'center',
+      render: (v) => <span style={{ fontSize: 13 }}>{v}</span>,
+    },
+    {
+      title: 'Còn lại',
+      dataIndex: 'daysLeft',
+      key: 'daysLeft',
+      width: 90,
+      align: 'center',
+      render: (v) => (
+        <Tag color={v < 7 ? 'red' : v < 14 ? 'orange' : 'gold'} style={{ borderRadius: 999, fontWeight: 700 }}>
+          {v} ngày
+        </Tag>
+      ),
+    },
+  ];
 
   const handleAIAnalysis = async () => {
     setAiLoading(true);
@@ -455,42 +685,67 @@ export default function Dashboard() {
       {/* ── AI analysis panel ── */}
       {aiAnalysis && <AIAnalysisPanel analysis={aiAnalysis} />}
 
-      {/* ── Revenue + Order status ── */}
+      {/* ── Enhanced Revenue Chart + Order status ── */}
       <Row gutter={[18, 18]} style={{ marginBottom: 18 }}>
         <Col xs={24} xl={15}>
           <ChartCard
-            title="Doanh thu 12 tháng"
+            title="Phân tích doanh thu"
             extra={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <BarChartOutlined style={{ color: '#F97316' }} />
-                <Text type="secondary" style={{ fontSize: 12 }}>Theo tháng</Text>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {revFetching && <SyncOutlined spin style={{ color: '#F97316', fontSize: 13 }} />}
+                <Segmented
+                  size="small"
+                  options={GRANULARITY_OPTIONS}
+                  value={granularity}
+                  onChange={setGranularity}
+                  style={{ borderRadius: 8 }}
+                />
               </div>
             }
           >
-            {monthlyRevenue?.length > 0 ? (
+            {revenueLineData.length > 0 ? (
               <>
-                <Area {...revenueChartConfig} />
+                <Line {...revenueLineConfig} />
+
+                {/* Legend strip */}
                 <div style={{
                   display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap',
                   marginTop: 12, paddingTop: 12, borderTop: '1px solid #F3F4F6',
                   gap: 8,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#F97316' }} />
+                    <div style={{ width: 16, height: 3, background: '#F97316', borderRadius: 2 }} />
                     <Text style={{ fontSize: 12 }}>
-                      Tháng này: <strong style={{ color: '#F97316' }}>{formatPrice(stats?.thisMonthRevenue)}</strong>
+                      Năm nay: <strong style={{ color: '#F97316' }}>{formatPrice(stats?.thisMonthRevenue)}</strong>
                     </Text>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#D1D5DB' }} />
-                    <Text style={{ fontSize: 12 }}>
-                      Tháng trước: <strong>{formatPrice(stats?.lastMonthRevenue)}</strong>
-                    </Text>
+                    <div style={{ width: 16, height: 3, background: '#9CA3AF', borderRadius: 2, opacity: 0.7 }} />
+                    <Text style={{ fontSize: 12 }}>Cùng kỳ năm trước</Text>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <svg width="16" height="3"><line x1="0" y1="1.5" x2="16" y2="1.5" stroke="#FB923C" strokeWidth="2" strokeDasharray="5,3" /></svg>
+                    <Text style={{ fontSize: 12 }}>Dự báo AI (hồi quy tuyến tính)</Text>
                   </div>
                 </div>
+
+                {/* Event annotations */}
+                {revenueAnnotations.length > 0 && (
+                  <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {revenueAnnotations.map((a, i) => (
+                      <Tag
+                        key={i}
+                        icon={<CalendarOutlined />}
+                        style={{ borderRadius: 999, fontSize: 11, border: '1px solid #FED7AA', color: '#92400E', background: '#FFF7ED' }}
+                      >
+                        {a.label}: {a.text}
+                      </Tag>
+                    ))}
+                  </div>
+                )}
               </>
             ) : (
-              <InsightEmptyState compact title="Chưa có dữ liệu doanh thu" description="Biểu đồ sẽ hiện xu hướng 12 tháng khi có dữ liệu." />
+              <InsightEmptyState compact title="Chưa có dữ liệu doanh thu" description="Biểu đồ sẽ hiện xu hướng khi có dữ liệu." />
             )}
           </ChartCard>
         </Col>
@@ -510,7 +765,7 @@ export default function Dashboard() {
       </Row>
 
       {/* ── AI CTR + RFM ── */}
-      <Row gutter={[18, 18]}>
+      <Row gutter={[18, 18]} style={{ marginBottom: 18 }}>
         <Col xs={24} xl={12}>
           <ChartCard
             title="AI CTR theo placement"
@@ -544,6 +799,102 @@ export default function Dashboard() {
                 compact
                 title="Chưa có dữ liệu phân khúc RFM"
                 description="Donut chart sẽ render ngay khi dashboard API trả về danh sách segment."
+              />
+            )}
+          </ChartCard>
+        </Col>
+      </Row>
+
+      {/* ── Top Wishlisted Products ── */}
+      <Row gutter={[18, 18]} style={{ marginBottom: 18 }}>
+        <Col xs={24}>
+          <ChartCard
+            title="Top sản phẩm được yêu thích nhất"
+            extra={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <HeartFilled style={{ color: '#DC2626', fontSize: 14 }} />
+                <Tooltip title="Dữ liệu thực từ danh sách yêu thích của khách hàng">
+                  <Tag style={{ borderRadius: 999, fontSize: 11, cursor: 'default' }}>
+                    {wishlistStats.length > 0
+                      ? `${wishlistStats.reduce((s, p) => s + p.wishlistCount, 0)} lượt tổng`
+                      : 'Dữ liệu thực'}
+                  </Tag>
+                </Tooltip>
+              </div>
+            }
+          >
+            {wishlistStats.length > 0 ? (
+              <Bar {...wishlistBarConfig} />
+            ) : (
+              <InsightEmptyState
+                compact
+                title="Chưa có sản phẩm nào được yêu thích"
+                description="Biểu đồ hiển thị top 10 sản phẩm được khách hàng thêm vào wishlist nhiều nhất."
+              />
+            )}
+          </ChartCard>
+        </Col>
+      </Row>
+
+      {/* ── Hot Trend + Inventory Risk ── */}
+      <Row gutter={[18, 18]}>
+        <Col xs={24} xl={12}>
+          <ChartCard
+            title="Xu hướng tìm kiếm (30 ngày)"
+            extra={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <FireOutlined style={{ color: '#F97316' }} />
+                <Text type="secondary" style={{ fontSize: 12 }}>Từ khoá hot</Text>
+              </div>
+            }
+          >
+            {trendingKeywords.length > 0 ? (
+              <CssWordCloud keywords={trendingKeywords} />
+            ) : (
+              <InsightEmptyState
+                compact
+                title="Chưa có dữ liệu xu hướng"
+                description="Word cloud sẽ hiện khi có dữ liệu hành vi người dùng trong 30 ngày qua."
+              />
+            )}
+          </ChartCard>
+        </Col>
+
+        <Col xs={24} xl={12}>
+          <ChartCard
+            title="Cảnh báo sắp hết hàng (< 30 ngày)"
+            extra={
+              <Tag
+                icon={<WarningOutlined />}
+                color={stockoutRisk.some((p) => p.daysLeft < 7) ? 'red' : 'orange'}
+                style={{ borderRadius: 999, fontWeight: 700 }}
+              >
+                {stockoutRisk.length} sản phẩm
+              </Tag>
+            }
+          >
+            {stockoutRisk.length > 0 ? (
+              <Table
+                dataSource={stockoutRisk}
+                columns={stockoutColumns}
+                rowKey={(r) => String(r.productId)}
+                size="small"
+                pagination={false}
+                scroll={{ y: 230 }}
+                rowClassName={(r) =>
+                  r.daysLeft < 7 ? 'stockout-critical' : r.daysLeft < 14 ? 'stockout-warning' : ''
+                }
+                onRow={(r) => ({
+                  style: {
+                    background: r.daysLeft < 7 ? '#FEF2F2' : r.daysLeft < 14 ? '#FFFBEB' : undefined,
+                  },
+                })}
+              />
+            ) : (
+              <InsightEmptyState
+                compact
+                title="Không có sản phẩm sắp hết hàng"
+                description="Tất cả sản phẩm đang có tồn kho ổn định trong 30 ngày tới."
               />
             )}
           </ChartCard>
