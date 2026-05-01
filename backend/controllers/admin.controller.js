@@ -876,8 +876,8 @@ const getInventoryTrends = async (req, res) => {
         const daysLeft = dailyVelocity > 0 ? Math.floor(p.stock / dailyVelocity) : null;
         return { productId: p._id, name: p.name, category: p.category, stock: p.stock, dailyVelocity, daysLeft };
       })
-      .filter((p) => p.daysLeft !== null && p.daysLeft < 30)
-      .sort((a, b) => a.daysLeft - b.daysLeft)
+      .filter((p) => (p.daysLeft !== null && p.daysLeft < 30) || (p.daysLeft === null && p.stock < 10))
+      .sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999))
       .slice(0, 20);
 
     // Trending keywords from product tags weighted by event activity

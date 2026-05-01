@@ -45,7 +45,6 @@ const sourceColors = {
   featured_fallback: 'default',
 };
 
-const MONTH_LABEL = { 1:'T1',2:'T2',3:'T3',4:'T4',5:'T5',6:'T6',7:'T7',8:'T8',9:'T9',10:'T10',11:'T11',12:'T12' };
 
 const CAT_ICON = {
   'Điện tử':'📱','Điện Tử':'📱','Laptop':'💻','Điện thoại':'📱','Điện Thoại':'📱',
@@ -492,6 +491,7 @@ const staggerItem = {
 };
 
 function AIFeaturesSection({ statsData, aiData }) {
+  const router = useRouter();
   const [recIdx, setRecIdx]   = useState(0);
   const [feedIdx, setFeedIdx] = useState(0);
   const [statsIn, setStatsIn] = useState(false);
@@ -530,13 +530,6 @@ function AIFeaturesSection({ statsData, aiData }) {
       ? 'Top bán chạy'
       : 'Fallback';
 
-  /* Real KPIs */
-  const currentStats = {
-    users:   statsData ? formatCount(statsData.totalUsers)   : '—',
-    orders:  statsData ? formatCount(statsData.totalOrders)  : '—',
-    revenue: statsData ? formatRevenue(statsData.totalRevenue) : '—',
-  };
-
   /* Real customer age/gender chart data */
   const customerChartData = statsData?.ageDistribution?.length
     ? statsData.ageDistribution.map((d) => ({
@@ -552,17 +545,32 @@ function AIFeaturesSection({ statsData, aiData }) {
         { age: '55+',   gender: 'Nữ', count: 5  }, { age: '55+',   gender: 'Nam', count: 10 },
       ];
 
-  /* Real monthly category sales data */
-  const salesChartData = statsData?.monthlyCategories?.length
-    ? statsData.monthlyCategories.map((d) => ({
-        month:   MONTH_LABEL[d._id.month] || `T${d._id.month}`,
-        product: d._id.category,
-        sales:   d.totalSold,
+  /* Top 3 most liked products (wishlist → fallback to sold) */
+  const TOP_PRODUCT_COLORS = ['#F97316', '#3B82F6', '#10B981'];
+  const topLikedProducts = (() => {
+    const source =
+      statsData?.topWishlistProducts?.length
+        ? statsData.topWishlistProducts
+        : statsData?.topProducts?.slice(0, 3) || [];
+    return source.slice(0, 3).map((p, i) => ({
+      id:    String(p._id || ''),
+      name:  p.name?.length > 18 ? p.name.slice(0, 18) + '…' : (p.name || '—'),
+      icon:  CAT_ICON[p.category] || '🛍️',
+      count: p.wishlistCount ?? p.sold ?? 0,
+      color: TOP_PRODUCT_COLORS[i],
+    }));
+  })();
+
+  /* Top Bán Chạy — top 3 products by sold count */
+  const salesChartData = statsData?.topProducts?.slice(0, 3).length
+    ? statsData.topProducts.slice(0, 3).map((p, i) => ({
+        name:  p.name?.length > 20 ? p.name.slice(0, 20) + '…' : (p.name || `SP ${i + 1}`),
+        sales: p.sold ?? 0,
       }))
     : [
-        { month: 'T3', product: 'Giày', sales: 110 }, { month: 'T3', product: 'Áo', sales: 105 }, { month: 'T3', product: 'Balo', sales: 60 },
-        { month: 'T4', product: 'Giày', sales: 155 }, { month: 'T4', product: 'Áo', sales: 125 }, { month: 'T4', product: 'Balo', sales: 80 },
-        { month: 'T5', product: 'Giày', sales: 180 }, { month: 'T5', product: 'Áo', sales: 145 }, { month: 'T5', product: 'Balo', sales: 105 },
+        { name: 'Sản phẩm 1', sales: 110 },
+        { name: 'Sản phẩm 2', sales: 80 },
+        { name: 'Sản phẩm 3', sales: 55 },
       ];
 
   /* Cycling effects */
@@ -617,18 +625,7 @@ function AIFeaturesSection({ statsData, aiData }) {
     animation: { appear: { animation: 'wave-in', duration: 1100, easing: 'ease-in-out' } },
   };
 
-  const salesConfig = {
-    data: salesChartData,
-    xField: 'month', yField: 'sales', colorField: 'product',
-    shapeField: 'smooth', smooth: true, height: 110, autoFit: true,
-    color: ['#f97316', '#3b82f6', '#10b981'],
-    xAxis: { label: { style: { fontSize: 9 } }, line: null, tickLine: null, grid: null },
-    yAxis: { label: null, grid: null, line: null },
-    areaStyle: { fillOpacity: 0.5 },
-    legend: { position: 'top', layout: 'horizontal', itemName: { style: { fontSize: 9 } } },
-    tooltip: { showMarkers: false },
-    animation: { appear: { animation: 'wave-in', duration: 1100, easing: 'ease-in-out' } },
-  };
+  const salesMax = Math.max(...salesChartData.map((d) => d.sales), 1);
 
   return (
     <section style={{ padding: '80px 48px', background: 'white' }}>
@@ -855,22 +852,31 @@ function AIFeaturesSection({ statsData, aiData }) {
               </div>
             </div>
 
-            {/* Count-up KPI stats */}
+            {/* Top 3 most liked products */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
-              {[
-                { label: 'Người dùng', val: currentStats.users,           color: '#8B5CF6' },
-                { label: 'Đơn hàng',  val: currentStats.orders,           color: '#0D9488' },
-                { label: 'Doanh thu', val: currentStats.revenue + 'đ',    color: 'var(--color-primary)' },
-              ].map((stat, i) => (
+              {(topLikedProducts.length
+                ? topLikedProducts.map((p) => ({ id: p.id, label: p.name, val: p.icon + ' ' + p.count, color: p.color }))
+                : [
+                    { id: '', label: '—', val: '🛍️ 0', color: '#F97316' },
+                    { id: '', label: '—', val: '🛍️ 0', color: '#3B82F6' },
+                    { id: '', label: '—', val: '🛍️ 0', color: '#10B981' },
+                  ]
+              ).map((stat, i) => (
                 <motion.div
-                  key={stat.label}
+                  key={i}
                   initial={{ opacity: 0, y: 8 }}
                   animate={statsIn ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
                   transition={{ delay: i * 0.1, duration: 0.4, ease: 'easeOut' }}
-                  style={{ background: 'var(--color-bg)', borderRadius: 12, padding: '10px 8px', textAlign: 'center' }}
+                  onClick={() => stat.id && router.push(`/products/${stat.id}`)}
+                  style={{
+                    background: 'var(--color-bg)', borderRadius: 12, padding: '10px 8px', textAlign: 'center',
+                    cursor: stat.id ? 'pointer' : 'default',
+                    transition: 'box-shadow 0.2s',
+                  }}
+                  whileHover={stat.id ? { scale: 1.04, boxShadow: '0 4px 16px rgba(0,0,0,0.10)' } : {}}
                 >
-                  <div style={{ fontWeight: 800, fontSize: 17, color: stat.color, lineHeight: 1 }}>{stat.val}</div>
-                  <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, marginTop: 4 }}>{stat.label}</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: stat.color, lineHeight: 1 }}>{stat.val}</div>
+                  <div style={{ fontSize: 9, color: 'var(--color-text-muted)', fontWeight: 600, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stat.label}</div>
                 </motion.div>
               ))}
             </div>
@@ -881,7 +887,7 @@ function AIFeaturesSection({ statsData, aiData }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text)' }}>Phân Bố Khách Hàng</div>
                   <span style={{ fontSize: 10, color: hasRealData ? '#22C55E' : 'var(--color-text-muted)', background: 'white', padding: '2px 8px', borderRadius: 999, border: `1px solid ${hasRealData ? '#22C55E' : 'var(--color-border)'}`, fontWeight: hasRealData ? 700 : 400 }}>
-                    {hasRealData ? '● Dữ liệu thật' : 'Minh họa'}
+                    {hasRealData ? '● Live' : 'Minh họa'}
                   </span>
                 </div>
                 <Area key="customer-chart" {...customerConfig} />
@@ -891,10 +897,30 @@ function AIFeaturesSection({ statsData, aiData }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text)' }}>Top Bán Chạy</div>
                   <span style={{ fontSize: 10, color: hasRealData ? '#22C55E' : 'var(--color-text-muted)', background: 'white', padding: '2px 8px', borderRadius: 999, border: `1px solid ${hasRealData ? '#22C55E' : 'var(--color-border)'}`, fontWeight: hasRealData ? 700 : 400 }}>
-                    {hasRealData ? '● Dữ liệu thật' : 'Minh họa'}
+                    {hasRealData ? '● Live' : 'Minh họa'}
                   </span>
                 </div>
-                <Area key="sales-chart" {...salesConfig} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
+                  {salesChartData.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 72, fontSize: 9, fontWeight: 600, color: 'var(--color-text-muted)', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>
+                        {item.name}
+                      </div>
+                      <div style={{ flex: 1, background: 'var(--color-border)', borderRadius: 4, height: 14, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${Math.round((item.sales / salesMax) * 100)}%`,
+                          background: TOP_PRODUCT_COLORS[i],
+                          borderRadius: '0 4px 4px 0',
+                          transition: 'width 0.9s ease-out',
+                        }} />
+                      </div>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: TOP_PRODUCT_COLORS[i], minWidth: 28, textAlign: 'right', flexShrink: 0 }}>
+                        {item.sales}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -1205,7 +1231,6 @@ function CTAAnimatedVisual() {
 
 const CTA_FLOAT_ANIM = ['3.2s','2.8s','3.5s','2.6s'];
 const CTA_FLOAT_DELAY = ['0s','0.4s','0.9s','1.3s'];
-const CTA_BADGE_COLOR_MAP = { HOT: '#E85D04', NEW: '#0D9488', SALE: '#7C3AED' };
 
 function CTASection({ statsData }) {
   const router = useRouter();
@@ -1347,7 +1372,7 @@ export default function ClientHome({ initialFeaturedProducts = [] }) {
 
   const { data: statsData } = useQuery({
     queryKey: ['public-stats'],
-    queryFn: () => statsAPI.getOverview().then((r) => r.data),
+    queryFn: () => statsAPI.getOverview().then((r) => r.data?.data ?? r.data),
     staleTime: 5 * 60 * 1000,
   });
 

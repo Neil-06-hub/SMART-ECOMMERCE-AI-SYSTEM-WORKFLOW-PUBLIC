@@ -573,11 +573,14 @@ export default function Dashboard() {
       key: 'daysLeft',
       width: 90,
       align: 'center',
-      render: (v) => (
-        <Tag color={v < 7 ? 'red' : v < 14 ? 'orange' : 'gold'} style={{ borderRadius: 999, fontWeight: 700 }}>
-          {v} ngày
-        </Tag>
-      ),
+      render: (v) =>
+        v !== null ? (
+          <Tag color={v < 7 ? 'red' : v < 14 ? 'orange' : 'gold'} style={{ borderRadius: 999, fontWeight: 700 }}>
+            {v} ngày
+          </Tag>
+        ) : (
+          <Tag color="default" style={{ borderRadius: 999, fontWeight: 700 }}>–</Tag>
+        ),
     },
   ];
 

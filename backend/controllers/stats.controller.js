@@ -114,6 +114,26 @@ exports.getPublicOverview = async (req, res) => {
       .limit(4)
       .select('name price images category sold');
 
+    // F) Top 3 most wishlisted products (no auth required)
+    const topWishlistProducts = await User.aggregate([
+      { $match: { role: 'customer', deletedAt: null } },
+      { $unwind: '$wishlist' },
+      { $group: { _id: '$wishlist', wishlistCount: { $sum: 1 } } },
+      { $sort: { wishlistCount: -1 } },
+      { $limit: 3 },
+      { $lookup: { from: 'products', localField: '_id', foreignField: '_id', as: 'product' } },
+      { $unwind: { path: '$product', preserveNullAndEmptyArrays: false } },
+      { $match: { 'product.isActive': true } },
+      {
+        $project: {
+          name: '$product.name',
+          category: '$product.category',
+          price: '$product.price',
+          wishlistCount: 1,
+        },
+      },
+    ]);
+
     res.json({
       success: true,
       data: {
@@ -124,6 +144,7 @@ exports.getPublicOverview = async (req, res) => {
         topCategories,
         monthlyCategories,
         topProducts,
+        topWishlistProducts,
       },
     });
   } catch (err) {
