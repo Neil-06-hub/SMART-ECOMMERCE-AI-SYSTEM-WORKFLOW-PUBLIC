@@ -3,6 +3,7 @@ const Activity = require("../models/Activity");
 const BehavioralEvent = require("../models/BehavioralEvent");
 const Product = require("../models/Product");
 const User = require("../models/User");
+const { runOpenRouterJSON } = require("../services/gemini.service");
 
 // ── Event weight map (matches ML training pipeline) ──────────────────────────
 const EVENT_WEIGHTS = {
@@ -193,4 +194,155 @@ const trackPublicEvent = async (req, res) => {
   }
 };
 
-module.exports = { getPersonalizedRecommendations, trackActivity, trackPublicEvent };
+// @desc  Return last 3 behavioral signals for the authenticated user
+// @route GET /api/ai/my-signals
+const getMySignals = async (req, res) => {
+  try {
+    const DISPLAY_WEIGHT = { view: 35, click: 55, add_to_cart: 70, purchase: 90, rec_click: 60 };
+    const LABEL_MAP = {
+      view: 'Đã xem',
+      click: 'Đã xem',
+      add_to_cart: 'Thêm giỏ',
+      purchase: 'Đã mua',
+      rec_click: 'Yêu thích',
+    };
+
+    const events = await BehavioralEvent.find({ userId: req.user._id })
+      .populate('productId', 'name images')
+      .sort({ timestamp: -1 })
+      .limit(3);
+
+    const signals = events
+      .filter((e) => e.productId)
+      .map((e) => ({
+        label: LABEL_MAP[e.eventType] || 'Đã xem',
+        item: e.productId.name,
+        weight: DISPLAY_WEIGHT[e.eventType] || 40,
+        color: e.eventType === 'purchase' || e.eventType === 'rec_click' ? '#0D9488' : '#E85D04',
+      }));
+
+    res.json({ success: true, data: signals });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc  AI-powered search suggestions (public, no auth)
+// @route GET /api/ai/search-suggest?q=query&n=5
+const getSearchSuggestions = async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    const n = Math.min(Math.max(parseInt(req.query.n) || 5, 1), 10);
+
+    if (q.length < 2) {
+      return res.json({ success: true, data: [] });
+    }
+
+    let productIds = [];
+    let scores = [];
+    let modelVersion = 'fallback';
+
+    try {
+      const data = await breaker.fire(null, 'search', n, {}, [], q);
+      productIds = data.productIds || [];
+      scores = data.scores || [];
+      modelVersion = data.model_version || 'fallback';
+    } catch {
+      // circuit open — handled below via regex fallback
+    }
+
+    let products;
+    if (productIds.length > 0 && modelVersion !== 'fallback') {
+      products = await Product.find({ _id: { $in: productIds }, isActive: true })
+        .select('_id name price image category');
+      // Preserve FastAPI score order
+      const map = new Map(products.map((p) => [p._id.toString(), p]));
+      products = productIds.map((id) => map.get(id)).filter(Boolean);
+    } else {
+      // Fallback: MongoDB regex on product name
+      products = await Product.find({ isActive: true, name: { $regex: q, $options: 'i' } })
+        .limit(n)
+        .select('_id name price image category');
+    }
+
+    res.json({ success: true, data: products });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc  Track search query (public, no auth) — writes BehavioralEvent for analytics
+// @route POST /api/ai/track-search
+const trackSearch = async (req, res) => {
+  try {
+    const query = (req.body.query || '').trim();
+    const sessionId = req.body.sessionId || req.headers['x-session-id'] || null;
+
+    if (query.length < 2) {
+      return res.status(400).json({ success: false, message: 'Query too short' });
+    }
+
+    await BehavioralEvent.create({
+      userId: null,
+      productId: null,
+      eventType: 'search',
+      weight: 0.5,
+      metadata: { query: query.toLowerCase(), sessionId },
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc  AI chatbot analysis of natural-language shopping query
+// @route POST /api/ai/chat-search
+const chatSearch = async (req, res) => {
+  try {
+    const query = (req.body.query || '').trim();
+    const categories = Array.isArray(req.body.categories) ? req.body.categories : [];
+
+    if (query.length < 3) {
+      return res.status(400).json({ success: false, message: 'Query too short' });
+    }
+
+    const categoryList = categories.length > 0
+      ? categories.join(', ')
+      : 'Laptop, Điện thoại, Tai nghe, Đồng hồ, Máy ảnh, Phụ kiện';
+
+    const prompt = `Phân tích yêu cầu mua sắm của khách hàng Việt Nam và trả về JSON.
+
+Query: "${query}"
+Danh mục có sẵn: ${categoryList}
+
+Yêu cầu:
+- "interpretation": 1-2 câu tiếng Việt mô tả bạn hiểu nhu cầu (bắt đầu bằng "Bạn đang tìm...")
+- "category": tên danh mục chính xác từ danh sách, hoặc null nếu không khớp
+- "minPrice": số VND hoặc 0 nếu không đề cập
+- "maxPrice": số VND hoặc null nếu không đề cập
+- "keywords": từ khoá tìm kiếm ngắn gọn (không gồm danh mục/giá), hoặc null
+- "sort": "popular"|"price_asc"|"price_desc"|"newest"|"rating"|null
+
+Output JSON only:
+{
+  "interpretation": "...",
+  "category": null,
+  "minPrice": 0,
+  "maxPrice": null,
+  "keywords": null,
+  "sort": null
+}`;
+
+    try {
+      const { data } = await runOpenRouterJSON(prompt);
+      return res.json({ success: true, data: { ...data, source: 'openrouter' } });
+    } catch {
+      return res.json({ success: true, data: { source: 'fallback' } });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getPersonalizedRecommendations, trackActivity, trackPublicEvent, getMySignals, getSearchSuggestions, trackSearch, chatSearch };

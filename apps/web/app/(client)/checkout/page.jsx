@@ -1,13 +1,30 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Form, Input, Button, Radio, Row, Col, Typography, message, Space, Tag } from 'antd';
-import { CreditCardOutlined, CarOutlined, WalletOutlined, CheckCircleOutlined, SafetyCertificateOutlined, TagOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Row, Col, Typography, message, Space, Tag, Modal } from 'antd';
+import {
+  CreditCardOutlined, CarOutlined, WalletOutlined, CheckCircleOutlined,
+  SafetyCertificateOutlined, TagOutlined, CheckOutlined, ClockCircleOutlined,
+  CopyOutlined, ShoppingOutlined
+} from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import { orderAPI, discountAPI } from '@/lib/api';
 import { useCartStore, useAuthStore } from '@/store/useStore';
 
 const { Title, Text } = Typography;
+
+const PAYMENT_METHODS = [
+  { value: 'COD', icon: <CarOutlined />, bg: '#E0F2FE', color: '#0284C7', title: 'Thanh Toán Khi Nhận Hàng (COD)', desc: 'Thanh toán bằng tiền mặt khi nhận được hàng' },
+  { value: 'banking', icon: <CreditCardOutlined />, bg: '#F0FDF4', color: '#15803D', title: 'Chuyển Khoản Ngân Hàng', desc: 'Chuyển khoản trực tiếp 24/7 qua mã QR VietQR' },
+  { value: 'momo', icon: <WalletOutlined />, bg: '#FCE7F3', color: '#DB2777', title: 'Ví Điện Tử MoMo', desc: 'Quét mã QR thanh toán qua ứng dụng MoMo' },
+];
+
+const BANK_INFO = {
+  bankId: 'VCB',
+  bankName: 'Vietcombank',
+  accountNo: '1234567890',
+  accountName: 'SMART ECOMMERCE JSC',
+};
 
 export default function Checkout() {
   const [form] = Form.useForm();
@@ -16,6 +33,9 @@ export default function Checkout() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState(null);
+  const [selectedPayment, setSelectedPayment] = useState('COD');
+  const [showQRModal, setShowQRModal] = useState(false);
   const [discountCode, setDiscountCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState(null);
   const [discountLoading, setDiscountLoading] = useState(false);
@@ -27,12 +47,10 @@ export default function Checkout() {
   const total = subtotal + shippingFee - discountAmount;
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
-    }
+    if (!isAuthenticated) router.push('/login');
   }, [isAuthenticated, router]);
 
-  if (!isAuthenticated) return null; // Bug 1 Fix: Client side guard
+  if (!isAuthenticated) return null;
 
   const handleApplyDiscount = async () => {
     if (!discountCode.trim()) return message.warning('Vui lòng nhập mã giảm giá');
@@ -53,16 +71,23 @@ export default function Checkout() {
     if (items.length === 0) return message.error('Giỏ hàng đang trống!');
     setLoading(true);
     try {
-      await orderAPI.create({
+      const res = await orderAPI.create({
         items: items.map((i) => ({ product: i._id, quantity: i.quantity })),
         shippingAddress: { fullName: values.fullName, phone: values.phone, address: values.address, city: values.city },
-        paymentMethod: values.paymentMethod,
+        paymentMethod: selectedPayment,
         note: values.note,
         discount: discountAmount,
         discountCode: appliedDiscount?.code || '',
       });
+      const order = res.data.order;
+      setCreatedOrder(order);
       clearCart();
-      setSuccess(true);
+
+      if (selectedPayment === 'banking' || selectedPayment === 'momo') {
+        setShowQRModal(true);
+      } else {
+        setSuccess(true);
+      }
     } catch (err) {
       message.error(err.response?.data?.message || 'Đặt hàng thất bại');
     } finally {
@@ -70,24 +95,70 @@ export default function Checkout() {
     }
   };
 
-  if (success) {
+  const handleQRClose = () => {
+    setShowQRModal(false);
+    setSuccess(true);
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    message.success('Đã sao chép!');
+  };
+
+  const orderCode = createdOrder?._id?.slice(-8)?.toUpperCase() || '';
+  const qrContent = `DH${orderCode}`;
+  const qrUrl = `https://img.vietqr.io/image/${BANK_INFO.bankId}-${BANK_INFO.accountNo}-compact2.png?amount=${total}&addInfo=${qrContent}&accountName=${encodeURIComponent(BANK_INFO.accountName)}`;
+
+  // ─── SUCCESS PAGE ─────────────────────────────────────────────────────────
+  if (success && createdOrder) {
+    const paymentLabel = PAYMENT_METHODS.find(p => p.value === createdOrder.paymentMethod);
+    const isPending = createdOrder.paymentMethod !== 'COD';
     return (
-      <div style={{ padding: '100px 24px', minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
-        <div style={{ textAlign: 'center', background: 'white', padding: '60px 40px', borderRadius: 32, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', border: '1px solid var(--border-color)', maxWidth: 640 }}>
-          <div style={{ width: 100, height: 100, borderRadius: '50%', background: '#DCFCE7', color: '#22C55E', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, margin: '0 auto 32px' }}>
+      <div style={{ padding: '80px 24px', minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
+        <div style={{ textAlign: 'center', background: 'white', padding: '56px 40px', borderRadius: 28, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', border: '1px solid var(--border-color)', maxWidth: 560, width: '100%' }}>
+          <div style={{ width: 88, height: 88, borderRadius: '50%', background: '#DCFCE7', color: '#22C55E', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, margin: '0 auto 24px' }}>
             <CheckCircleOutlined />
           </div>
-          <Title level={2} style={{ color: 'var(--text-main)', fontWeight: 800, marginBottom: 16 }}>Đặt hàng thành công!</Title>
-          <p style={{ color: 'var(--text-muted)', fontSize: 16, marginBottom: 40, lineHeight: 1.6 }}>Cảm ơn bạn đã tin tưởng mua sắm. Mã đơn hàng của bạn đã được gửi qua email.</p>
-          <Space size="middle" style={{ display: 'flex', justifyContent: 'center' }}>
-            <Button type="primary" size="large" onClick={() => router.push('/orders')} style={{ background: 'var(--brand-teal)', border: 'none', height: 50, borderRadius: 12, fontWeight: 700, padding: '0 32px' }}>Xem Đơn Hàng</Button>
-            <Button size="large" onClick={() => router.push('/shop')} style={{ height: 50, borderRadius: 12, fontWeight: 700, padding: '0 32px' }}>Tiếp Tục Mua Sắm</Button>
+          <Title level={2} style={{ color: 'var(--text-main)', fontWeight: 800, marginBottom: 8 }}>Đặt hàng thành công!</Title>
+          <p style={{ color: 'var(--text-muted)', fontSize: 15, marginBottom: 28, lineHeight: 1.6 }}>
+            Cảm ơn bạn đã mua sắm tại SmartShop AI
+          </p>
+
+          <div style={{ background: 'var(--bg-main)', borderRadius: 16, padding: 20, marginBottom: 28, textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={{ color: 'var(--text-muted)', fontSize: 13 }}>Mã đơn hàng</Text>
+              <Text strong style={{ fontSize: 14, color: 'var(--brand-teal)' }}>#{orderCode}</Text>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={{ color: 'var(--text-muted)', fontSize: 13 }}>Tổng tiền</Text>
+              <Text strong style={{ fontSize: 14 }}>{formatPrice(createdOrder.totalAmount)}</Text>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={{ color: 'var(--text-muted)', fontSize: 13 }}>Thanh toán</Text>
+              <Text strong style={{ fontSize: 14 }}>{paymentLabel?.title?.split('(')[0]?.trim()}</Text>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Text style={{ color: 'var(--text-muted)', fontSize: 13 }}>Trạng thái</Text>
+              <Tag color={isPending ? 'orange' : 'blue'}>{isPending ? 'Chờ thanh toán' : 'Chờ xác nhận'}</Tag>
+            </div>
+          </div>
+
+          <Space size="middle" style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Button type="primary" size="large" icon={<ShoppingOutlined />} onClick={() => router.push('/orders')}
+              style={{ background: 'var(--brand-teal)', border: 'none', height: 48, borderRadius: 12, fontWeight: 700, padding: '0 28px' }}>
+              Xem Đơn Hàng
+            </Button>
+            <Button size="large" onClick={() => router.push('/shop')}
+              style={{ height: 48, borderRadius: 12, fontWeight: 700, padding: '0 28px' }}>
+              Tiếp Tục Mua Sắm
+            </Button>
           </Space>
         </div>
       </div>
     );
   }
 
+  // ─── CHECKOUT FORM ────────────────────────────────────────────────────────
   return (
     <div style={{ background: 'var(--bg-main)', minHeight: '100vh', padding: '40px 24px' }}>
       <div className="container" style={{ maxWidth: 1280 }}>
@@ -100,7 +171,8 @@ export default function Checkout() {
 
         <Row gutter={[40, 40]}>
           <Col xs={24} lg={14}>
-            <Form form={form} onFinish={onFinish} layout="vertical" initialValues={{ paymentMethod: 'COD' }} requiredMark={false}>
+            <Form form={form} onFinish={onFinish} layout="vertical" requiredMark={false}>
+              {/* Shipping Info */}
               <div style={{ background: 'white', borderRadius: 24, padding: 32, border: '1px solid var(--border-color)', marginBottom: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
                   <div className="bg-gradient-ai" style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700 }}>1</div>
@@ -129,34 +201,47 @@ export default function Checkout() {
                 </Form.Item>
               </div>
 
+              {/* Payment Method Selection */}
               <div style={{ background: 'white', borderRadius: 24, padding: 32, border: '1px solid var(--border-color)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
                   <div className="bg-gradient-ai" style={{ width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700 }}>2</div>
                   <Title level={4} style={{ margin: 0, fontWeight: 800, color: 'var(--text-main)' }}>Phương Thức Thanh Toán</Title>
                 </div>
-                <Form.Item name="paymentMethod" style={{ marginBottom: 0 }}>
-                  <Radio.Group style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {[
-                      { value: 'COD', icon: <CarOutlined />, bg: '#E0F2FE', color: '#0284C7', title: 'Thanh Toán Bằng Tiền Mặt (COD)', desc: 'Thanh toán khi nhận được hàng' },
-                      { value: 'banking', icon: <CreditCardOutlined />, bg: '#F1F5F9', color: '#475569', title: 'Chuyển Khoản Ngân Hàng', desc: 'Chuyển khoản trực tiếp 24/7 qua mã QR' },
-                      { value: 'momo', icon: <WalletOutlined />, bg: '#FCE7F3', color: '#DB2777', title: 'Ví Điện Tử MoMo', desc: 'Quét mã QR qua app MoMo' },
-                    ].map((opt) => (
-                      <Radio.Button key={opt.value} value={opt.value} style={{ height: 'auto', padding: 20, borderRadius: 16, border: '2px solid var(--border-color)', background: 'transparent', display: 'flex', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%' }}>
-                          <div style={{ width: 48, height: 48, borderRadius: 12, background: opt.bg, color: opt.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{opt.icon}</div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-main)' }}>{opt.title}</div>
-                            <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>{opt.desc}</div>
-                          </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {PAYMENT_METHODS.map((opt) => {
+                    const isSelected = selectedPayment === opt.value;
+                    return (
+                      <div
+                        key={opt.value}
+                        onClick={() => setSelectedPayment(opt.value)}
+                        style={{
+                          padding: 20, borderRadius: 16, cursor: 'pointer',
+                          border: isSelected ? '2px solid var(--brand-teal)' : '2px solid var(--border-color)',
+                          background: isSelected ? 'var(--brand-amber-soft)' : 'transparent',
+                          display: 'flex', alignItems: 'center', gap: 16,
+                          transition: 'all 0.2s ease',
+                          position: 'relative',
+                        }}
+                      >
+                        <div style={{ width: 48, height: 48, borderRadius: 12, background: opt.bg, color: opt.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>{opt.icon}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-main)' }}>{opt.title}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 2 }}>{opt.desc}</div>
                         </div>
-                      </Radio.Button>
-                    ))}
-                  </Radio.Group>
-                </Form.Item>
+                        {isSelected && (
+                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--brand-teal)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>
+                            <CheckOutlined />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </Form>
           </Col>
 
+          {/* Order Summary */}
           <Col xs={24} lg={10}>
             <div style={{ borderRadius: 24, position: 'sticky', top: 100, background: 'white', padding: 32, border: '1px solid var(--border-color)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
               <Title level={4} style={{ fontWeight: 800, color: 'var(--text-main)', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -237,6 +322,74 @@ export default function Checkout() {
           </Col>
         </Row>
       </div>
+
+      {/* ── QR PAYMENT MODAL ─────────────────────────────────────────────── */}
+      <Modal
+        open={showQRModal}
+        onCancel={handleQRClose}
+        footer={null}
+        centered
+        width={480}
+        closable={false}
+        maskClosable={false}
+        styles={{ body: { padding: 0 } }}
+      >
+        <div style={{ padding: '32px 28px', textAlign: 'center' }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: selectedPayment === 'momo' ? '#FCE7F3' : '#E0F2FE', color: selectedPayment === 'momo' ? '#DB2777' : '#0284C7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, margin: '0 auto 12px' }}>
+              {selectedPayment === 'momo' ? <WalletOutlined /> : <CreditCardOutlined />}
+            </div>
+            <Title level={4} style={{ margin: 0, fontWeight: 800, color: 'var(--text-main)' }}>
+              {selectedPayment === 'momo' ? 'Thanh Toán Qua MoMo' : 'Chuyển Khoản Ngân Hàng'}
+            </Title>
+            <Text style={{ color: 'var(--text-muted)', fontSize: 13 }}>Quét mã QR bên dưới để thanh toán</Text>
+          </div>
+
+          <div style={{ background: 'white', borderRadius: 16, padding: 16, marginBottom: 20, border: '1px solid var(--border-color)', display: 'inline-block' }}>
+            <img
+              src={qrUrl}
+              alt="QR Thanh toán"
+              style={{ width: 220, height: 220, objectFit: 'contain' }}
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          </div>
+
+          <div style={{ background: 'var(--bg-main)', borderRadius: 14, padding: 16, marginBottom: 20, textAlign: 'left', fontSize: 13 }}>
+            {[
+              { label: 'Ngân hàng', val: BANK_INFO.bankName },
+              { label: 'Số tài khoản', val: BANK_INFO.accountNo, copy: true },
+              { label: 'Chủ tài khoản', val: BANK_INFO.accountName },
+              { label: 'Số tiền', val: formatPrice(total) },
+              { label: 'Nội dung CK', val: qrContent, copy: true },
+            ].map((row) => (
+              <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border-color)' }}>
+                <Text style={{ color: 'var(--text-muted)' }}>{row.label}</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Text strong style={{ fontSize: 13 }}>{row.val}</Text>
+                  {row.copy && (
+                    <CopyOutlined onClick={() => copyToClipboard(row.val)} style={{ cursor: 'pointer', color: 'var(--brand-teal)', fontSize: 14 }} />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            <Button block size="large" onClick={handleQRClose} icon={<ClockCircleOutlined />}
+              style={{ height: 48, borderRadius: 12, fontWeight: 600 }}>
+              Thanh toán sau
+            </Button>
+            <Button type="primary" block size="large" onClick={handleQRClose} icon={<CheckCircleOutlined />}
+              style={{ height: 48, borderRadius: 12, fontWeight: 700, background: '#22C55E', border: 'none' }}>
+              Tôi đã thanh toán
+            </Button>
+          </div>
+
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 12 }}>
+            Đơn hàng sẽ được xác nhận sau khi chúng tôi nhận được thanh toán
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

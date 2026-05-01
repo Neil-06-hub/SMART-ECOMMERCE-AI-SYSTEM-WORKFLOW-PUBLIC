@@ -150,7 +150,7 @@ export default function AdminUsers() {
       render: (_, u) => (
         <Space size={10}>
           <Avatar
-            src={u.avatar}
+            src={u.avatar || null}
             size={36}
             style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', flexShrink: 0 }}
           >

@@ -18,7 +18,8 @@ const behavioralEventSchema = new mongoose.Schema({
   productId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Product",
-    required: true,
+    required: false,
+    default: null,
   },
   eventType: {
     type: String,

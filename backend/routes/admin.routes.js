@@ -4,15 +4,20 @@ const { protect, adminOnly } = require("../middleware/authMiddleware");
 const { upload } = require("../config/cloudinary");
 const {
   getDashboardStats, getAIAnalysis,
+  getEnhancedRevenue, getInventoryTrends, getWishlistStats,
   getAllProducts, createProduct, updateProduct, deleteProduct,
   getAllOrders, updateOrderStatus,
   getAllUsers, updateUser, deleteUser, toggleBlockUser,
   getMarketingLogs, triggerMarketing,
+  getAdminAlerts,
 } = require("../controllers/admin.controller");
 
 router.use(protect, adminOnly);
 
 // Dashboard
+router.get("/dashboard/revenue", getEnhancedRevenue);
+router.get("/dashboard/inventory-trends", getInventoryTrends);
+router.get("/dashboard/wishlist-stats", getWishlistStats);
 router.get("/dashboard", getDashboardStats);
 router.get("/dashboard/ai-analysis", getAIAnalysis);
 
@@ -35,5 +40,8 @@ router.patch("/users/:id/toggle-block", toggleBlockUser);
 // Marketing
 router.get("/marketing/logs", getMarketingLogs);
 router.post("/marketing/trigger", triggerMarketing);
+
+// Alerts
+router.get("/alerts", getAdminAlerts);
 
 module.exports = router;

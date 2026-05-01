@@ -390,4 +390,4 @@ Output format (JSON only):
   }
 };
 
-module.exports = { generateMarketingEmail, analyzeBusinessWithAI, generateNewsletterEmail };
+module.exports = { generateMarketingEmail, analyzeBusinessWithAI, generateNewsletterEmail, runOpenRouterJSON };

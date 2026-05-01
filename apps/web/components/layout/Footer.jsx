@@ -9,7 +9,7 @@ const { Footer: AntFooter } = Layout;
 const footerLinks = {
   'Sản Phẩm': [
     { label: 'Cửa hàng', to: '/shop' },
-    { label: 'AI Gợi ý', to: '/shop' },
+    { label: 'AI Gợi ý', to: '/ai-suggest' },
     { label: 'Bán chạy', to: '/shop' },
     { label: 'Khuyến mãi', to: '/shop' },
   ],
@@ -29,34 +29,53 @@ const footerLinks = {
 
 const Footer = () => (
   <AntFooter style={{
-    background: 'linear-gradient(135deg, var(--brand-teal) 0%, var(--brand-teal-light) 100%)',
+    background: 'var(--color-footer-bg, #FFFDF8)',
+    borderTop: '1px solid var(--color-border, #E7D9C8)',
     padding: '64px 0 0',
   }}>
     <div className="container" style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px' }}>
       <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 48 }}>
+
         {/* Brand */}
-        <div style={{ maxWidth: 380 }}>
+        <div style={{ maxWidth: 360 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
             <div style={{
-              width: 36, height: 36, background: 'rgba(255,255,255,0.2)',
-              borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'white', fontSize: 18, fontWeight: 700, border: '1px solid rgba(255,255,255,0.3)',
+              width: 36, height: 36,
+              background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))',
+              borderRadius: 10,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', fontSize: 17, fontWeight: 700,
+              boxShadow: '0 4px 10px rgba(232,93,4,0.22)',
             }}>S</div>
-            <span style={{ color: 'white', fontWeight: 700, fontSize: 18 }}>SmartShop AI</span>
+            <span style={{ color: 'var(--color-primary, #E85D04)', fontWeight: 700, fontSize: 18 }}>SmartShop AI</span>
           </div>
-          <p style={{ color: 'rgba(255,255,255,0.8)', lineHeight: 1.7, marginBottom: 24, fontSize: 14 }}>
+
+          <p style={{ color: 'var(--color-text-muted, #6B7280)', lineHeight: 1.75, marginBottom: 24, fontSize: 14 }}>
             Hệ thống thương mại điện tử thông minh tích hợp Google Gemini AI.
-            Cá nhân hóa trải nghiệm mua sắm, tự động hóa Marketing, và phân
-            tích kinh doanh thông minh cho tương lai số.
+            Cá nhân hóa trải nghiệm mua sắm, tự động hóa Marketing, và phân tích kinh doanh thông minh.
           </p>
+
           <div>
-            <p style={{ color: 'white', fontWeight: 600, marginBottom: 8, fontSize: 13 }}>Nhận tin AI mới nhất</p>
-            <Space.Compact style={{ width: '100%', maxWidth: 400 }}>
+            <p style={{ color: 'var(--color-text, #111827)', fontWeight: 600, marginBottom: 10, fontSize: 13 }}>Nhận tin AI mới nhất</p>
+            <Space.Compact style={{ width: '100%', maxWidth: 360 }}>
               <Input
                 placeholder="Email của bạn"
-                style={{ borderRadius: '8px 0 0 8px', border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: 'white', height: 40 }}
+                style={{
+                  borderRadius: '8px 0 0 8px',
+                  border: '1px solid var(--color-border, #E7D9C8)',
+                  background: '#FFFFFF',
+                  color: 'var(--color-text, #111827)',
+                  height: 40,
+                }}
               />
-              <Button style={{ background: 'white', color: 'var(--brand-teal)', fontWeight: 600, border: 'none', borderRadius: '0 8px 8px 0', height: 40 }}>
+              <Button style={{
+                background: 'var(--color-primary, #E85D04)',
+                color: 'white',
+                fontWeight: 600,
+                border: 'none',
+                borderRadius: '0 8px 8px 0',
+                height: 40,
+              }}>
                 Đăng ký
               </Button>
             </Space.Compact>
@@ -67,10 +86,15 @@ const Footer = () => (
         <div style={{ display: 'flex', gap: 64, flexWrap: 'wrap' }}>
           {Object.entries(footerLinks).map(([title, links]) => (
             <div key={title}>
-              <h4 style={{ color: 'white', fontWeight: 700, marginBottom: 24, fontSize: 16 }}>{title}</h4>
+              <h4 style={{ color: 'var(--color-text, #111827)', fontWeight: 700, marginBottom: 22, fontSize: 15 }}>{title}</h4>
               {links.map((link) => (
                 <div key={link.label} style={{ marginBottom: 12 }}>
-                  <Link href={link.to} style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, textDecoration: 'none' }}>
+                  <Link
+                    href={link.to}
+                    style={{ color: 'var(--color-text-muted, #6B7280)', fontSize: 14, textDecoration: 'none', transition: 'color 0.2s' }}
+                    onMouseEnter={(e) => { e.target.style.color = 'var(--color-primary, #E85D04)'; }}
+                    onMouseLeave={(e) => { e.target.style.color = 'var(--color-text-muted, #6B7280)'; }}
+                  >
                     {link.label}
                   </Link>
                 </div>
@@ -80,18 +104,28 @@ const Footer = () => (
         </div>
       </div>
 
-      {/* Bottom */}
+      {/* Bottom bar */}
       <div style={{
-        borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: 24, paddingBottom: 24,
+        borderTop: '1px solid var(--color-border, #E7D9C8)',
+        paddingTop: 24, paddingBottom: 24,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
       }}>
-        <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+        <span style={{ color: 'var(--color-text-muted, #6B7280)', fontSize: 13 }}>
           © 2026 SmartShop AI. Powered by Google Gemini 1.5 Flash
         </span>
-        <Space size={16}>
-          <FacebookOutlined style={{ fontSize: 20, color: 'rgba(255,255,255,0.8)', cursor: 'pointer' }} />
-          <TwitterOutlined style={{ fontSize: 20, color: 'rgba(255,255,255,0.8)', cursor: 'pointer' }} />
-          <InstagramOutlined style={{ fontSize: 20, color: 'rgba(255,255,255,0.8)', cursor: 'pointer' }} />
+        <Space size={18}>
+          <FacebookOutlined style={{ fontSize: 19, color: 'var(--color-text-muted, #6B7280)', cursor: 'pointer', transition: 'color 0.2s' }}
+            onMouseEnter={(e) => { e.target.style.color = 'var(--color-primary, #E85D04)'; }}
+            onMouseLeave={(e) => { e.target.style.color = 'var(--color-text-muted, #6B7280)'; }}
+          />
+          <TwitterOutlined style={{ fontSize: 19, color: 'var(--color-text-muted, #6B7280)', cursor: 'pointer', transition: 'color 0.2s' }}
+            onMouseEnter={(e) => { e.target.style.color = 'var(--color-primary, #E85D04)'; }}
+            onMouseLeave={(e) => { e.target.style.color = 'var(--color-text-muted, #6B7280)'; }}
+          />
+          <InstagramOutlined style={{ fontSize: 19, color: 'var(--color-text-muted, #6B7280)', cursor: 'pointer', transition: 'color 0.2s' }}
+            onMouseEnter={(e) => { e.target.style.color = 'var(--color-primary, #E85D04)'; }}
+            onMouseLeave={(e) => { e.target.style.color = 'var(--color-text-muted, #6B7280)'; }}
+          />
         </Space>
       </div>
     </div>

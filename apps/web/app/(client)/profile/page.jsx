@@ -137,7 +137,7 @@ export default function Profile() {
           <Card style={{ borderRadius: 12, textAlign: 'center' }}>
             <Upload name="avatar" showUploadList={false} beforeUpload={beforeUpload} accept="image/*">
               <div style={{ position: 'relative', display: 'inline-block', cursor: 'pointer' }}>
-                <Avatar size={100} icon={<UserOutlined />} src={avatarPreview || user?.avatar} style={{ background: '#667eea', marginBottom: 16 }} />
+                <Avatar size={100} icon={<UserOutlined />} src={avatarPreview || user?.avatar || null} style={{ background: '#667eea', marginBottom: 16 }} />
                 <div style={{ position: 'absolute', bottom: 16, right: 0, background: '#667eea', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <CameraOutlined style={{ color: 'white', fontSize: 14 }} />
                 </div>

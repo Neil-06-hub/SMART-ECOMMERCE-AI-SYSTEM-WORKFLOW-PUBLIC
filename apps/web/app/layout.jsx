@@ -1,4 +1,5 @@
 import './globals.css';
+import { GeistSans } from 'geist/font/sans';
 import Providers from './providers';
 
 export const metadata = {
@@ -8,7 +9,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="vi">
+    <html lang="vi" className={GeistSans.variable}>
       <body>
         <Providers>{children}</Providers>
       </body>

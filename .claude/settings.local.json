@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.getdesign.app)",
+      "WebFetch(domain:support.claude.com)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:agence-scroll.com)",
+      "WebFetch(domain:kersai.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:mobbin.com)",
+      "WebFetch(domain:beginswithai.com)",
+      "WebFetch(domain:www.color-hex.com)",
+      "WebFetch(domain:impeccable.style)",
+      "Bash(xargs sed *)",
+      "Bash(git restore *)",
+      "Bash(node -e \"const pkg = require\\('./package.json'\\); console.log\\('geist:', pkg.dependencies.geist || 'NOT FOUND'\\); console.log\\('framer-motion:', pkg.dependencies['framer-motion'] || 'NOT FOUND'\\)\")",
+      "Bash(npx next *)",
+      "Bash(grep -vE \"^$|Trace|EPERM|trace\")"
+    ]
+  }
+}

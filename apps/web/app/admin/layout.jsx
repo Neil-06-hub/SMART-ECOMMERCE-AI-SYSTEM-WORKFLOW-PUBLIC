@@ -3,16 +3,37 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Layout, Menu, Avatar, Dropdown, theme } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, theme, Badge } from 'antd';
 import {
   DashboardOutlined, AppstoreOutlined, OrderedListOutlined,
   TeamOutlined, NotificationOutlined, LogoutOutlined, UserOutlined,
-  ShopOutlined, TagOutlined,
+  ShopOutlined, TagOutlined, BellOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store/useStore';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { adminAPI } from '@/lib/api';
+import AdminNotificationBell from './_components/AdminNotificationBell';
 
 const { Header, Sider, Content } = Layout;
+
+function NotificationMenuLabel() {
+  const { data } = useQuery({
+    queryKey: ['admin-alerts'],
+    queryFn: () => adminAPI.getAlerts().then((r) => r.data.data),
+    staleTime: 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
+  });
+  const total = data?.total ?? 0;
+  return (
+    <Link href="/admin/notifications" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      Thông báo
+      {total > 0 && (
+        <Badge count={total} overflowCount={99} size="small"
+          styles={{ indicator: { background: '#ef4444', boxShadow: 'none', fontSize: 10 } }} />
+      )}
+    </Link>
+  );
+}
 
 const menuItems = [
   { key: '/admin/dashboard', icon: <DashboardOutlined />, label: <Link href="/admin/dashboard">Dashboard</Link> },
@@ -20,6 +41,7 @@ const menuItems = [
   { key: '/admin/orders', icon: <OrderedListOutlined />, label: <Link href="/admin/orders">Đơn hàng</Link> },
   { key: '/admin/users', icon: <TeamOutlined />, label: <Link href="/admin/users">Khách hàng</Link> },
   { key: '/admin/discounts', icon: <TagOutlined />, label: <Link href="/admin/discounts">Mã giảm giá</Link> },
+  { key: '/admin/notifications', icon: <BellOutlined />, label: <NotificationMenuLabel /> },
   { key: '/admin/marketing', icon: <NotificationOutlined />, label: <Link href="/admin/marketing">Marketing AI</Link> },
 ];
 
@@ -66,10 +88,11 @@ export default function AdminLayout({ children }) {
         />
       </Sider>
       <Layout>
-        <Header style={{ padding: '0 24px', background: colorBgContainer, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
+        <Header style={{ padding: '0 24px', background: colorBgContainer, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
+          <AdminNotificationBell />
           <Dropdown menu={userMenu} placement="bottomRight" trigger={['click']}>
             <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Avatar src={user?.avatar} icon={!user?.avatar && <UserOutlined />}
+              <Avatar src={user?.avatar || null} icon={!user?.avatar && <UserOutlined />}
                 style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }} />
               <span style={{ fontWeight: 500 }}>{user?.name}</span>
             </div>
