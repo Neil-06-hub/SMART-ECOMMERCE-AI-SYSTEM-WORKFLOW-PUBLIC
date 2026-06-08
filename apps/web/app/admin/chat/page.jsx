@@ -213,7 +213,7 @@ export default function AdminChatPage() {
                   />
                 </div>
               </Tabs.TabPane>
-            </Card>
+            </Tabs>
           </Card>
         </Col>
 

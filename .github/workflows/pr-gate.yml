@@ -39,8 +39,8 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          pip install --no-cache-dir "setuptools<70.0.0" wheel Cython "numpy==1.26.4"
-          pip install --no-cache-dir lightfm==1.17
+          pip install --no-cache-dir wheel Cython "numpy==1.26.4"
+          pip install --no-cache-dir lightfm-next
 
       - name: Install package
         run: pip install -e apps/ai-service/

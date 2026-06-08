@@ -14,11 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir uv
 
 # 3. BƯỚC QUAN TRỌNG NHẤT: Cài đặt mồi bằng pip (không dùng uv ở bước này)
-# Chúng ta cài numpy và setuptools bản cũ hơn một chút để tương thích với LightFM
-RUN pip install --no-cache-dir "setuptools<70.0.0" wheel Cython numpy==1.26.4
+RUN pip install --no-cache-dir wheel Cython numpy==1.26.4
 
 # 4. Cài đặt LightFM riêng lẻ bằng pip để tránh cơ chế build nghiêm ngặt của uv
-RUN pip install --no-cache-dir lightfm==1.17
+RUN pip install --no-cache-dir lightfm-next
 
 # 5. Bây giờ mới copy file cấu hình project
 COPY pyproject.toml uv.lock* ./
