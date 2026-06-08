@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Tag, Empty, Spin, Typography, Button, Modal, message, Tooltip } from 'antd';
+import { App, Tag, Empty, Spin, Typography, Button, Modal, Tooltip } from 'antd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { orderAPI } from '@/lib/api';
@@ -39,6 +39,7 @@ const paymentStatusLabels = {
 export default function OrderHistory() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { message, modal } = App.useApp();
   const [detailOrder, setDetailOrder] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -73,7 +74,7 @@ export default function OrderHistory() {
   };
 
   const handleCancel = (orderId) => {
-    Modal.confirm({
+    modal.confirm({
       title: 'Xác nhận hủy đơn hàng',
       icon: <ExclamationCircleOutlined />,
       content: 'Bạn có chắc chắn muốn hủy đơn hàng này? Thao tác không thể hoàn tác.',

@@ -29,7 +29,7 @@ const ACTION_TO_EVENT_TYPE = {
 async function callFastAPI(userId, placement, n, filters = {}, preferences = [], keywords = null) {
   const fastApiUrl = process.env.FASTAPI_URL || "http://127.0.0.1:8000";
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 500);
+  const timer = setTimeout(() => controller.abort(), 3000);
   try {
     const response = await fetch(`${fastApiUrl}/recommend`, {
       method: "POST",
@@ -53,7 +53,7 @@ async function callFastAPI(userId, placement, n, filters = {}, preferences = [],
 
 // ── Circuit breaker (opossum) ────────────────────────────────────────────────
 const breakerOptions = {
-  timeout: 500,                    // ms — fail fast
+  timeout: 3000,                    // ms — fail fast
   errorThresholdPercentage: 50,    // open circuit when ≥50% of last N calls fail
   resetTimeout: 60000,             // ms — try again after 60s
   volumeThreshold: 5,              // min requests before measuring error %
@@ -61,9 +61,17 @@ const breakerOptions = {
 
 const breaker = new CircuitBreaker(callFastAPI, breakerOptions);
 
-// Fallback: featured products when circuit is open
+// Fallback: featured products when circuit is open (respecting budget)
 breaker.fallback(async (userId, placement, n, filters, preferences, keywords) => {
-  const products = await Product.find({ isActive: true, featured: true }).limit(n);
+  const query = { isActive: true, featured: true };
+  if (filters) {
+    if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
+      query.price = {};
+      if (filters.minPrice !== undefined) query.price.$gte = filters.minPrice;
+      if (filters.maxPrice !== undefined) query.price.$lte = filters.maxPrice;
+    }
+  }
+  const products = await Product.find(query).limit(n);
   return {
     productIds: products.map((p) => p._id.toString()),
     scores: [],
@@ -88,6 +96,7 @@ const getPersonalizedRecommendations = async (req, res) => {
     const filters = {};
     if (req.query.minPrice) filters.minPrice = parseFloat(req.query.minPrice);
     if (req.query.maxPrice) filters.maxPrice = parseFloat(req.query.maxPrice);
+    if (req.query.purpose) filters.purpose = req.query.purpose;
 
     const preferences = req.query.preferences
       ? req.query.preferences.split(',').filter(Boolean)
@@ -117,7 +126,15 @@ const getPersonalizedRecommendations = async (req, res) => {
     });
   } catch (err) {
     console.error("Recommendation error:", err.message);
-    const products = await Product.find({ isActive: true, featured: true }).limit(8);
+    const query = { isActive: true, featured: true };
+    const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice) : undefined;
+    const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice) : undefined;
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      query.price = {};
+      if (minPrice !== undefined) query.price.$gte = minPrice;
+      if (maxPrice !== undefined) query.price.$lte = maxPrice;
+    }
+    const products = await Product.find(query).limit(8);
     res.json({ success: true, products, type: "featured_fallback", message: "Lỗi AI, hiển thị SP nổi bật" });
   }
 };
@@ -345,4 +362,40 @@ Output JSON only:
   }
 };
 
-module.exports = { getPersonalizedRecommendations, trackActivity, trackPublicEvent, getMySignals, getSearchSuggestions, trackSearch, chatSearch };
+// @desc  AI bot chat counselor (public, no auth)
+// @route POST /api/ai/bot-chat
+const botChat = async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ success: false, message: "Messages history is required" });
+    }
+
+    const { chatWithAI } = require("../services/groq.service");
+    
+    // Gọi Groq API để lấy câu trả lời
+    const reply = await chatWithAI(messages);
+    
+    // Kiểm tra xem tin nhắn cuối của khách hoặc câu trả lời của AI có yêu cầu gặp nhân viên không
+    const lastMessage = messages[messages.length - 1]?.content || "";
+    const lowerLast = lastMessage.toLowerCase();
+    const lowerReply = reply.toLowerCase();
+    
+    const requestHuman = lowerLast.includes("gặp nhân viên") || 
+                         lowerLast.includes("nói chuyện với người") || 
+                         lowerLast.includes("gặp hỗ trợ") ||
+                         lowerLast.includes("nhân viên trực") ||
+                         lowerReply.includes("kết nối bạn với nhân viên") ||
+                         lowerReply.includes("đợi trong giây lát");
+
+    res.json({
+      success: true,
+      reply,
+      requestHuman,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getPersonalizedRecommendations, trackActivity, trackPublicEvent, getMySignals, getSearchSuggestions, trackSearch, chatSearch, botChat };

@@ -18,13 +18,14 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │
 ├── backend/                               ← Express.js 4 + JavaScript (port 5000)
 │   ├── server.js                          ← Entry: Express init, MongoDB, routes, cron
+│   ├── socket.js                          ← Real-time communication via Socket.io
 │   ├── config/
 │   │   ├── db.js                          ← Mongoose connect
 │   │   └── cloudinary.js                  ← Cloudinary SDK init
 │   ├── middleware/
 │   │   ├── authMiddleware.js              ← protect() + adminOnly()
 │   │   └── errorMiddleware.js             ← global error handler
-│   ├── models/                            ← 10 Mongoose schemas
+│   ├── models/                            ← 12 Mongoose schemas
 │   │   ├── User.js                        ← role, isBlocked, wishlist, preferences
 │   │   ├── Product.js                     ← isActive (soft delete), tags, reviews
 │   │   ├── Order.js                       ← orderStatus FSM, items snapshot
@@ -34,7 +35,9 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │   │   ├── ModelVersion.js                ← CF/CBF version registry
 │   │   ├── DiscountCode.js                ← percent/fixed, usageLimit
 │   │   ├── Notification.js                ← in-app notifications
-│   │   └── MarketingLog.js                ← email campaign audit log
+│   │   ├── MarketingLog.js                ← email campaign audit log
+│   │   ├── SupportRoom.js                 ← Support room status (bot/waiting/active)
+│   │   └── Message.js                     ← Detailed chat history
 │   ├── controllers/                       ← 8 controllers
 │   │   ├── auth.controller.js             ← register, login, getMe, updateProfile
 │   │   ├── product.controller.js          ← CRUD + reviews + search
@@ -56,9 +59,10 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │   │   └── discount.public.routes.js      ← /api/discounts (public validate)
 │   ├── services/
 │   │   ├── recommendation.service.js      ← MongoDB content-based fallback
-│   │   ├── gemini.service.js              ← Google Gemini AI client
+│   │   ├── gemini.service.js              ← Compatibility layer redirecting to Groq
+│   │   ├── groq.service.js                ← Groq API Llama 3 Client (chat consulting + marketing)
 │   │   ├── email.service.js               ← Nodemailer Gmail SMTP
-│   │   └── marketing.service.js           ← Gemini-generated email copy
+│   │   └── marketing.service.js           ← Gemini-generated email copy (now groq)
 │   ├── jobs/
 │   │   └── marketing.cron.js             ← node-cron: abandoned cart + newsletter
 │   ├── seeds/
@@ -103,10 +107,10 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │   │   │   ├── products/[id]/page.jsx     ← ISR: PDP + similar items
 │   │   │   ├── cart/page.jsx              ← CSR: cart management
 │   │   │   ├── checkout/page.jsx          ← CSR: payment + address
-│   │   │   ├── orders/page.jsx            ← SSR: order history
+│   │   │   ├── orders/page.jsx            ← SSR: order history (order cancellation fixed)
 │   │   │   ├── wishlist/page.jsx          ← CSR: saved products
 │   │   │   ├── profile/page.jsx           ← SSR: user profile
-│   │   │   ├── ai-suggest/page.jsx        ← CSR: AI demo page
+│   │   │   ├── ai-suggest/page.jsx        ← CSR: AI suggest page (budget & precision optimized)
 │   │   │   └── client-page.jsx            ← shared client wrapper
 │   │   ├── admin/
 │   │   │   ├── dashboard/page.jsx         ← analytics charts (Ant Design Charts)
@@ -114,10 +118,18 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │   │   │   ├── orders/page.jsx            ← order management + status
 │   │   │   ├── users/page.jsx             ← user management + blocking
 │   │   │   ├── discounts/page.jsx         ← discount code management
-│   │   │   └── marketing/page.jsx         ← campaign + RFM segmentation
+│   │   │   ├── marketing/page.jsx         ← campaign + RFM segmentation
+│   │   │   └── chat/page.jsx              ← CSR: Admin chat queue with customer handoff
 │   │   ├── login/page.jsx, register/page.jsx
-│   │   ├── layout.jsx, providers.jsx
+│   │   ├── layout.jsx, providers.jsx      ← includes ChatbotWidget for customers
 │   │   └── admin/layout.jsx
+│   ├── components/
+│   │   ├── ai/
+│   │   │   └── ChatbotWidget.jsx          ← Customer 2-in-1 Floating Chatbot Widget
+│   │   └── shop/
+│   │       └── ShopHero.jsx
+│   ├── hooks/
+│   │   └── useChatSocket.js               ← Socket.io React hook for real-time chat
 │   ├── Dockerfile
 │   ├── package.json
 │   └── .env.example
@@ -130,7 +142,7 @@ SMART-ECOMMERCE-AI-SYSTEM/
 │   └── deploy-web.yml                     ← Vercel auto-deploy trigger log
 │
 ├── docker-compose.yml                     ← local dev: mongodb + backend + ai + web
-├── render.yaml                            ← Render.com multi-service config
+│   └── render.yaml                        ← Render.com multi-service config
 └── docs/                                  ← design & architecture documentation
 ```
 
@@ -746,7 +758,7 @@ recommendation/
 │   └── recommendation.controller.ts           # GET /recommendations, POST /events
 ├── services/
 │   ├── recommendation.service.ts             # getRecommendations(): cache → FastAPI → fallback
-│   ├── ai-client.service.ts                   # opossum circuit breaker: timeout=500ms,
+│   ├── ai-client.service.ts                   # opossum circuit breaker: timeout=3000ms,
 │   │                                          # errorThreshold=50%, reset=60s
 │   ├── fallback.service.ts                    # getPopularProducts(): MongoDB agg + Redis cache 1h
 │   └── behavioral-event.service.ts            # publishEvent(): async MongoDB insertOne fire-and-forget

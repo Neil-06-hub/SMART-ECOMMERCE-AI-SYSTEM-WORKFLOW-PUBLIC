@@ -20,6 +20,11 @@ COLD_START_ALPHA = {
     "few_interactions": 0.2, # < 5 interactions → CBF-heavy
 }
 
+VIETNAMESE_STOPWORDS = {
+    "và", "hoặc", "nhưng", "với", "cho", "của", "để", "tại", "trong", "ở", "có",
+    "là", "này", "kia", "đó", "được", "bị", "bởi", "lên", "ra", "vào", "lại", "qua", "theo"
+}
+
 
 def normalize(arr: np.ndarray) -> np.ndarray:
     """Min-max normalize array to [0, 1]. Returns zeros if range is zero."""
@@ -48,9 +53,9 @@ def get_recommendations(
 
     Args:
         user_id: MongoDB ObjectId string or None for anonymous
-        placement: "homepage" | "pdp" | "cart"
+        placement: "homepage" | "pdp" | "cart" | "ai_suggest"
         n: number of results to return
-        filters: { excludeOos, minPrice, maxPrice, excludeIds }
+        filters: { excludeOos, minPrice, maxPrice, excludeIds, purpose }
         registry: ModelRegistry instance (cf_model, cf_dataset, cbf_similarity)
         all_item_ids: list of all product id strings
         all_products: list of product dicts (for price filtering)
@@ -69,9 +74,12 @@ def get_recommendations(
     placement_cfg = PLACEMENT_CONFIG.get(placement, {"alpha": 0.5, "n": 12})
     base_alpha = float(placement_cfg["alpha"])
 
-    # Cold-start adjustments
+    # Cold-start adjustments & gift purpose override
     if not user_id:
         alpha = settings.ALPHA_ANONYMOUS  # anonymous → 0.0
+    elif filters.get("purpose") == "gift":
+        alpha = 0.0  # gift buying → ignore personal CF history
+        logger.info("[hybrid] purpose is gift, disabling CF (alpha = 0.0)")
     elif user_interaction_count == 0:
         alpha = COLD_START_ALPHA["no_history"]
     elif user_interaction_count < 5:
@@ -99,25 +107,74 @@ def get_recommendations(
     else:
         cf_raw = np.zeros(n_items, dtype=np.float32)
 
-    # ── CBF scores ─────────────────────────────────────────────────────────
+    # ── Calculate explicit signal scores (preferences & keywords) ──────────
+    preference_scores = np.zeros(n_items, dtype=np.float32)
+    if preferences:
+        prefs_set = {p.lower() for p in preferences}
+        for i, prod in enumerate(all_products):
+            prod_name = prod.get("name", "").lower()
+            prod_category = prod.get("category", "").lower()
+            prod_tags = [t.lower() for t in prod.get("tags", [])]
+            
+            overlap = 0
+            for pref in prefs_set:
+                if (pref in prod_name or 
+                    pref in prod_category or 
+                    any(pref in t or t in pref for t in prod_tags)):
+                    overlap += 1
+            if prefs_set:
+                preference_scores[i] = overlap / len(prefs_set)
+
+    keyword_scores = np.zeros(n_items, dtype=np.float32)
+    if keywords and keywords.strip():
+        # Clean query by removing common stop words
+        kw_tokens = {w for w in keywords.lower().split() if w not in VIETNAMESE_STOPWORDS}
+        if kw_tokens:
+            for i, prod in enumerate(all_products):
+                prod_text = (
+                    f"{prod.get('name', '')} "
+                    f"{prod.get('category', '')} "
+                    f"{' '.join(prod.get('tags', []))}"
+                ).lower()
+                match_count = sum(1 for kw in kw_tokens if kw in prod_text)
+                keyword_scores[i] = match_count / len(kw_tokens)
+
+    # ── CBF scores (Base CBF: either recent views similarity or popularity) ──
     item_index = {iid: i for i, iid in enumerate(all_item_ids)}
 
-    if registry.cbf_similarity and user_recent_views:
+    if registry.cbf_similarity and user_recent_views and filters.get("purpose") != "gift":
         try:
-            cbf_raw = get_cbf_scores_for_user(
+            base_cbf = get_cbf_scores_for_user(
                 registry.cbf_similarity,
                 item_index,
                 user_recent_views,
                 n_items,
             )
+            base_cbf = normalize(base_cbf)
         except Exception as e:
             logger.error(f"CBF scoring failed: {e}")
-            cbf_raw = np.zeros(n_items, dtype=np.float32)
+            base_cbf = np.zeros(n_items, dtype=np.float32)
     else:
-        # Fallback: use view/purchase counts as CBF signal (popularity)
-        cbf_raw = np.zeros(n_items, dtype=np.float32)
+        # Fallback base CBF: use view/purchase counts as CBF signal (popularity)
+        pop_raw = np.zeros(n_items, dtype=np.float32)
         for i, prod in enumerate(all_products):
-            cbf_raw[i] = float(prod.get("sold", 0)) + float(prod.get("rating", 0)) * 10
+            pop_raw[i] = float(prod.get("sold", 0)) + float(prod.get("rating", 0)) * 10
+        base_cbf = normalize(pop_raw)
+
+    # ── Blend explicit signals directly into CBF score ──────────────────────
+    has_explicit = bool(preferences) or bool(keywords and keywords.strip())
+    if has_explicit:
+        if preferences and keywords and keywords.strip():
+            explicit_score = 0.5 * preference_scores + 0.5 * keyword_scores
+        elif preferences:
+            explicit_score = preference_scores
+        else:
+            explicit_score = keyword_scores
+        
+        # Blend: 80% explicit inputs, 20% background base CBF (popularity/recent views)
+        cbf_raw = 0.8 * explicit_score + 0.2 * base_cbf
+    else:
+        cbf_raw = base_cbf
 
     # ── Normalize and combine ──────────────────────────────────────────────
     cf_norm = normalize(cf_raw)
@@ -144,37 +201,6 @@ def get_recommendations(
         # Explicit exclusion
         if str(prod.get("_id", "")) in exclude_ids:
             hybrid[i] = -1.0
-
-    # ── Preference tag boost (style/color matching) ────────────────────────
-    PREF_BOOST_WEIGHT = 0.15
-    if preferences:
-        prefs_set = {p.lower() for p in preferences}
-        for i, prod in enumerate(all_products):
-            if hybrid[i] < 0:
-                continue
-            prod_tags = {t.lower() for t in prod.get("tags", [])}
-            prod_features = prod_tags | {prod.get("category", "").lower()}
-            overlap = len(prefs_set & prod_features)
-            if overlap > 0:
-                boost = (overlap / len(prefs_set)) * PREF_BOOST_WEIGHT
-                hybrid[i] = min(hybrid[i] + boost, 1.0)
-
-    # ── Keyword boost (context/need matching) ──────────────────────────────
-    KW_BOOST_WEIGHT = 0.10
-    if keywords and keywords.strip():
-        kw_tokens = set(keywords.lower().split())
-        for i, prod in enumerate(all_products):
-            if hybrid[i] < 0:
-                continue
-            prod_text = (
-                f"{prod.get('name', '')} "
-                f"{prod.get('category', '')} "
-                f"{' '.join(prod.get('tags', []))}"
-            ).lower()
-            match_count = sum(1 for kw in kw_tokens if kw in prod_text)
-            if match_count > 0:
-                boost = (match_count / len(kw_tokens)) * KW_BOOST_WEIGHT
-                hybrid[i] = min(hybrid[i] + boost, 1.0)
 
     # ── Top-N ──────────────────────────────────────────────────────────────
     valid_indices = np.where(hybrid >= 0)[0]

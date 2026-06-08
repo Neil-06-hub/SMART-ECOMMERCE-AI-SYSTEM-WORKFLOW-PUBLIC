@@ -95,7 +95,7 @@ Health check:  /api/health
 ```
 Runtime:       Python 3
 Root Dir:      apps/ai-service
-Build:         pip install --no-cache-dir "setuptools<70.0.0" wheel Cython "numpy==1.26.4" && pip install --no-cache-dir lightfm==1.17 && pip install -e .
+Build:         pip install --no-cache-dir wheel Cython "numpy==1.26.4" && pip install --no-cache-dir lightfm-next && pip install -e .
 Start:         uvicorn app.main:app --host 0.0.0.0 --port 8000
 Branch:        main
 Health check:  /health

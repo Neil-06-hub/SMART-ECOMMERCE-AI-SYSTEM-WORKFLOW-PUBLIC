@@ -1387,6 +1387,88 @@ export class ErrorLog {
 
 ---
 
+### 3.16 `support_rooms`
+
+**Purpose:** Live support sessions mapping a customer to a support admin (with real-time state).
+**Main access patterns:**
+- Check room state: lookup by `roomId` (userId or sessionId)
+- Support queue: list rooms with `status: 'waiting'` or `status: 'active'` (assigned to current admin)
+- Auto-cleanup / Handoff: update status to `'closed'` or back to `'bot'`
+
+```typescript
+@Schema({ timestamps: true, collection: 'support_rooms' })
+export class SupportRoom extends Document {
+  @Prop({ required: true, unique: true, index: true })
+  roomId: string;             // customer userId or guest sessionId
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null })
+  userId: Types.ObjectId | null;
+
+  @Prop({ required: true })
+  userName: string;
+
+  @Prop({
+    type: String,
+    enum: ['bot', 'waiting', 'active', 'closed'],
+    default: 'bot',
+  })
+  status: string;
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null })
+  adminId: Types.ObjectId | null;
+
+  @Prop({ default: null })
+  adminName: string | null;
+}
+```
+
+**Indexes:**
+
+| Field(s) | Type | Reason |
+|---|---|---|
+| `roomId` | Unique | Room lookup by user session |
+| `status` | — | Support queue filtering |
+
+---
+
+### 3.17 `messages`
+
+**Purpose:** Detailed chat history for both AI bot counseling and real-time live chat sessions.
+**Main access patterns:**
+- Load chat history: find by `roomId` sort `timestamp: 1`
+- Ingest message: create new message log
+
+```typescript
+@Schema({ timestamps: true, collection: 'messages' })
+export class Message extends Document {
+  @Prop({ required: true, index: true })
+  roomId: string;             // customer userId or guest sessionId
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null })
+  senderId: Types.ObjectId | null;
+
+  @Prop({ required: true })
+  senderName: string;
+
+  @Prop({ required: true, enum: ['customer', 'admin', 'bot'] })
+  senderRole: string;
+
+  @Prop({ required: true })
+  message: string;
+
+  @Prop({ required: true, default: Date.now })
+  timestamp: Date;
+}
+```
+
+**Indexes:**
+
+| Field(s) | Type | Reason |
+|---|---|---|
+| `{ roomId, timestamp: 1 }` | Compound | Fetch chronological chat logs |
+
+---
+
 ## 4. Indexing Strategy
 
 Summary of all important indexes (~35 indexes):
@@ -1438,6 +1520,9 @@ Summary of all important indexes (~35 indexes):
 | `push_subscriptions` | `userId` | — | User's push subscriptions |
 | `push_subscriptions` | `endpoint` | Unique | Dedup + cleanup |
 | `push_subscriptions` | `expirationTime` | Sparse | Expired subs cleanup |
+| `support_rooms` | `roomId` | Unique | Room lookup by session |
+| `support_rooms` | `status` | — | Support queue filtering |
+| `messages` | `{ roomId, timestamp: 1 }` | Compound | Fetch chronological chat history |
 
 ### Index Creation Script (Mongoose)
 
@@ -1860,10 +1945,10 @@ db.behavioral_events.aggregate([
 
 | Metric | Value |
 |---|---|
-| **Total Collections** | 14 |
-| **Domains** | User (2), Product (3), Commerce (3), AI (3), Marketing (3) |
+| **Total Collections** | 16 |
+| **Domains** | User (2), Product (3), Commerce (3), AI (3), Marketing (3), Support (2) |
 | **Embedded Sub-schemas** | 8 — Address, ProductVariant, OrderItem, Payment, OrderTimeline, ShippingAddress, CartItem, CampaignMetrics |
-| **Total Indexes** | ~45 (across all collections) |
+| **Total Indexes** | ~48 (across all collections) |
 | **Enum Types** | 12 — UserStatus, Role, ProductStatus, OrderStatus(×9), CouponType, EventType(×7), CampaignStatus, CampaignChannel, PaymentMethod, PaymentStatus, ModelType |
 | **ObjectId Cross-collection References** | 12 |
 | **Redis Key Patterns** | 12 |
@@ -1882,7 +1967,8 @@ User Domain        │ Product Domain    │ Commerce Domain
 ───────────────────┼───────────────────┼──────────────────
 users              │ products          │ orders
 push_subscriptions │ categories        │ carts
-                   │ reviews           │ coupons
+support_rooms      │ reviews           │ coupons
+messages           │                   │
 
 AI Domain          │ Marketing Domain
 ───────────────────┼──────────────────

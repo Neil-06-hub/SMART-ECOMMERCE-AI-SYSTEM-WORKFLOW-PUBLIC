@@ -121,7 +121,7 @@ User muốn xây dựng một "Layer AI Vibe Coding" hoàn chỉnh cho dự án,
 - **Trigger:** apps/ai-service/, train model, feature store, circuit breaker
 - **Context:** ARCHITECTURE.md §4 → TECH_STACK §5 → DATABASE_DESIGN §3.8-3.10 → redis-keys.ts
 - **Training pipeline (7 bước):** fetch_features → train_CF (LightFM WARP) → evaluate (precision@10≥0.30, recall@10≥0.20) → promote_if_better → rebuild_CBF (TF-IDF) → upload R2 → POST /internal/reload-model → update model_versions
-- **Circuit breaker:** timeout 500ms, errorThreshold 50%, reset 60s, fallback popularity
+- **Circuit breaker:** timeout 3000ms, errorThreshold 50%, reset 60s, fallback popularity
 - **Feature store:** `features:user:{userId}` Hash, TTL 2h
 - **Enforce:** behavioral_events max 90 ngày; R2 path `models/{type}/{YYYY-MM-DD}/`; /internal/reload-model cần INTERNAL_API_TOKEN; ML cron `0 19 * * *` UTC
 
@@ -149,7 +149,7 @@ User muốn xây dựng một "Layer AI Vibe Coding" hoàn chỉnh cho dự án,
   - `cd-production.yml`: push main → deploy all + health check
   - `ml-training.yml`: cron `0 19 * * *` UTC, timeout 30min
 - **Docker:** 8 services (express, fastapi, nextjs, mongodb, redis, meilisearch, celery-worker, celery-beat)
-- **Enforce:** actions/checkout@v4; không commit .env; ML cron `0 19 * * *`; /health < 500ms
+- **Enforce:** actions/checkout@v4; không commit .env; ML cron `0 19 * * *`; /health < 3000ms
 
 #### security-guard.md
 - **Trigger:** tasks trong auth/, payment webhook, security review, RBAC, PII handling
@@ -284,7 +284,7 @@ Sau khi tạo xong, test từng skill:
 | `api-contract` | "Validate auth endpoints vs API_SPEC §3.1" | Mismatches + corrected DTOs |
 | `code-reviewer` | "Fix TypeScript errors in catalog module" | Parse tsc output + targeted fixes + 0 errors |
 | `test-engineer` | "Write tests for CartService" | Jest unit với mock repo + e2e với in-memory MongoDB |
-| `ai-ml-engineer` | "Circuit breaker trips every morning" | Diagnose Render cold start > 500ms timeout + fix |
+| `ai-ml-engineer` | "Circuit breaker trips every morning" | Diagnose Render cold start > 3000ms timeout + fix |
 | `frontend-nextjs` | "Build product detail page" | ISR revalidate=300 + TanStack Query hook + shadcn/ui |
 | `devops-ci` | "Create ML training GitHub Actions workflow" | ml-training.yml với cron `0 19 * * *` + timeout 30min |
 

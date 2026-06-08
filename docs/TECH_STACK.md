@@ -27,7 +27,7 @@
 | AI (CBF) | scikit-learn 1.4 | **scikit-learn 1.4** ✅ |
 | Object storage | Cloudflare R2 | **Cloudflare R2** ✅ |
 | Image CDN | Cloudflare R2 | **Cloudinary** (free tier) |
-| AI copy generation | — | **Google Gemini 1.5 Flash** |
+| AI copy generation & chat | — | **Groq API Llama 3 8B** |
 
 ---
 

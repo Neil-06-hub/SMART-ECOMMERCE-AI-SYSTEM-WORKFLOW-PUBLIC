@@ -7,7 +7,7 @@ import { Layout, Menu, Avatar, Dropdown, theme, Badge } from 'antd';
 import {
   DashboardOutlined, AppstoreOutlined, OrderedListOutlined,
   TeamOutlined, NotificationOutlined, LogoutOutlined, UserOutlined,
-  ShopOutlined, TagOutlined, BellOutlined,
+  ShopOutlined, TagOutlined, BellOutlined, MessageOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store/useStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -37,6 +37,7 @@ function NotificationMenuLabel() {
 
 const menuItems = [
   { key: '/admin/dashboard', icon: <DashboardOutlined />, label: <Link href="/admin/dashboard">Dashboard</Link> },
+  { key: '/admin/chat', icon: <MessageOutlined />, label: <Link href="/admin/chat">Hỗ trợ trực tuyến</Link> },
   { key: '/admin/products', icon: <AppstoreOutlined />, label: <Link href="/admin/products">Sản phẩm</Link> },
   { key: '/admin/orders', icon: <OrderedListOutlined />, label: <Link href="/admin/orders">Đơn hàng</Link> },
   { key: '/admin/users', icon: <TeamOutlined />, label: <Link href="/admin/users">Khách hàng</Link> },

@@ -108,16 +108,11 @@ function ShopContent() {
   return (
     <div style={{ background: 'var(--bg-main)', minHeight: '100vh', padding: '32px 24px 56px' }}>
       <div className="container" style={{ maxWidth: 1440 }}>
-        {/* Hero + NL Search */}
+        {/* Hero */}
         <ShopHero
           totalProducts={totalProducts}
           aiCount={aiEnabled && isAuthenticated ? aiProducts.length : 0}
           isLoading={isLoading}
-          onNLSearch={handleNL}
-          onAIFilters={applyAIFilters}
-          onSearch={setSearchText}
-          searchText={searchText}
-          availableCategories={categoriesData || []}
         />
 
         {/* Sticky Toolbar — Filter trigger + Search + Active filters + Mood */}
