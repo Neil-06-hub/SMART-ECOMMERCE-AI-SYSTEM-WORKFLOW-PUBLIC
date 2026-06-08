@@ -42,11 +42,12 @@ export default function AISuggest() {
   const queryClient = useQueryClient();
   const { isAuthenticated, updateUser } = useAuthStore();
 
+  const watchedPurpose = Form.useWatch('purpose', form) || 'self';
   const watchedStyles = Form.useWatch('styles', form) || [];
   const watchedColors = Form.useWatch('colors', form) || [];
   const watchedBudget = Form.useWatch('budget', form) || [0, 100000000];
 
-  const [appliedFilters, setAppliedFilters] = useState({});
+  const [appliedFilters, setAppliedFilters] = useState({ placement: 'ai_suggest' });
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['aiRecommendations', appliedFilters],
@@ -67,7 +68,10 @@ export default function AISuggest() {
     const preferences = [...(values.styles || []), ...(values.colors || [])].filter(Boolean);
     const budget = values.budget || [0, 100000000];
 
-    const filters = {};
+    const filters = {
+      placement: 'ai_suggest'
+    };
+    if (values.purpose) filters.purpose = values.purpose;
     if (budget[0] > 0) filters.minPrice = budget[0];
     if (budget[1] < 100000000) filters.maxPrice = budget[1];
     if (preferences.length > 0) filters.preferences = preferences.join(',');
@@ -83,9 +87,12 @@ export default function AISuggest() {
   const loading = isLoading || isFetching || savePrefMutation.isPending;
 
   const liveSignals = [
+    `Mục đích: ${watchedPurpose === 'gift' ? 'Làm quà tặng 🎁' : 'Cho bản thân 👤'}`,
     ...watchedStyles.map((s) => `Phong cách: ${s}`),
     ...watchedColors.slice(0, 2).map((c) => `Màu: ${c}`),
-    ...(watchedBudget[1] < 100000000 ? [`Ngân sách ≤ ${formatBudgetLabel(watchedBudget[1])}`] : []),
+    ...(watchedBudget[0] > 0 || watchedBudget[1] < 100000000
+      ? [`Ngân sách: ${formatBudgetLabel(watchedBudget[0])} - ${formatBudgetLabel(watchedBudget[1])}`]
+      : []),
   ];
 
   const getProductReasons = (product) => {
@@ -110,9 +117,15 @@ export default function AISuggest() {
       }
     });
 
-    // Show budget reason if product is within budget
-    if (watchedBudget[1] && product?.price <= watchedBudget[1]) {
-      reasons.push(`Trong ngân sách ${formatBudgetLabel(watchedBudget[1])}`);
+    // Show budget reason if product is within budget range
+    const minB = watchedBudget[0] || 0;
+    const maxB = watchedBudget[1] || 100000000;
+    if (product?.price >= minB && product?.price <= maxB) {
+      if (minB === 0) {
+        reasons.push(`Ngân sách dưới ${formatBudgetLabel(maxB)}`);
+      } else {
+        reasons.push(`Ngân sách ${formatBudgetLabel(minB)} - ${formatBudgetLabel(maxB)}`);
+      }
     }
 
     // Return empty array → AIRecCard will use its own deriveDefaultReasons fallback
@@ -292,7 +305,7 @@ export default function AISuggest() {
                   <Space size={10} wrap>
                     <CheckCircleFilled style={{ color: '#10B981', fontSize: 18 }} />
                     <Text strong style={{ color: 'var(--text-main)', fontSize: 16 }}>
-                      {resultType === 'personalized' ? 'Danh sách cá nhân hóa' : 'Danh sách theo tín hiệu sẵn có'}
+                      {resultType === 'personalized_ai' ? 'Danh sách cá nhân hóa' : 'Danh sách theo tín hiệu sẵn có'}
                     </Text>
                   </Space>
                   <Paragraph style={{ margin: '8px 0 0', color: 'var(--text-muted)' }}>
@@ -332,7 +345,7 @@ export default function AISuggest() {
                       product={product}
                       placement="ai_suggest"
                       matchPercent={96 - Math.min(index, 5) * 3}
-                      source={resultType === 'fallback' ? 'fallback' : 'model'}
+                      source={resultType === 'featured_fallback' ? 'fallback' : 'model'}
                       reasonTitle="Vì sao AI đưa vào shortlist"
                       reasons={getProductReasons(product)}
                     />

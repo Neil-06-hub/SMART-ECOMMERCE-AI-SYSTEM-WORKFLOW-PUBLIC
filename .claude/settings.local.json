@@ -15,7 +15,12 @@
       "Bash(git restore *)",
       "Bash(node -e \"const pkg = require\\('./package.json'\\); console.log\\('geist:', pkg.dependencies.geist || 'NOT FOUND'\\); console.log\\('framer-motion:', pkg.dependencies['framer-motion'] || 'NOT FOUND'\\)\")",
       "Bash(npx next *)",
-      "Bash(grep -vE \"^$|Trace|EPERM|trace\")"
+      "Bash(grep -vE \"^$|Trace|EPERM|trace\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Read(//c/Users/admin/Download/**)",
+      "Bash(Get-Content \"c:\\\\Users\\\\admin\\\\Download\\\\Project Môn Học Năm 4 - HK2\\\\SMART-ECOMMERCE AI SYSTEM -with WorkFlow\\\\BAOCAT_THUCTAP.md\")",
+      "Bash(Select-Object -Last 5)"
     ]
   }
 }

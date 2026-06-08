@@ -2,14 +2,18 @@ const dotenv = require("dotenv");
 dotenv.config(); // Phải chạy trước mọi import khác để env vars sẵn sàng
 
 const express = require("express");
+const http = require("http");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const connectDB = require("./config/db");
 const { initMarketingJobs } = require("./jobs/marketing.cron");
 const { errorHandler } = require("./middleware/errorMiddleware");
+const { initSocket } = require("./socket");
 
 const app = express();
+const server = http.createServer(app);
+initSocket(server);
 
 // Connect Database
 connectDB();
@@ -58,17 +62,15 @@ app.get("/api/health", (req, res) => res.json({ status: "OK", message: "Smart Ec
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 
-  // Kiem tra OpenRouter API key luc khoi dong
-  const openRouterKey = (process.env.OPENROUTER_API_KEY || "").trim().replace(/^["']|["']$/g, "");
-  const openRouterModel = (process.env.OPENROUTER_MODEL || "openrouter/free").trim();
-  if (openRouterKey.length >= 10) {
-    console.log(`✅ OpenRouter API Key: ...${openRouterKey.slice(-6)} (${openRouterKey.length} chars)`);
-    console.log(`✅ OpenRouter Model: ${openRouterModel}`);
+  // Kiem tra Groq API key luc khoi dong
+  const groqKey = (process.env.GROQ_API_KEY || "").trim().replace(/^["']|["']$/g, "");
+  if (groqKey.length >= 10) {
+    console.log(`✅ Groq API Key: ...${groqKey.slice(-6)} (${groqKey.length} chars)`);
   } else {
-    console.warn("⚠️  OpenRouter API Key chua cau hinh (OPENROUTER_API_KEY trong .env)");
+    console.warn("⚠️  Groq API Key chua cau hinh (GROQ_API_KEY trong .env)");
   }
 
   // Init cron jobs after server starts

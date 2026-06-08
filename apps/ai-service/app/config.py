@@ -26,12 +26,14 @@ class Settings(BaseSettings):
     ALPHA_HOMEPAGE: float = 0.7
     ALPHA_PDP: float = 0.3
     ALPHA_CART: float = 0.5
+    ALPHA_AI_SUGGEST: float = 0.3
     ALPHA_ANONYMOUS: float = 0.0
 
     # N recommendations per placement
     N_HOMEPAGE: int = 12
     N_PDP: int = 8
     N_CART: int = 6
+    N_AI_SUGGEST: int = 12
 
     # ML thresholds
     PRECISION_THRESHOLD: float = 0.30
@@ -47,8 +49,9 @@ settings = Settings()
 
 # Placement → (alpha, n) lookup
 PLACEMENT_CONFIG: dict = {
-    "homepage": {"alpha": settings.ALPHA_HOMEPAGE, "n": settings.N_HOMEPAGE},
-    "pdp":      {"alpha": settings.ALPHA_PDP,      "n": settings.N_PDP},
-    "cart":     {"alpha": settings.ALPHA_CART,      "n": settings.N_CART},
+    "homepage":   {"alpha": settings.ALPHA_HOMEPAGE,   "n": settings.N_HOMEPAGE},
+    "pdp":        {"alpha": settings.ALPHA_PDP,        "n": settings.N_PDP},
+    "cart":       {"alpha": settings.ALPHA_CART,       "n": settings.N_CART},
+    "ai_suggest": {"alpha": settings.ALPHA_AI_SUGGEST, "n": settings.N_AI_SUGGEST},
 }
 

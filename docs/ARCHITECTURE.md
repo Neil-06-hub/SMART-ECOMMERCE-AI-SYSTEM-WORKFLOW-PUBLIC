@@ -2,16 +2,16 @@
 
 **Project:** SMART ECOMMERCE AI SYSTEM
 **Version:** 2.1.0
-**Date:** 2026-04-15
+**Date:** 2026-06-08
 **Author:** Senior Software Architect
 **Status:** Implemented
 **References:** `docs/TECH_STACK.md` v2.0.0 · `docs/REQUIREMENTS.md` v2.2.0
 
 ---
 
-## Implementation Status (As Built — 2026-04-15)
+## Implementation Status (As Built — 2026-06-08)
 
-> This document describes the **target architecture** (v2.0.0). The table below records **what was actually built** and where it differs from the original design.
+> This document describes the **target architecture** (v2.1.0). The table below records **what was actually built** and where it differs from the original design.
 
 | Component | Designed | As Built | Notes |
 |---|---|---|---|
@@ -24,24 +24,28 @@
 | Payment gateway | VNPay + COD | **COD only** | VNPay sandbox integration deferred; order model supports future payment fields |
 | UI library | shadcn/ui + Tailwind | **Ant Design 5** | Better Vietnamese locale support |
 | Shared TS library | `libs/shared/` | **Not created** | JS backend eliminated the need for shared TS types |
-| Circuit breaker | opossum in RecommendationModule | **opossum in `ai.controller.js`** | Same library, same config; placed in controller for simplicity |
+| Circuit breaker | opossum in RecommendationModule | **opossum in `ai.controller.js`** | Same library, config upgraded to 3000ms timeout |
 | Event bus | EventEmitter2 | **Not implemented** | Direct function calls; cron job handles cross-module email triggers |
 | BehavioralEvent write | Redis stream → Celery batch | **Direct MongoDB insert** in controller | Simpler; acceptable for current load |
 | Model hot-reload | POST /internal/reload-model | ✅ **Implemented** | asyncio.Lock atomic swap in ModelRegistry |
 | Cloudflare R2 | ML artifact storage | ✅ **Implemented** | boto3 S3-compat; fallback to local disk if not configured |
+| Customer Support | In-app static form | ✅ **Socket.io Real-time Chat** | 2-in-1 floating chatbot widget with live admin handoff queue |
+| LLM Service | OpenRouter (Gemini) | ✅ **Groq API (Llama 3 8B)** | Migrated to Groq API (`llama3-8b-8192`) for ultra-low latency & cost efficiency |
 
-**Fully implemented as designed:**
+**Fully implemented as designed & enhanced:**
 - LightFM CF (WARP loss, 128 components, 50 epochs)
 - TF-IDF CBF matrix (5000 vocab, category/price one-hot, top-50 precomputed)
-- Hybrid α×CF + (1-α)×CBF scoring with placement-specific alpha
+- Hybrid α×CF + (1-α)×CBF scoring with placement-specific alpha and gift-filtering (CBF-only) logic
 - ModelRegistry (in-memory singleton + asyncio.Lock)
 - GitHub Actions daily training pipeline
-- opossum circuit breaker (timeout=500ms, reset=60s)
+- opossum circuit breaker (timeout=3000ms, reset=60s) with budget-enforced fallback queries
 - JWT auth + bcryptjs + RBAC (customer/admin roles)
 - Cloudinary image uploads
 - Nodemailer Gmail SMTP
-- Google Gemini AI email copy generation
+- Groq API Llama 3 email copywriting, business analytics & newsletter generation
+- Real-time customer support chat queue via Socket.io (with 30s timeout fallback to AI assistant)
 - MongoDB soft-delete pattern
+- Client-side SSR-safe order cancellation
 
 ---
 
@@ -50,6 +54,12 @@
 1. [Architecture Style & Rationale](#1-architecture-style--rationale)
 2. [System Architecture Diagram](#2-system-architecture-diagram)
 3. [Core Service Breakdown](#3-core-service-breakdown)
+   - 3.1 Express.js Bootstrap Sequence
+   - 3.2 Express.js Module Architecture
+   - 3.3 Module Responsibility Matrix
+   - 3.4 Order Status State Machine
+   - 3.5 Cross-Module Event Communication
+   - 3.6 Chatbot 2-trong-1 và Hỗ trợ Trực tuyến (Live Chat)
 4. [AI Services Architecture](#4-ai-services-architecture)
 5. [API Design Standards](#5-api-design-standards)
 6. [Security Architecture](#6-security-architecture)
@@ -113,7 +123,7 @@ graph TD
 
     GHA["GitHub Actions\nML Training Cron\n02:00 ICT daily"] -->|"POST /internal/reload-model"| FastAPI
 
-    Express.js -->|"POST /recommend\ncircuit breaker\n500ms timeout"| FastAPI
+    Express.js -->|"POST /recommend\ncircuit breaker\n3000ms timeout"| FastAPI
 
     subgraph DataLayer["Data Layer"]
         MongoDB["MongoDB Atlas M0\nfree 512MB · no expiry\nMongoose ODM · Atlas Search"]
@@ -319,6 +329,118 @@ All async cross-module communication uses **EventEmitter2** (no direct service i
 | `campaign.send` | MarketingModule | NotificationModule | `{ campaignId, segmentId, channel, templateId }` |
 | `cart.abandoned` | CartModule (scheduled) | MarketingModule | `{ userId, cartId, items[], abandonedAt }` |
 
+### 3.6 Chatbot 2-trong-1 và Hỗ trợ Trực tuyến (Live Chat)
+
+Hệ thống tích hợp một giải pháp chăm sóc khách hàng toàn diện dưới dạng **Bong bóng Chat 2-trong-1 (AI Assistant + Live Agent Handoff)** chạy realtime qua Socket.io:
+
+```
+                  ┌─────────────────────────────────────────┐
+                  │          Bắt đầu cuộc trò chuyện        │
+                  └────────────────────┬────────────────────┘
+                                       │
+                                       ▼
+                  ┌─────────────────────────────────────────┐
+                  │       [Trạng thái: bot]                 │
+                  │  Tự động trả lời bằng Groq (Llama 3)    │
+                  └────────────────────┬────────────────────┘
+                                       │
+                  Khách yêu cầu / Chatbot nhận thấy từ khóa "gặp nhân viên"
+                                       │
+                                       ▼
+                  ┌─────────────────────────────────────────┐
+                  │       [Trạng thái: waiting]             │
+                  │   Gửi yêu cầu vào hàng đợi Admin        │
+                  └──────────┬───────────────────┬──────────┘
+                             │                   │
+                     Có Admin Chấp nhận     Timeout 30 giây
+                             │                   │
+                             ▼                   ▼
+            ┌─────────────────────────┐ ┌─────────────────────────┐
+            │   [Trạng thái: active]   │ │   [Trạng thái: bot]     │
+            │ Chat trực tiếp với Admin │ │ Báo bận & quay về AI    │
+            └───────────┬─────────────┘ └─────────────────────────┘
+                        │
+                  Admin kết thúc
+                        │
+                        ▼
+            ┌─────────────────────────┐
+            │  Quay lại tư vấn AI     │
+            └─────────────────────────┘
+```
+
+#### 3.6.1 Cơ chế hoạt động của Socket Server & Client
+
+- **Backend (`backend/socket.js`):** Khởi tạo máy chủ Socket.io tích hợp cùng HTTP server. Quản lý sự kiện kết nối, tham gia phòng (`join_room`), đăng ký admin (`admin_register`), gửi tin nhắn (`send_message`), và luồng chuyển giao (`request_human`, `accept_support_request`, `close_support_room`).
+- **Frontend Hook (`apps/web/hooks/useChatSocket.js`):** Kết nối tới máy chủ Socket.io từ phía trình duyệt, duy trì trạng thái kết nối (`isConnected`), danh sách tin nhắn (`messages`), trạng thái phòng (`roomStatus`), và cung cấp các hàm gửi/nhận sự kiện cho UI.
+
+#### 3.6.2 Trạng thái của Phòng hỗ trợ (`SupportRoom`)
+
+Hệ thống lưu trữ phiên chat trong collection `support_rooms` với 3 trạng thái chính:
+1. **`bot` (Tư vấn tự động):** AI Assistant tự động trả lời mọi câu hỏi của khách hàng. Luồng xử lý gọi Groq API với model `llama3-8b-8192` chạy system prompt tối ưu cho bán hàng công nghệ. Chatbot tự động phân tích lịch sử chat (10 tin nhắn gần nhất làm ngữ cảnh) để tư vấn sản phẩm.
+2. **`waiting` (Chờ duyệt):** Khi khách hàng nhấn nút "Gặp nhân viên hỗ trợ" hoặc gõ các từ khóa nhạy cảm (ví dụ: *gặp nhân viên, nói chuyện với người, gặp hỗ trợ*), Socket server chuyển đổi trạng thái phòng thành `waiting` và gửi sự kiện đến phòng `"admins"` phát tín hiệu có phòng cần tiếp nhận.
+   - *Cơ chế dự phòng (Timeout Fallback):* Một timer 30 giây được khởi tạo trên backend. Nếu không có admin nào nhấn chấp nhận trong 30 giây này, backend sẽ tự động chuyển phòng chat về trạng thái `bot` và gửi tin nhắn xin lỗi tự động đến khách hàng để tránh treo luồng.
+3. **`active` (Đang hỗ trợ):** Nhân viên quản trị chấp nhận yêu cầu từ admin panel. Phiên chat ngắt liên kết tạm thời với Groq AI và chuyển tiếp trực tiếp tin nhắn giữa Admin và Customer. Admin có thể kết thúc phiên chat bất kỳ lúc nào để chuyển khách về tư vấn AI.
+
+#### 3.6.3 Groq API Service (`groq.service.js`)
+
+Để đảm bảo hiệu năng và thời gian phản hồi (latency < 500ms), dự án sử dụng Groq API (`llama3-8b-8192`) làm động cơ LLM thay thế cho các dịch vụ bên thứ ba cũ:
+- **Shopping Advice Chat:** Xử lý bằng hàm `chatWithAI` có system prompt định hình cá tính thông minh, thân thiện của trợ lý SmartShop.
+- **Structured JSON Operations:** Sử dụng tính năng `json_object` của Groq (`runGroqJSON`) để xử lý:
+  - Phân tích câu lệnh tìm kiếm ngôn ngữ tự nhiên từ khách hàng.
+  - Sinh nội dung email marketing cá nhân hóa (`generateMarketingEmail`).
+  - Phân tích báo cáo hiệu suất kinh doanh cho Admin dashboard (`analyzeBusinessWithAI`).
+  - Viết newsletter hàng tuần gửi khách hàng (`generateNewsletterEmail`).
+
+#### 3.6.4 Sơ đồ tuần tự Chuyển giao Live Chat (Handoff Sequence Diagram)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer as Khách hàng
+    participant Widget as ChatbotWidget (React)
+    participant Server as Socket Server (Node.js)
+    participant Admin as Admin Chat Page
+    participant Groq as Groq LLM API
+
+    Note over Customer, Groq: 1. Chế độ Tư vấn tự động (Bot Mode)
+    Customer->>Widget: Nhập "Tư vấn laptop dưới 15tr"
+    Widget->>Server: emit("send_message", message)
+    Server->>Server: Lưu Message (Role: customer)
+    Server->>Groq: Gọi chatWithAI(history)
+    Groq-->>Server: Trả về câu trả lời (AI Assistant)
+    Server->>Server: Lưu Message (Role: bot)
+    Server-->>Widget: emit("receive_message", botReply)
+    Widget-->>Customer: Hiển thị phản hồi từ AI
+
+    Note over Customer, Groq: 2. Luồng Yêu cầu gặp nhân viên (Handoff Request)
+    Customer->>Widget: Nhấp nút "Gặp nhân viên"
+    Widget->>Server: emit("request_human")
+    Server->>Server: Cập nhật SupportRoom status = 'waiting'
+    Server-->>Admin: emit("active_rooms_list") [Cập nhật danh sách hàng chờ]
+    Server-->>Widget: emit("room_status", 'waiting') [Khách hàng thấy Spin chờ đợi]
+
+    Note over Customer, Groq: 3. Chấp nhận & Trò chuyện trực tiếp (Active Support)
+    Admin->>Server: emit("accept_support_request", roomId)
+    Server->>Server: Cập nhật SupportRoom status = 'active', adminId = ID
+    Server->>Server: Tạo tin nhắn hệ thống "Nhân viên đã tham gia"
+    Server-->>Widget: emit("room_status", 'active')
+    Server-->>Widget: emit("receive_message", systemMsg)
+    Server-->>Admin: emit("active_rooms_list") [Xóa khỏi danh sách chờ]
+    
+    Customer->>Widget: Nhập "Tôi cần tư vấn bảo hành đơn hàng"
+    Widget->>Server: emit("send_message", message)
+    Server-->>Admin: Phát trực tiếp tin nhắn sang màn hình Admin
+    Admin->>Server: emit("send_message", reply)
+    Server-->>Widget: Phát trực tiếp tin nhắn sang màn hình Khách hàng
+
+    Note over Customer, Groq: 4. Kết thúc phiên hỗ trợ (Close Support)
+    Admin->>Server: emit("close_support_room", roomId)
+    Server->>Server: Khôi phục SupportRoom status = 'bot', gỡ bỏ adminId
+    Server->>Server: Tạo tin nhắn hệ thống "Đã quay lại AI"
+    Server-->>Widget: emit("room_status", 'bot')
+    Server-->>Widget: emit("receive_message", backToBotMsg)
+```
+
 ---
 
 ## 4. AI Services Architecture
@@ -372,9 +494,9 @@ sequenceDiagram
 
     else Cache MISS
         Express.js->>Circuit: callFastApiRecommend(userId, placement, n)
-        Circuit->>FastAPI: POST /recommend\n(timeout: 500ms hard limit)
-
-        alt FastAPI OK (< 500ms)
+        Circuit->>FastAPI: POST /recommend\n(timeout: 3000ms hard limit)
+        Note over Circuit,FastAPI: AbortController handles timeout
+        alt FastAPI OK (< 3000ms)
             FastAPI->>Redis: HGETALL features:user:{userId}
             Redis-->>FastAPI: {recent_views, categories, price_range, rfm_segment}
             FastAPI->>FastAPI: CF_score = LightFM.predict(userId, all_items)\nCBF_score = cosine_sim[item_vector]\nhybrid = α×CF + (1-α)×CBF\npost_filter: remove OOS + already-in-cart\ntop_N = argsort(hybrid_score)[:12]
@@ -404,7 +526,7 @@ sequenceDiagram
 import CircuitBreaker from 'opossum';
 
 const breakerOptions = {
-  timeout: 500,                      // ms — FastAPI must respond within 500ms
+  timeout: 3000,                      // ms — FastAPI must respond within 3000ms
   errorThresholdPercentage: 50,      // 50% failures → open circuit
   resetTimeout: 60_000,              // 60s before half-open probe
   volumeThreshold: 5,                // min 5 requests before calculating error rate
@@ -928,7 +1050,7 @@ graph TD
 
 **Context:** FastAPI is separate container — can cold-start (15s), crash, or timeout. FR-REC-05 requires < 200ms. Core e-commerce must not be blocked by AI service failure.
 
-**Decision:** `opossum` circuit breaker in RecommendationModule. Timeout: 500ms. Error threshold: 50%. Reset: 60s. Fallback: MongoDB popularity aggregation (cached 1h in Redis).
+**Decision:** `opossum` circuit breaker in RecommendationModule. Timeout: 3000ms. Error threshold: 50%. Reset: 60s. Fallback: MongoDB popularity aggregation (cached 1h in Redis).
 
 **Consequences:**
 - (+) Core e-commerce availability independent of AI health
